@@ -80,3 +80,18 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D4.12 [accept] Generator output validated like agent output; failures classified; no silent agent fallback.
 - D4.13 [accept] `spec plan --reconcile` after merges; runs on parent trees do not count for the merged tree.
 - D4.14 [accept] Checked-input digest excludes state, evidence and journal files.
+
+## Round 5: ownership
+
+- D5.1 [accept] Ownership invariant: one owner per managed file; dependency, contribution and evidence confer no write authority; ownership changes publish atomically — REVIEW flaw 10.
+- D5.2 [accept] Kinds declare output slots and creation roots; created outputs get agent-chosen stable keys; paths are locators; route changes move files and repair imports — REVIEW flaw 10.
+- D5.3 [accept] A creation root grants no authority over existing files.
+- D5.4 [accept] Ownership transfer is a cross-declaration member move of an output.
+- D5.5 [accept] Whole-file ownership in v0; symbol ownership deferred until a language adapter mediates edits.
+- D5.6 [accept] Contributions: owner accepts schema, ordering, exclusive keys, aggregate input including referenced projections, narrow import grants, owner-deletion rule, materialisation from the applied graph; `collects` selectors for implicit registries.
+- D5.7 [accept] `stack` is the managed toolchain owner (manifest, lockfile, config); `use` bindings are managed when their package declares outputs — resolves "project owns nothing" contradiction.
+- D5.8 [accept] Published migrations are retained artifacts: immutable, never deleted.
+- D5.9 [accept] Exact byte digests for binding and evidence; formatter digest only classifies drift.
+- D5.10 [accept] Drift blocks managed declarations, is reported for frozen; `repair` added as a drift resolution; hand-edited generated files are restored, not adopted.
+- D5.11 [accept] `spec import` proposes an ownership mapping (integration owner, extern, or extraction); never competing claims.
+- D5.12 [accept] Generator-definition changes regenerate the outputs that generator wrote.

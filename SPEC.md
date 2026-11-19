@@ -49,9 +49,10 @@ Non-goals:
 A project evaluates to a graph of declarations. There are two sorts:
 
 - **Managed declarations** own outputs (files) and have a state record: pages, actions,
-  entities, components, endpoints.
-- **Context declarations** own nothing and have no state record: `project`, `stack`,
-  `use`, `module`, `rule`, `type`, `extern`. They feed the context or public projections
+  entities, components, endpoints, the `stack` (toolchain files) and any `use` binding
+  whose package declares integration files.
+- **Context declarations** own nothing and have no state record: `project`, `module`,
+  `rule`, `type`, `extern`, and `use` bindings without outputs. They feed the context or public projections
   of the declarations that reference or inherit them. They still have addresses, and
   their effects are recorded in the state of each managed declaration they reach.
 
@@ -493,8 +494,8 @@ because a hint guides future work only (see Propagation).
 | Kind | Defines | Key fields | Sort | From |
 | --- | --- | --- | --- | --- |
 | `project` | Name and project-wide context | summary, prompt | context | core |
-| `stack` | Language, runtime, framework, package manager | named slots | context | core |
-| `use ... for` | A library bound to a capability | package, capability, options | context | core |
+| `stack` | Language, runtime, framework, package manager; owns toolchain files | named slots | managed | core |
+| `use ... for` | A library bound to a capability | package, capability, options | managed if its package declares outputs, else context | core |
 | `module` | Header for a directory | summary, prompt, skills | context | core |
 | `type`, `enum` | Shared value types | fields or variants | context | core |
 | `rule` | A cross-cutting constraint | applies_to, require, check | context | core |
@@ -654,8 +655,13 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
   ],
   "members": { "expect.redirects": "c19a", "expect.generic_error": "8e02", "expect.busy_button": "f4d1" },
   "outputs": {
-    "page": { "path": "src/app/login/page.tsx", "hash": "be90" },
-    "tests": { "path": "tests/auth/login.test.ts", "hash": "13c4" }
+    "page": { "origin": "slot", "path": "src/app/login/page.tsx", "bytes": "be90", "formatted": "be11" },
+    "tests": { "origin": "slot", "path": "tests/app/login/page.test.ts", "bytes": "13c4", "formatted": "13aa" },
+    "login_form": { "origin": "created", "root": "parts", "relative_path": "LoginForm.tsx",
+                    "path": "src/app/login/_parts/LoginForm.tsx", "bytes": "77ab", "formatted": "77a0" }
+  },
+  "contributions": {
+    "nav": { "owner": "app.main_nav", "payload": "9f3e", "materialized_in": ["app.main_nav#outputs.registry"] }
   },
   "evidence": [
     {
@@ -669,7 +675,9 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
 }
 ```
 
-`members` holds each member's contract hash. `consumed` has one entry per relation and
+`members` holds each member's contract hash. `outputs` are keyed by slot or created-output
+key; `path` is only a locator. A generator-written output additionally records the
+generator's identity and the digest of the aggregate input it was produced from. `consumed` has one entry per relation and
 target, since one target can supply different projections to different edges. `status` is
 derived from `coverage` and `run`. `provenance.commit` locates the exact spec revision this
 record was applied from: the planner reads old canonical projections from it when it must
@@ -708,7 +716,7 @@ Each affected declaration gets one plan entry with independent dimensions:
 A declaration may carry both obligations. A transaction publishes only when every
 obligation of every declaration in it is satisfied on the final candidate, at the strength
 its policies require. A review verdict never waives a required test and never upgrades
-evidence to `tested`. A drifted declaration is **blocked** until its drift is resolved. A
+evidence to `tested`. Drift blocks a managed declaration until resolved (see Hashes and drift). A
 `frozen` declaration that needs an `update` blocks its transaction rather than being
 skipped. `moved` combines with any change and shows as `moved + update`.
 
@@ -735,7 +743,8 @@ Context changes are classified by what changed, not by where it was declared:
 | Changed input | Obligation on each declaration it reaches |
 | --- | --- |
 | Inherited `prompt`, a rule's prompt or `expect` member | `review`, plus `verify` of mapped tests |
-| Inherited `hint`, skills, generator definitions | none: guidance applies to future work only |
+| Inherited `hint`, skills | none: guidance applies to future work only |
+| Generator definitions | `update` of the outputs that generator wrote (regenerate), none for agent-written code |
 | Check definitions | `verify` |
 | Output conventions | `update` (files move to their new locators) |
 | Capability provider or options | `update` |
@@ -901,37 +910,168 @@ flags direct edits where the runtime supports one.
 **What the agent is not trusted with.** It does not choose its scope, declare itself done,
 or touch state.
 
-## Drift, hand-written code and shared files
+## Ownership and drift
 
-Drift is an owned output whose hash on disk differs from the baseline. It blocks the
-declaration's change until resolved:
+**Invariant.** Every managed file has exactly one owner declaration, which alone may
+modify, move or delete it. Other declarations may depend on it (through edges), contribute
+to it (through contributions), or have tests that exercise it, but none of that confers
+write authority. Allocation, transfer, move, detach and deletion of ownership publish
+atomically with the transaction that performs them. A repository-wide ownership index is
+derived from the state records and checked for collisions; it is not a second source of
+truth.
+
+### Outputs
+
+A kind declares named output slots and creation roots:
+
+```spec
+export kind page {
+  fields {
+    route: route_path @interface
+  }
+  outputs {
+    page: "src/app/${route}/page.tsx"
+    tests: "tests/app/${route}/page.test.ts"
+  }
+  creates {
+    parts: "src/app/${route}/_parts/"
+  }
+}
+```
+
+- **Slots.** Required slots exist when the create transaction publishes; nothing is
+  pre-created. A slot's path is a locator recomputed from fields, so a route change moves
+  the file.
+- **Created outputs.** The agent may create files under a creation root. Its result file
+  registers each with a stable key it chooses (`#outputs.login_form`), recorded with its
+  root and relative path, so the file keeps its identity if renamed or relocated. On a
+  route change, created files move with their root; the plan lists every move and
+  destination collision, and the update repairs imports.
+- **Creation is not adoption.** A creation root grants permission to create new files, not
+  authority over files already there. Overwriting an unmanaged file, adopting it or taking
+  another owner's file needs its own planned operation. The CLI rejects duplicate claims,
+  path escapes and aliases that resolve to an existing file.
+- **Transfer is a move.** When a part created by `login` becomes shared, it is extracted by
+  a cross-declaration member move, which joins both declarations in one transaction and
+  updates their edges and imports:
+
+```spec
+moved auth.login#outputs.login_form -> ui.AuthForm#outputs.component
+```
+
+**Granularity.** v0 owns whole files. Package conventions give each declaration its own
+files (one action per file) for new code; existing shared files get a single integration
+owner (see Brownfield adoption). Symbol-level ownership is deferred: it needs a
+language-specific adapter that mediates every edit of a shared file (imports, re-exports,
+default exports, decorators, module state), and a generic "top-level symbol plus host frame"
+model is too weak to promise. Unsupported constructs would fall back to whole files anyway.
+
+### Contributions
+
+Some files are shared by nature: navigation, middleware chains, route registries, message
+catalogs, schema indexes. Each has one owner whose kind declares what it **accepts** and how
+contributions combine. Contributors target an owner instance by name:
+
+```spec
+nextjs.nav main_nav {
+  summary: "Top navigation"
+}
+
+nextjs.page login {
+  route: "/login"
+  contributes {
+    nav: main_nav {
+      slot: "account.sign_in"
+      label: "Sign in"
+      to: self
+      order: 20
+    }
+  }
+}
+```
+
+- **Identity and checking.** `auth.login#contributes.nav` is the contribution's identity.
+  `main_nav { ... }` is checked against the owner kind's accepts schema.
+- **Aggregation contract.** The owner kind declares ordering (explicit `order`, ties broken
+  by contributor address), exclusive keys (two contributions claiming `slot:
+  "account.sign_in"` fail validation), and any domain rules (middleware order, route
+  precedence, duplicate message keys). Without such a contract, a "contribution" would just
+  be an arbitrary patch in disguise; that case is handled by giving the file one owner and
+  planning an integration task for it.
+- **Propagation.** The edge is written contributor → owner, but the owner consumes an
+  *aggregate input*: every contribution payload plus the projections of declarations they
+  reference (`to: self` carries `login`'s route, so a route change reaches the
+  registry). A contribution that references a callable grants the owner an import of that
+  callable's public entry point only.
+- **Implicit membership.** An owner kind may also declare `collects: select entity` to
+  aggregate declarations by selector, with the same restrictions as rule selectors. This is
+  how a schema index lists every entity without each entity writing a contribution.
+- **Materialisation.** Preferably the owner's package generator writes the aggregate into a
+  registry file the owner owns (`src/generated/nav.ts`), from the applied graph plus the
+  current transaction, after aggregate validation and before checks. A contribution change
+  is then generator work. Contributors that change in one plan merge into one transaction
+  through their shared owner.
+- **Owner deletion.** An owner cannot be deleted while contributions target it; the same
+  plan must remove or retarget them, or transfer ownership.
+
+### Toolchain and retained artifacts
+
+- **`stack` is the toolchain owner.** It is a managed declaration (address `stack`) owning
+  the dependency manifest, the lockfile and the configuration files its packages declare
+  (`tsconfig.json`, `next.config.js`). Every `use` adds its package to the aggregate input of
+  `stack`; the manifest and lockfile are maintained by the package manager through a
+  generator. An agent that needs a dependency returns `blocked` with the concrete `use` it
+  needs; it never runs a package manager itself.
+- **A `use` binding owns its integration files** when its package declares outputs: the
+  database binding owns `drizzle.config.ts` and the schema index. Its address is its
+  capability name. Bindings whose package declares no outputs remain context.
+- **Retained artifacts.** A published migration is retained: it is immutable, never deleted
+  (not even when its entity is deleted), and recorded in the state of the binding that
+  produced it. A mistake in a published migration is corrected by a later migration.
+  Publishing a migration file says nothing about whether a database has run it (see Runtime
+  state).
+- Files no declaration owns are unmanaged: agents cannot write them, but they still count
+  as inputs to plan binding and checks.
+
+### Hashes and drift
+
+State keeps an exact byte digest of every output; plan binding, publication and evidence
+use only exact digests. A second digest, after the pinned project formatter, classifies a
+difference as formatting-only. Formatting-only drift can be adopted without an
+implementation task, but it still makes byte-bound evidence `stale`. Drift is never
+detected by running the formatter on the working tree.
+
+Drift is an owned output whose exact digest differs from the baseline. On a `managed`
+declaration it blocks that declaration's change until resolved; on a `frozen` one it is
+reported but never blocks, since agents do not write there.
 
 | Resolution | Meaning | Effect |
 | --- | --- | --- |
-| `adopt` | The edit is fine and the spec still describes the code | Baseline hash renewed; affected evidence marked `stale` and re-run |
+| `adopt` | The edit is fine and the spec still describes the code | Baseline renewed; affected evidence `stale` |
 | `absorb` | The edit changed behaviour the spec should capture | An agent proposes a spec patch, reviewed like any spec change |
 | `overwrite` | The edit was a mistake | Planned as `update` back to the spec |
+| `repair` | The edit broke a requirement but contains useful work | See Repair; unrelated edits are preserved |
+
+A hand edit to a generated registry is restored, or its inputs changed; adopting arbitrary
+bytes as generator output is refused.
 
 **Lifecycle.** `managed` (default): agents may edit outputs. `frozen`: agents never write;
-drift is reported but not blocking, and evidence still goes stale. `protected`: outputs
-are never deleted; leaving the spec requires `detach`.
+an `update` it needs blocks its transaction; evidence still goes stale. `protected`:
+outputs are never deleted; leaving the spec requires `detach`.
 
-**Existing codebases.** `spec import <path>` drafts a declaration from existing code and
-records its baseline, with all evidence `unverified`. `extern` references a symbol
-without managing it.
+### Brownfield adoption
 
-**Ownership granularity.** v0 owns whole files.
+`spec import <paths>` proposes an ownership mapping for review: paths, proposed owners,
+public entry points, unresolved dependencies and collisions. It claims nothing it was not
+pointed at, and accepted outputs start with exact baselines and `unverified` evidence. For
+a file that serves several would-be declarations it offers three choices, and never
+creates competing claims:
 
-**Shared files.** `package.json`, navigation, middleware and schema indexes are touched by
-many declarations. The proposal is owner plus contributions: one declaration owns the
-file; others declare typed contributions to it.
-
-```spec
-nextjs.page login {
-  route: "/login"
-  contributes: [nav.item { label: "Sign in", to: self, when: "signed out" }]
-}
-```
+- **One integration owner** owns the whole file; the others depend on its public contracts
+  and may map tests to it.
+- **`extern`** references the existing symbols and leaves the file unmanaged.
+- **Planned extraction** splits the file into separately owned outputs in one checked
+  refactoring transaction.
 
 ## Verification
 
