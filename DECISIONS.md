@@ -126,3 +126,18 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D7.10 [accept] Upgrades compare old and new interpretations; declarative migration maps preserve identity only; no inferred deletion.
 - D7.11 [reject] Editor's generic `unit` kind (withdrawn) — it would hide missing conformance; cheap local kinds outside `spec/` replace it.
 - D7.12 [accept] Bootstrapping: core semantics in the compiler, one narrow `nextjs` adapter validated by the milestone and a clean-project install, local kinds, bare capabilities with explicit grants — REVIEW package-ecosystem risk.
+
+## Round 8: verification and runtime state
+
+- D8.1 [accept] Verification is a set of evidence kinds with stated promises and non-promises, not a ladder.
+- D8.2 [accept] Policies are conjunctions `{ tests, review, checks, approval }`; string shorthands expand; effective policy is a union — supersedes D3.15.
+- D8.3 [accept] Status is outcome plus currency per evidence kind; summary labels are derived.
+- D8.4 [accept] Test protocol: `{ output, case }` identity, case moves, parameter instances, oracle digests over the test-side closure, complete discovery, retained attempts, quarantine.
+- D8.5 [accept] Optional test-first with a test envelope, protected oracle digests and reviewed oracle amendments.
+- D8.6 [accept] Conformance checks report named rules (`satisfied`, `violated`, `unsupported`, `error`); packages owe only narrow rules — REVIEW verification burden.
+- D8.7 [accept] Entity changes classified on reader, writer and storage dimensions with stated assumptions; `reads`/`writes` consume the matching dimension.
+- D8.8 [accept] Backfills are explicit retained operations with manifests and data-validating completion checks.
+- D8.9 [accept] `environment` declarations with expected resource identity; `spec observe` writes immutable observation receipts; unreachable is unknown — REVIEW flaw 6.
+- D8.10 [accept] The CLI never runs migrations or deploys; `spec rollout` hands off prerequisites to an external runner; source transactions never wait for production — REVIEW flaw 6.
+- D8.11 [accept] Secrets declared by name; allowlisted protocol metadata; versioned test profiles; separate observer credentials.
+- D8.12 [accept] Cross-declaration requirements expressed as `expect` on the stating declaration; `flow` deferred.

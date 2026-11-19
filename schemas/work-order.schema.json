@@ -5,53 +5,129 @@
   "description": "One coding dispatch inside one transaction. Written by the CLI into the protocol area; read-only to the agent. A coordinated transaction (an ordering cycle) has several subjects; otherwise exactly one.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "dispatch", "binding", "attempt", "subjects", "context", "checks", "result_path", "tools"],
+  "required": [
+    "schema",
+    "dispatch",
+    "binding",
+    "attempt",
+    "subjects",
+    "context",
+    "checks",
+    "result_path",
+    "tools"
+  ],
   "properties": {
-    "schema": { "const": "intentlang.work-order/1" },
-    "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+    "schema": {
+      "const": "intentlang.work-order/1"
+    },
+    "dispatch": {
+      "$ref": "common.schema.json#/$defs/dispatch"
+    },
     "binding": {
       "description": "What this order was compiled from. order_hash is sha256 over the canonical JSON of the order (sorted keys, no whitespace, UTF-8) with binding.order_hash removed. The result must echo dispatch and order_hash.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["order_hash", "plan", "plan_revision", "plan_hash", "transaction", "base_commit", "input_snapshot", "graph_hash", "lock_hash"],
+      "required": [
+        "order_hash",
+        "plan",
+        "plan_revision",
+        "plan_hash",
+        "transaction",
+        "base_commit",
+        "input_snapshot",
+        "graph_hash",
+        "lock_hash"
+      ],
       "properties": {
-        "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "plan": { "type": "string" },
-        "plan_revision": { "type": "integer", "minimum": 1 },
-        "plan_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "transaction": { "type": "string", "pattern": "^tx-[0-9]+$" },
-        "base_commit": { "$ref": "common.schema.json#/$defs/digest" },
-        "input_snapshot": { "$ref": "common.schema.json#/$defs/digest", "description": "Digest of the candidate's exact input files, including drifted and untracked files in scope. Differs from base_commit for repairs on drifted code and for later tasks in a transaction." },
-        "graph_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "lock_hash": { "$ref": "common.schema.json#/$defs/digest" }
+        "order_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "plan_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "plan_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "transaction": {
+          "type": "string",
+          "pattern": "^tx-[0-9]+$"
+        },
+        "base_commit": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "input_snapshot": {
+          "$ref": "common.schema.json#/$defs/digest",
+          "description": "Digest of the candidate's exact input files, including drifted and untracked files in scope. Differs from base_commit for repairs on drifted code and for later tasks in a transaction."
+        },
+        "graph_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "lock_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        }
       }
     },
     "attempt": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["number", "max", "workspace", "previous"],
+      "required": [
+        "number",
+        "max",
+        "workspace",
+        "previous"
+      ],
       "properties": {
-        "number": { "type": "integer", "minimum": 1 },
-        "max": { "type": "integer", "minimum": 1 },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1
+        },
         "workspace": {
           "description": "continued: the candidate keeps the previous attempt's edits (the default). restarted: reset to checkpoint, a recovery action with a recorded reason.",
-          "enum": ["new", "continued", "restarted"]
+          "enum": [
+            "new",
+            "continued",
+            "restarted"
+          ]
         },
-        "checkpoint": { "$ref": "common.schema.json#/$defs/digest" },
-        "restart_reason": { "type": "string" },
-        "previous": { "type": "array", "items": { "$ref": "#/$defs/failure" } }
+        "checkpoint": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "restart_reason": {
+          "type": "string"
+        },
+        "previous": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/failure"
+          }
+        }
       }
     },
     "subjects": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/subject_task" }
+      "items": {
+        "$ref": "#/$defs/subject_task"
+      }
     },
     "context": {
       "description": "Mandatory context is inline. Every other required item is listed in manifest and served in full by read_context; optional items may be omitted under the packing policy, never truncated.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["inherited", "references", "manifest", "budget"],
+      "required": [
+        "inherited",
+        "references",
+        "manifest",
+        "budget"
+      ],
       "properties": {
         "inherited": {
           "description": "Project, then ancestor modules outermost first, then matching rules by address.",
@@ -59,13 +135,34 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source", "normative", "hash", "text"],
+            "required": [
+              "source",
+              "normative",
+              "hash",
+              "text"
+            ],
             "properties": {
-              "source": { "type": "string", "pattern": "^(project|module:[A-Za-z0-9_.]+|rule:[A-Za-z0-9_.]+)$" },
-              "normative": { "type": "boolean", "description": "true for prompt and rule expectations, false for hint." },
-              "hash": { "$ref": "common.schema.json#/$defs/digest" },
-              "text": { "type": "string" },
-              "previous_text": { "type": ["string", "null"], "description": "Present when this input changed and caused work." }
+              "source": {
+                "type": "string",
+                "pattern": "^(project|module:[A-Za-z0-9_.]+|rule:[A-Za-z0-9_.]+)$"
+              },
+              "normative": {
+                "type": "boolean",
+                "description": "true for prompt and rule expectations, false for hint."
+              },
+              "hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "text": {
+                "type": "string"
+              },
+              "previous_text": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Present when this input changed and caused work."
+              }
             }
           }
         },
@@ -75,22 +172,76 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["from", "target", "relation", "projection", "viewpoint", "hash", "inline"],
+            "required": [
+              "from",
+              "target",
+              "relation",
+              "projection",
+              "viewpoint",
+              "hash",
+              "inline"
+            ],
             "properties": {
-              "from": { "$ref": "common.schema.json#/$defs/address" },
-              "target": { "type": "string", "description": "An address, or a canonical catalog symbol such as npm:ui-sdk::Link." },
-              "relation": { "type": "string" },
-              "projection": { "enum": ["public", "behaviour", "catalog"] },
-              "viewpoint": { "enum": ["applied", "desired"], "description": "Ordering relations read the applied graph; mentions may read a pending declaration's desired projection." },
-              "hash": { "$ref": "common.schema.json#/$defs/digest" },
-              "inline": { "type": "boolean" },
-              "text": { "type": "string" },
-              "previous_text": { "type": ["string", "null"] },
-              "resource": { "$ref": "common.schema.json#/$defs/resource" }
+              "from": {
+                "$ref": "common.schema.json#/$defs/address"
+              },
+              "target": {
+                "type": "string",
+                "description": "An address, or a canonical catalog symbol such as npm:ui-sdk::Link."
+              },
+              "relation": {
+                "type": "string"
+              },
+              "projection": {
+                "enum": [
+                  "public",
+                  "behaviour",
+                  "catalog"
+                ]
+              },
+              "viewpoint": {
+                "enum": [
+                  "applied",
+                  "desired"
+                ],
+                "description": "Ordering relations read the applied graph; mentions may read a pending declaration's desired projection."
+              },
+              "hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "inline": {
+                "type": "boolean"
+              },
+              "text": {
+                "type": "string"
+              },
+              "previous_text": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resource": {
+                "$ref": "common.schema.json#/$defs/resource"
+              }
             },
-            "if": { "properties": { "inline": { "const": true } } },
-            "then": { "required": ["text"] },
-            "else": { "required": ["resource"] }
+            "if": {
+              "properties": {
+                "inline": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "text"
+              ]
+            },
+            "else": {
+              "required": [
+                "resource"
+              ]
+            }
           }
         },
         "manifest": {
@@ -98,30 +249,87 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "class", "required", "included", "resource", "hash", "tokens"],
+            "required": [
+              "id",
+              "class",
+              "required",
+              "included",
+              "resource",
+              "hash",
+              "tokens"
+            ],
             "properties": {
-              "id": { "type": "string" },
-              "class": { "enum": ["projection", "catalog_contract", "catalog_docs", "skill", "hint", "sibling", "code"] },
-              "required": { "type": "boolean" },
-              "included": { "type": "boolean" },
-              "resource": { "$ref": "common.schema.json#/$defs/resource" },
-              "hash": { "$ref": "common.schema.json#/$defs/digest" },
-              "tokens": { "type": "integer", "minimum": 0 }
+              "id": {
+                "type": "string"
+              },
+              "class": {
+                "enum": [
+                  "projection",
+                  "catalog_contract",
+                  "catalog_docs",
+                  "skill",
+                  "hint",
+                  "sibling",
+                  "code"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "included": {
+                "type": "boolean"
+              },
+              "resource": {
+                "$ref": "common.schema.json#/$defs/resource"
+              },
+              "hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0
+              }
             }
           }
         },
         "budget": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["policy", "renderer", "tokenizer", "input_limit", "reserved_output", "reserved_feedback", "used_input"],
+          "required": [
+            "policy",
+            "renderer",
+            "tokenizer",
+            "input_limit",
+            "reserved_output",
+            "reserved_feedback",
+            "used_input"
+          ],
           "properties": {
-            "policy": { "const": "context-pack/1" },
-            "renderer": { "type": "string" },
-            "tokenizer": { "type": "string" },
-            "input_limit": { "type": "integer", "minimum": 1 },
-            "reserved_output": { "type": "integer", "minimum": 0 },
-            "reserved_feedback": { "type": "integer", "minimum": 0 },
-            "used_input": { "type": "integer", "minimum": 0 }
+            "policy": {
+              "const": "context-pack/1"
+            },
+            "renderer": {
+              "type": "string"
+            },
+            "tokenizer": {
+              "type": "string"
+            },
+            "input_limit": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reserved_output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reserved_feedback": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "used_input": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       }
@@ -132,11 +340,21 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "definition_hash", "self_check"],
+        "required": [
+          "id",
+          "definition_hash",
+          "self_check"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "definition_hash": { "$ref": "common.schema.json#/$defs/digest" },
-          "self_check": { "type": "boolean" }
+          "id": {
+            "type": "string"
+          },
+          "definition_hash": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "self_check": {
+            "type": "boolean"
+          }
         }
       }
     },
@@ -148,16 +366,32 @@
     "tools": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mcp"],
+      "required": [
+        "mcp"
+      ],
       "properties": {
         "mcp": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["transport", "command", "protocol"],
+          "required": [
+            "transport",
+            "command",
+            "protocol"
+          ],
           "properties": {
-            "transport": { "const": "stdio" },
-            "command": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-            "protocol": { "type": "string" }
+            "transport": {
+              "const": "stdio"
+            },
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "protocol": {
+              "type": "string"
+            }
           }
         }
       }
@@ -166,8 +400,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "timeout_seconds": { "type": "integer", "minimum": 1 },
-        "result_max_bytes": { "type": "integer", "minimum": 1 }
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result_max_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     }
   },
@@ -175,68 +415,181 @@
     "subject_task": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["address", "kind", "change", "strategy", "causes", "spec", "envelope", "requirements"],
+      "required": [
+        "address",
+        "kind",
+        "change",
+        "strategy",
+        "causes",
+        "spec",
+        "envelope",
+        "requirements"
+      ],
       "properties": {
-        "address": { "$ref": "common.schema.json#/$defs/address" },
-        "previous_address": { "$ref": "common.schema.json#/$defs/address", "description": "Set when the declaration was moved." },
-        "kind": { "type": "string" },
-        "previous_kind": { "type": "string", "description": "Set for strategy replace." },
-        "change": { "enum": ["create", "update"] },
-        "strategy": { "enum": ["edit", "replace"] },
+        "address": {
+          "$ref": "common.schema.json#/$defs/address"
+        },
+        "previous_address": {
+          "$ref": "common.schema.json#/$defs/address",
+          "description": "Set when the declaration was moved."
+        },
+        "kind": {
+          "type": "string"
+        },
+        "previous_kind": {
+          "type": "string",
+          "description": "Set for strategy replace."
+        },
+        "change": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "strategy": {
+          "enum": [
+            "edit",
+            "replace"
+          ]
+        },
         "causes": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["kind"],
+            "required": [
+              "kind"
+            ],
             "properties": {
-              "kind": { "enum": ["new", "own_projection", "consumed_incompatible", "observed", "context", "convention", "provider", "repair", "escalation"] },
-              "via": { "type": "string", "description": "The changed projection, edge, context source, or the receipt of the obligation that escalated." }
+              "kind": {
+                "enum": [
+                  "new",
+                  "own_projection",
+                  "consumed_incompatible",
+                  "observed",
+                  "context",
+                  "convention",
+                  "provider",
+                  "repair",
+                  "escalation"
+                ]
+              },
+              "via": {
+                "type": "string",
+                "description": "The changed projection, edge, context source, or the receipt of the obligation that escalated."
+              }
             }
           }
         },
         "spec": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["rendering", "current", "previous", "diff", "resolution"],
+          "required": [
+            "rendering",
+            "current",
+            "previous",
+            "diff",
+            "resolution"
+          ],
           "properties": {
-            "rendering": { "const": "source/1", "description": "Source-oriented canonical rendering: local names as written, formatting normalised. resolution maps every name to its address." },
-            "current": { "type": "string" },
-            "previous": { "type": ["string", "null"] },
-            "diff": { "type": "string", "description": "Unified diff from previous to current; empty for create." },
-            "resolution": { "type": "object", "additionalProperties": { "type": "string" } }
+            "rendering": {
+              "const": "source/1",
+              "description": "Source-oriented canonical rendering: local names as written, formatting normalised. resolution maps every name to its address."
+            },
+            "current": {
+              "type": "string"
+            },
+            "previous": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "diff": {
+              "type": "string",
+              "description": "Unified diff from previous to current; empty for create."
+            },
+            "resolution": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         },
         "repair": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["subject", "contract_hash", "requirement_text", "observed", "intended", "pre_fix_snapshot"],
+          "required": [
+            "subject",
+            "contract_hash",
+            "requirement_text",
+            "observed",
+            "intended",
+            "pre_fix_snapshot"
+          ],
           "properties": {
-            "subject": { "$ref": "common.schema.json#/$defs/subject" },
-            "contract_hash": { "$ref": "common.schema.json#/$defs/digest" },
-            "requirement_text": { "type": "string" },
-            "observed": { "type": "string" },
-            "intended": { "type": "string" },
-            "pre_fix_snapshot": { "$ref": "common.schema.json#/$defs/digest" }
+            "subject": {
+              "$ref": "common.schema.json#/$defs/subject"
+            },
+            "contract_hash": {
+              "$ref": "common.schema.json#/$defs/digest"
+            },
+            "requirement_text": {
+              "type": "string"
+            },
+            "observed": {
+              "type": "string"
+            },
+            "intended": {
+              "type": "string"
+            },
+            "pre_fix_snapshot": {
+              "$ref": "common.schema.json#/$defs/digest"
+            }
           }
         },
         "envelope": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["write", "create_under", "delete", "allowed_imports"],
+          "required": [
+            "write",
+            "create_under",
+            "delete",
+            "allowed_imports"
+          ],
           "properties": {
             "write": {
               "type": "array",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["output", "path", "expected"],
+                "required": [
+                  "output",
+                  "path",
+                  "expected"
+                ],
                 "properties": {
-                  "output": { "$ref": "common.schema.json#/$defs/member" },
-                  "path": { "type": "string" },
-                  "expected": { "oneOf": [ { "$ref": "common.schema.json#/$defs/digest" }, { "const": "absent" } ] },
-                  "move_from": { "type": "string" }
+                  "output": {
+                    "$ref": "common.schema.json#/$defs/member"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "oneOf": [
+                      {
+                        "$ref": "common.schema.json#/$defs/digest"
+                      },
+                      {
+                        "const": "absent"
+                      }
+                    ]
+                  },
+                  "move_from": {
+                    "type": "string"
+                  }
                 }
               }
             },
@@ -245,8 +598,19 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["root", "path"],
-                "properties": { "root": { "type": "string" }, "path": { "type": "string", "pattern": "/$" } }
+                "required": [
+                  "root",
+                  "path"
+                ],
+                "properties": {
+                  "root": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "/$"
+                  }
+                }
               }
             },
             "delete": {
@@ -254,11 +618,21 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["output", "path", "expected"],
+                "required": [
+                  "output",
+                  "path",
+                  "expected"
+                ],
                 "properties": {
-                  "output": { "$ref": "common.schema.json#/$defs/member" },
-                  "path": { "type": "string" },
-                  "expected": { "$ref": "common.schema.json#/$defs/digest" }
+                  "output": {
+                    "$ref": "common.schema.json#/$defs/member"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "$ref": "common.schema.json#/$defs/digest"
+                  }
                 }
               }
             },
@@ -267,12 +641,34 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["module", "exports", "mode", "via"],
+                "required": [
+                  "module",
+                  "exports",
+                  "mode",
+                  "via"
+                ],
                 "properties": {
-                  "module": { "type": "string", "description": "A resolved module: package name or repository path." },
-                  "exports": { "type": "array", "items": { "type": "string" }, "description": "Granted export names; [\"*\"] only for own outputs and ambient framework modules." },
-                  "mode": { "enum": ["runtime", "type"] },
-                  "via": { "type": "string", "description": "The edge (relation:target) or ambient rule that grants it." }
+                  "module": {
+                    "type": "string",
+                    "description": "A resolved module: package name or repository path."
+                  },
+                  "exports": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Granted export names; [\"*\"] only for own outputs and ambient framework modules."
+                  },
+                  "mode": {
+                    "enum": [
+                      "runtime",
+                      "type"
+                    ]
+                  },
+                  "via": {
+                    "type": "string",
+                    "description": "The edge (relation:target) or ambient rule that grants it."
+                  }
                 }
               }
             }
@@ -283,53 +679,185 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["subject", "text", "contract_hash", "policy", "policy_source", "baseline", "tests"],
+            "required": [
+              "subject",
+              "text",
+              "contract_hash",
+              "policy",
+              "policy_source",
+              "baseline",
+              "tests"
+            ],
             "properties": {
-              "subject": { "$ref": "common.schema.json#/$defs/subject" },
-              "text": { "type": "string" },
-              "contract_hash": { "$ref": "common.schema.json#/$defs/digest" },
-              "policy": { "enum": ["tested", "checked", "judged", "accepted"] },
-              "policy_source": { "type": "string", "description": "member | rule:<address> | project | package:<name>" },
-              "baseline": { "enum": ["tested", "checked", "judged", "accepted", "unverified", "stale", "none"], "description": "Evidence status before this transaction; none for a new requirement. Not a claim about the candidate." },
-              "tests": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/test" } }
+              "subject": {
+                "$ref": "common.schema.json#/$defs/subject"
+              },
+              "text": {
+                "type": "string"
+              },
+              "contract_hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "policy": {
+                "$ref": "common.schema.json#/$defs/policy"
+              },
+              "policy_source": {
+                "type": "string",
+                "description": "member | rule:<address> | project | package:<name>"
+              },
+              "baseline": {
+                "enum": [
+                  "tested",
+                  "judged",
+                  "accepted",
+                  "unverified",
+                  "stale",
+                  "none"
+                ],
+                "description": "Summary label of evidence before this transaction; none for a new requirement. Not a claim about the candidate."
+              },
+              "tests": {
+                "type": "array",
+                "items": {
+                  "$ref": "common.schema.json#/$defs/test"
+                }
+              }
             }
           }
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "causes": { "contains": { "properties": { "kind": { "const": "repair" } } } } } },
-          "then": { "required": ["repair"] },
-          "else": { "not": { "required": ["repair"] } }
+          "if": {
+            "properties": {
+              "causes": {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "repair"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "repair"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "repair"
+              ]
+            }
+          }
         },
         {
-          "if": { "properties": { "strategy": { "const": "replace" } } },
-          "then": { "required": ["previous_kind"] }
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "replace"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "previous_kind"
+            ]
+          }
         },
         {
-          "if": { "properties": { "change": { "const": "create" } } },
-          "then": { "properties": { "spec": { "properties": { "previous": { "const": null } } } } }
+          "if": {
+            "properties": {
+              "change": {
+                "const": "create"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "spec": {
+                "properties": {
+                  "previous": {
+                    "const": null
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
     "failure": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["attempt", "snapshot", "kind", "classification", "fingerprint", "excerpt", "diagnostics"],
+      "required": [
+        "attempt",
+        "snapshot",
+        "kind",
+        "classification",
+        "fingerprint",
+        "excerpt",
+        "diagnostics"
+      ],
       "properties": {
-        "attempt": { "type": "integer", "minimum": 1 },
-        "snapshot": { "$ref": "common.schema.json#/$defs/digest" },
-        "kind": { "enum": ["check_failed", "envelope_violation", "import_violation", "ownership_violation", "result_invalid", "result_missing", "binding_mismatch", "review_nonconforming", "blocker_rejected", "timeout"] },
-        "classification": { "enum": ["implementation", "test", "infrastructure", "protocol"] },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "snapshot": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "kind": {
+          "enum": [
+            "check_failed",
+            "envelope_violation",
+            "import_violation",
+            "ownership_violation",
+            "result_invalid",
+            "result_missing",
+            "binding_mismatch",
+            "review_nonconforming",
+            "blocker_rejected",
+            "timeout"
+          ]
+        },
+        "classification": {
+          "enum": [
+            "implementation",
+            "test",
+            "infrastructure",
+            "protocol"
+          ]
+        },
         "check": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["id", "definition_hash"],
-          "properties": { "id": { "type": "string" }, "definition_hash": { "$ref": "common.schema.json#/$defs/digest" } }
+          "required": [
+            "id",
+            "definition_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "definition_hash": {
+              "$ref": "common.schema.json#/$defs/digest"
+            }
+          }
         },
-        "fingerprint": { "$ref": "common.schema.json#/$defs/digest" },
-        "excerpt": { "type": "string", "maxLength": 4000 },
-        "diagnostics": { "$ref": "common.schema.json#/$defs/resource" }
+        "fingerprint": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "diagnostics": {
+          "$ref": "common.schema.json#/$defs/resource"
+        }
       }
     }
   }

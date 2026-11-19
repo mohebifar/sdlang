@@ -2,7 +2,7 @@
   "schema": "intentlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:2ea9bd6e708021610b83de15addb4da13cbb755f72a9cd8c162568b05c59c4ef",
+    "order_hash": "sha256:0ad5af11a69deb1bc9cfd12224e25582133873e59dcbe61e5fcbf2cb20b31614",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -125,7 +125,12 @@
           },
           "text": "valid credentials redirect to @{dashboard.home}",
           "contract_hash": "sha256:5b65bd5fbf00c1822fa12e9f3a7a1d991ee67b70f37f56512ffcd3ae3ad75e20",
-          "policy": "tested",
+          "policy": {
+            "tests": true,
+            "review": true,
+            "checks": [],
+            "approval": false
+          },
           "policy_source": "project",
           "baseline": "tested",
           "tests": [
@@ -142,7 +147,12 @@
           },
           "text": "invalid credentials show one generic error and keep the email filled in",
           "contract_hash": "sha256:df5a3e6df5073b5b825f1ac89b62f19cb1b10f1dcd86861f8c61d0733e4c310e",
-          "policy": "tested",
+          "policy": {
+            "tests": true,
+            "review": true,
+            "checks": [],
+            "approval": false
+          },
           "policy_source": "project",
           "baseline": "tested",
           "tests": [
@@ -159,7 +169,12 @@
           },
           "text": "the submit button is disabled while the request is in flight",
           "contract_hash": "sha256:0c989e196f8989b687a4c1d6aad74b8f63746aa002e1df8f4643503a1a151065",
-          "policy": "tested",
+          "policy": {
+            "tests": true,
+            "review": true,
+            "checks": [],
+            "approval": false
+          },
           "policy_source": "project",
           "baseline": "tested",
           "tests": [
@@ -176,7 +191,12 @@
           },
           "text": "the forgot-password link goes to @{forgot_password}",
           "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
-          "policy": "tested",
+          "policy": {
+            "tests": true,
+            "review": true,
+            "checks": [],
+            "approval": false
+          },
           "policy_source": "project",
           "baseline": "none",
           "tests": []

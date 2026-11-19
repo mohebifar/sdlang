@@ -5,20 +5,48 @@
   "description": "A review dispatch against a frozen candidate. The reviewer wrote none of the candidate's code and has no write authority. One order may batch many subjects; each needs its own verdict.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "dispatch", "binding", "subjects", "context", "verdict_path", "tools"],
+  "required": [
+    "schema",
+    "dispatch",
+    "binding",
+    "subjects",
+    "context",
+    "verdict_path",
+    "tools"
+  ],
   "properties": {
-    "schema": { "const": "intentlang.review-order/1" },
-    "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+    "schema": {
+      "const": "intentlang.review-order/1"
+    },
+    "dispatch": {
+      "$ref": "common.schema.json#/$defs/dispatch"
+    },
     "binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["order_hash", "plan_hash", "candidate_snapshot", "graph_hash", "lock_hash"],
+      "required": [
+        "order_hash",
+        "plan_hash",
+        "candidate_snapshot",
+        "graph_hash",
+        "lock_hash"
+      ],
       "properties": {
-        "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "plan_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "candidate_snapshot": { "$ref": "common.schema.json#/$defs/digest" },
-        "graph_hash": { "$ref": "common.schema.json#/$defs/digest" },
-        "lock_hash": { "$ref": "common.schema.json#/$defs/digest" }
+        "order_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "plan_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "candidate_snapshot": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "graph_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "lock_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        }
       }
     },
     "subjects": {
@@ -27,89 +55,209 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "subject", "text", "contract_hash", "context_hash", "policy", "assess"],
+        "required": [
+          "id",
+          "subject",
+          "text",
+          "contract_hash",
+          "context_hash",
+          "policy",
+          "assess"
+        ],
         "properties": {
-          "id": { "type": "string" },
+          "id": {
+            "type": "string"
+          },
           "subject": {
             "description": "A named requirement, or a compiler-issued context subject (requirement '<target>#context.<source-hash-prefix>') for normative prompt text without an expect member.",
             "$ref": "common.schema.json#/$defs/subject"
           },
-          "text": { "type": "string" },
-          "previous_text": { "type": ["string", "null"] },
-          "contract_hash": { "$ref": "common.schema.json#/$defs/digest" },
-          "context_hash": { "$ref": "common.schema.json#/$defs/digest" },
-          "policy": { "enum": ["tested", "checked", "judged", "accepted"] },
+          "text": {
+            "type": "string"
+          },
+          "previous_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contract_hash": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "context_hash": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "policy": {
+            "$ref": "common.schema.json#/$defs/policy"
+          },
           "assess": {
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,
-            "items": { "enum": ["conformance", "coverage", "regression"] }
+            "items": {
+              "enum": [
+                "conformance",
+                "coverage",
+                "regression"
+              ]
+            }
           },
-          "code": { "type": "array", "items": { "type": "string" }, "description": "Candidate paths relevant to this subject." },
+          "code": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Candidate paths relevant to this subject."
+          },
           "coverage_candidates": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["id", "tests", "run_receipts"],
+              "required": [
+                "id",
+                "tests",
+                "run_receipts"
+              ],
               "properties": {
-                "id": { "type": "string" },
+                "id": {
+                  "type": "string"
+                },
                 "tests": {
                   "type": "array",
                   "minItems": 1,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["test", "definition_hash"],
+                    "required": [
+                      "test",
+                      "definition_hash"
+                    ],
                     "properties": {
-                      "test": { "$ref": "common.schema.json#/$defs/test" },
-                      "definition_hash": { "$ref": "common.schema.json#/$defs/digest" }
+                      "test": {
+                        "$ref": "common.schema.json#/$defs/test"
+                      },
+                      "definition_hash": {
+                        "$ref": "common.schema.json#/$defs/digest"
+                      }
                     }
                   }
                 },
-                "run_receipts": { "type": "array", "items": { "type": "string" } }
+                "run_receipts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           },
           "regression": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["observed", "pre_fix_receipt", "candidate_receipt"],
+            "required": [
+              "observed",
+              "pre_fix_receipt",
+              "candidate_receipt"
+            ],
             "properties": {
-              "observed": { "type": "string" },
-              "pre_fix_receipt": { "type": "string" },
-              "candidate_receipt": { "type": "string" }
+              "observed": {
+                "type": "string"
+              },
+              "pre_fix_receipt": {
+                "type": "string"
+              },
+              "candidate_receipt": {
+                "type": "string"
+              }
             }
           }
         },
         "allOf": [
-          { "if": { "properties": { "assess": { "contains": { "const": "coverage" } } } }, "then": { "required": ["coverage_candidates"] } },
-          { "if": { "properties": { "assess": { "contains": { "const": "regression" } } } }, "then": { "required": ["regression"] } }
+          {
+            "if": {
+              "properties": {
+                "assess": {
+                  "contains": {
+                    "const": "coverage"
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "coverage_candidates"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "assess": {
+                  "contains": {
+                    "const": "regression"
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "regression"
+              ]
+            }
+          }
         ]
       }
     },
     "context": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["manifest"],
+      "required": [
+        "manifest"
+      ],
       "properties": {
-        "manifest": { "type": "array", "items": { "type": "string" }, "description": "Resources available through read_context, including snapshot-bound code and test files." }
+        "manifest": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Resources available through read_context, including snapshot-bound code and test files."
+        }
       }
     },
-    "verdict_path": { "type": "string", "pattern": "^\\.spec/run/[a-z0-9/_-]+/verdict\\.json$" },
+    "verdict_path": {
+      "type": "string",
+      "pattern": "^\\.spec/run/[a-z0-9/_-]+/verdict\\.json$"
+    },
     "tools": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mcp"],
+      "required": [
+        "mcp"
+      ],
       "properties": {
         "mcp": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["transport", "command", "protocol"],
+          "required": [
+            "transport",
+            "command",
+            "protocol"
+          ],
           "properties": {
-            "transport": { "const": "stdio" },
-            "command": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-            "protocol": { "type": "string" }
+            "transport": {
+              "const": "stdio"
+            },
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "protocol": {
+              "type": "string"
+            }
           }
         }
       }

@@ -21,20 +21,35 @@
       "description": "An evidence subject: the declaration the requirement applies to, and the requirement. They differ for rule requirements.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["target", "requirement"],
+      "required": [
+        "target",
+        "requirement"
+      ],
       "properties": {
-        "target": { "$ref": "#/$defs/address" },
-        "requirement": { "$ref": "#/$defs/member" }
+        "target": {
+          "$ref": "#/$defs/address"
+        },
+        "requirement": {
+          "$ref": "#/$defs/member"
+        }
       }
     },
     "test": {
       "description": "One test case inside a test output owned by a declaration.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["output", "case"],
+      "required": [
+        "output",
+        "case"
+      ],
       "properties": {
-        "output": { "$ref": "#/$defs/member" },
-        "case": { "type": "string", "minLength": 1 }
+        "output": {
+          "$ref": "#/$defs/member"
+        },
+        "case": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "resource": {
@@ -42,11 +57,43 @@
       "type": "string",
       "pattern": "^ctx:[a-z0-9_-]+:[0-9a-f]{12}$"
     },
-    "untrusted_text": { "type": "string", "maxLength": 4000 },
+    "untrusted_text": {
+      "type": "string",
+      "maxLength": 4000
+    },
     "dispatch": {
       "type": "string",
       "description": "<plan>/<revision>/<transaction>/<n>: unique across plans, revisions and attempts.",
       "pattern": "^[a-z0-9-]+/r[0-9]+/tx-[0-9]+/[0-9]+$"
+    },
+    "policy": {
+      "description": "A conjunction of evidence obligations. String shorthands expand: tested = tests+review, judged = review, accepted = approval.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "review",
+        "checks",
+        "approval"
+      ],
+      "properties": {
+        "tests": {
+          "type": "boolean"
+        },
+        "review": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "approval": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

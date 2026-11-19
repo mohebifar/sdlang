@@ -2,7 +2,7 @@
   "schema": "intentlang.review-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
   "binding": {
-    "order_hash": "sha256:74ffd67e6f420363a223683baa54e34baa8d383c37412a319515c0a0d37e34d0",
+    "order_hash": "sha256:19bec95940e83d867f96ebda0316832b60a5c8af5e2deb08461d0863bb3457d5",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -19,7 +19,12 @@
       "previous_text": null,
       "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
       "context_hash": "sha256:13c427611fdde318040d30c838596659b3c2a8ea348d60e956ffbf9d3404d2d6",
-      "policy": "tested",
+      "policy": {
+        "tests": true,
+        "review": true,
+        "checks": [],
+        "approval": false
+      },
       "assess": [
         "conformance",
         "coverage"

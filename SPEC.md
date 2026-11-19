@@ -181,8 +181,8 @@ The **baseline** is the set of output hashes a human or a passing transaction ac
 
 - **Coverage**: a judgement that a given test covers a given revision of the
   requirement's text. It is made by a reviewer that did not write the code (a human or a
-  separate agent) and records the requirement's contract hash and the test's definition
-  hash.
+  separate agent) and records the requirement's contract hash and the test's oracle
+  digest (see Tests).
 - **Run**: the test passed, on a recorded git tree, under a recorded check definition.
 
 A requirement is `tested` only when both are current. Editing an expectation's text keeps
@@ -425,8 +425,8 @@ a warning, since rules also cover declarations added later.
 | Sort | Names |
 | --- | --- |
 | Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `annotation` |
-| Core kinds | `entity`, `action`, `rule` |
-| Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template` |
+| Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator` |
+| Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret` |
 | Constants | `now` |
 | Annotations | see above |
 
@@ -499,7 +499,8 @@ because a hint guides future work only (see Propagation).
 | `use ... for` | A library bound to a capability | package, capability, options | managed if its package declares outputs, else context | core |
 | `module` | Header for a directory | summary, prompt, skills | context | core |
 | `type`, `enum` | Shared value types | fields or variants | context | core |
-| `rule` | A cross-cutting constraint | applies_to, require, check | context | core |
+| `rule` | A cross-cutting constraint | applies_to, prompt, expect | context | core |
+| `environment` | A deployment target the CLI observes | database binding, connection variable, expected resource | context | core |
 | `extern` | Existing code referenced but not managed | source, summary | context | core |
 | `entity` | A persisted data type | typed fields, relations, constraints | managed | core |
 | `action` | A callable contract, independent of transport | input, output, errors, requires, reads, writes | managed | core |
@@ -1307,30 +1308,227 @@ creates competing claims:
 
 ## Verification
 
-| Level | Catches | Supplied by | Deterministic |
-| --- | --- | --- | --- |
-| 1. Compile | Dangling references, name collisions, spec type errors, bad annotations | The language | Yes |
-| 2. Conformance | Wrong output path, imports outside the allowed set, columns differing from entity fields | The package | Yes |
-| 3. Build | Type errors, lint failures, broken build | The package | Yes |
-| 4. Behaviour | An `expect` item with no passing test mapped to it | Tests, run by the CLI | The run is; test quality is not |
-| 5. Review | Prose requirements no test covers | A separate agent | No |
+Verification produces kinds of evidence, not levels of one ladder. Each says something
+precise and is silent about the rest:
 
-**Allowed imports.** Code owned by a declaration may import only what its edges grant
-(see the relations table), plus the ambient imports its kind declares (for a
-`nextjs.page`, `next/*` and `react`). A page that mentions `admin.billing` in prose gains
-no right to import billing code; a page that `calls` an action may import that action's
-public entry point and nothing else it owns.
+| Evidence | Promises | Does not establish |
+| --- | --- | --- |
+| Compile | The graph satisfies the language's static rules | Anything about the code |
+| Conformance | A named checker reported a named rule satisfied on recorded inputs, within its stated scope | Compliance with prose; runtime facts |
+| Build | Configured commands succeeded under a recorded profile | Behaviour |
+| Behaviour test | Selected cases met the outcome policy on recorded inputs, and a current review judged their oracles to cover this requirement revision | Exhaustive behaviour; absence of flakes; production success |
+| Review | An identified reviewer gave a recorded verdict on specified artifacts | A proof |
+| Human acceptance | A human approved an exact revision and scope | A test |
+| Runtime observation | A collector reported specified external facts at a recorded time | That they are still true; permission to deploy |
 
-**Statuses.** Each requirement ends as `tested`, `checked`, `judged`, `accepted` (a human
-signed off), `unverified`, or `stale` (its inputs changed since it ran). A member's
-`verify` field, a rule, or the project's `verify` field sets the required policy (the core
-default is `judged`); the effective policy is the strongest one, and nothing can weaken it. `tested` is satisfied only by `tested`;
-`checked` by `checked` or `tested`; `judged` by any of the three. `accepted` is a human
-sign-off and satisfies only an `accepted` policy, because a human approval is not a test.
+Compile, conformance and build are obligations of every transaction. Requirements carry
+the rest.
 
-**Behaviour tests are the weak point.** If one agent writes both the code and its test, the
-test can pass trivially. Mitigations: a separate agent writes the test from the `expect`
-text before implementation, and critical declarations get a mutation check.
+### Policies
+
+A requirement's policy is a conjunction, never a rank:
+
+```spec
+action charge {
+  expect {
+    exact_amount {
+      text: "the customer is charged exactly the quoted amount"
+      verify {
+        tests: true
+        review: true
+        checks: ["payments.idempotency_key_present"]
+        approval: true
+      }
+    }
+  }
+}
+```
+
+The string forms are shorthand: `"tested"` is `{ tests: true, review: true }` (the review
+judges coverage), `"judged"` is `{ review: true }`, `"accepted"` is `{ approval: true }`.
+The core default is `"judged"`. The effective policy is the union of the member's,
+matching rules' and the project's `verify`: each can add obligations, none can remove one.
+A passing test never discharges a required check, a check never discharges a required test,
+and a human approval discharges only `approval`.
+
+**Status** is reported per evidence kind, as an outcome plus currency (`tests: passed,
+current; review: conforms, stale`), because a requirement can have a current review, a
+stale coverage judgement and a fresh failed run at once. The summary labels used in plans
+and in state (`tested`, `judged`, `accepted`, `unverified`, `stale`) are derived from that
+and carry no extra meaning.
+
+### Tests
+
+- **Identity.** A test case is `{ output, case }`: a qualified test output
+  (`auth.login#outputs.tests`) and a stable tag the author writes into the test. Display
+  names and file paths can change freely; changing the tag is a new case unless moved with
+  `moved auth.login#outputs.tests.cases.old -> auth.login#outputs.tests.cases.new`. A
+  parameterised case has instances with explicit stable keys; generated or random cases
+  record their generator, input digest and seed, and cover only that execution.
+- **Oracle digest.** What a case asserts depends on more than its body: helpers, mocks,
+  fixtures, setup hooks, runner configuration and expected snapshots. The adapter hashes
+  that closure into an oracle digest, or conservatively the whole test harness. A changed
+  oracle digest invalidates coverage; changed implementation only requires a rerun.
+- **Discovery.** The test check reports a complete inventory. An expected case that is
+  missing, skipped or filtered out counts as not passed; duplicate tags fail discovery.
+  Untagged tests still run and can fail the check, but never provide coverage.
+- **Flakiness.** Every attempt is kept. Under the default policy `failed → passed` does not
+  pass; a configured retry policy may accept it, and the evidence records that it did. A
+  quarantined case leaves its requirements unsatisfied unless other evidence covers them.
+- **Many requirements, one test.** A test may be bound to several requirements, each with
+  its own coverage judgement.
+
+The per-case result protocol (runner-neutral, emitted by the package's test check):
+
+```json
+{
+  "protocol": 1,
+  "output": "auth.login#outputs.tests",
+  "selection": "complete",
+  "cases": [
+    { "case": "generic_error", "oracle": "sha256:4c1d0e7f9a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5",
+      "instances": [
+        { "key": "unknown_email", "attempts": ["passed"] },
+        { "key": "wrong_password", "attempts": ["failed", "passed"] }
+      ] }
+  ],
+  "inventory": "sha256:9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d",
+  "inputs": "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "check": "sha256:a0b1c2d3e4f5061728394a5b6c7d8e9fa0b1c2d3e4f5061728394a5b6c7d8e9f",
+  "profile": "integration-v3"
+}
+```
+
+**Test first (optional).** With `test_first: true`, a new or changed requirement revision
+whose policy includes tests gets its test written first, by a separate dispatch whose
+envelope covers the test output and the support files it needs. The CLI records the initial
+outcome honestly (assertion failure, setup failure, already passing, not executable yet)
+and then protects the approved oracle digest: the implementer cannot change it. If the
+pre-written test is wrong (a fixture with the wrong session, say), the implementer proposes
+an **oracle amendment**, an exact patch with old and new oracle digests that a reviewer
+approves or rejects; approval requires fresh coverage and runs, and the rejected oracle stays
+in history. Test-first limits who edits the oracle; it does not prove the oracle reads the
+requirement correctly, which is why coverage is still reviewed.
+
+**Requirements that span declarations.** An `expect` member may describe a journey ("a
+visitor signs up, lands on @{dashboard.home} and stays signed in after reloading"). Its test
+is owned by the declaration that states it and exercises the running application; coverage
+review names any gap (a mocked redirect covers part of a journey, not all of it). Such suites
+should run under `verify_scope: "all"`, because mentions alone do not propagate every change a
+journey depends on. A reusable `flow` kind is deferred; it would add structure, not a new
+evidence system.
+
+### Conformance
+
+A conformance check reports explicit rules per subject: `satisfied`, `violated`,
+`unsupported` or `error`, with the checker's digest and the inputs it read. Silence is
+never satisfaction. Packages may *suggest* that a rule bears on a requirement; a suggestion
+does not make the rule entail it. v0 asks package authors for narrow rules only: output
+ownership, the allowed-import rule below, and concrete schema comparisons. Broad behavioural
+analysis is not required of anyone.
+
+**Allowed imports.** Code owned by a declaration may import only what its edges grant (see
+the relations table), resolved to the target kind's `exports`, plus the exact ambient
+imports its kind declares. A page that mentions `admin.billing` in prose gains no right to
+import billing code; a page that `calls` an action may import that action's exported entry
+point and nothing else it owns.
+
+## Runtime state
+
+The CLI produces source: code, migrations, backfill code, all retained and reviewed. It
+**observes** environments. It never runs migrations or deploys. Three facts are kept
+apart: the source transaction verified; the rollout prerequisites for a target; and whether
+that target is ready, which is often unknown.
+
+### Entity changes
+
+Each entity change is classified on separate dimensions:
+
+```json
+{
+  "entity": "core.Workspace",
+  "change": "add_field",
+  "field": "archived_at",
+  "compatibility": { "existing_readers": "compatible", "existing_writers": "compatible",
+                     "assumptions": ["named-column access"] },
+  "storage": { "data_loss": "none", "backfill": "not_required", "operational_cost": "unknown" },
+  "rollout": { "requires": ["migration:workspace_archived_at"] }
+}
+```
+
+Readers (`reads` edges) consume reader compatibility; writers (`writes` edges) consume writer
+compatibility; a declaration that does both consumes both. Adding a required field with no
+database default is writer-incompatible; making a field optional is reader-incompatible;
+unknown stays unknown and is treated as incompatible. The plan's summary words
+(`additive`, `backfill`, `destructive`) are labels over these, not the classification.
+`--allow-destructive` authorises a destructive operation; it proves neither readiness nor
+recoverability. A field rename is `rename_field` through `moved` (see Moves).
+
+### Migrations and backfills
+
+Migrations are retained artifacts of the database binding, each with an immutable identity,
+checksum and dependencies. A backfill is an explicit operation, not prose:
+
+```spec
+export entity Workspace {
+  fields {
+    tenant_id: uuid? @database.backfill("tenant_from_owner_v1")
+  }
+}
+```
+
+The binding retains its manifest beside the code it runs: the migration it requires, the
+artifact digest, the execution mode (batched, one transaction per batch, a resume key, an
+idempotent retry contract) and a completion check that validates the data, including rows
+written during the backfill. A cursor reaching the last key is not completion. An agent
+writes the backfill code; checks and review judge it against the manifest. Progress lives in
+the environment, never in committed state, and an applied schema migration never implies a
+completed backfill.
+
+### Environments and observations
+
+```spec
+environment production {
+  database {
+    binding: database
+    connection: "DATABASE_URL"
+    expected_resource: "acme-prod-primary"
+  }
+}
+```
+
+`connection` names a variable, not a database, so the observer also checks
+`expected_resource`. `spec observe --env production` runs the binding's observer, with
+narrowly scoped read credentials supplied by the runner, and writes an immutable
+**observation receipt**: environment, resource id and generation (to notice restores), the
+observer's digest, the time, the ledger digest, applied migrations with checksums, and
+backfill completion. An unreachable environment yields `unknown`, never "not applied".
+Different environments are evaluated separately against migration dependencies. A ledger
+is evidence about the ledger, not proof that schema and data still match it.
+
+Receipts are bound into a plan revision by digest; observing again never silently refreshes
+an existing plan's authority.
+
+### Rollout handoff
+
+Source transactions never wait for a production migration: the migration has to be
+published before anyone can run it. Instead, `spec rollout --target production` writes a
+machine-readable handoff: artifact digests, migration and backfill dependencies, target
+resources, and the preconditions to re-check at execution time (for a dropped column: the
+expand migration applied, the backfill complete, no running release still reading the
+column). The deployment runner revalidates those under its own concurrency control, runs
+the operations and returns receipts. Without a participating runner, readiness is reported
+as unknown; the CLI never claims a rollout is safe.
+
+### Secrets and profiles
+
+`stack` declares required variables by name and type (`env { DATABASE_URL: secret }`).
+Durable protocol documents accept only allowlisted metadata, so values never enter specs,
+state, orders or evidence; runners control credential injection and diagnostic retention;
+redaction of logs is a mitigation, not a guarantee. Checks run under a named, versioned test
+profile (runner image, configuration, fixture revision, service versions) with disposable
+credentials. Observers use a separate policy with read-only production access, which
+checks and generators never receive.
 
 ## Worked example
 
@@ -1481,8 +1679,9 @@ Spec changes
       uses     + ui.link
       expect   + forgot_link
   ~ entity       core.Workspace
-      + field  archived_at: timestamp?    compatible (additive)
+      + field  archived_at: timestamp?    readers: compatible, writers: compatible, storage: no backfill
       migration: generated by drizzle (no agent)
+      rollout prerequisite: migration workspace_archived_at applied before code that reads it
 
 Obligations
   ? nextjs.page  dashboard.home           verify: consumed core.Workspace changed (compatible)
@@ -1503,7 +1702,10 @@ Bound to a41c... (graph 77d0..., lock 5f3a...). Saved to plan.json.
 
 What the plan shows:
 
-- `Workspace` changes through a generator; no LLM runs.
+- `Workspace` changes through a generator; no LLM runs. Publishing tx-1 verifies the
+  source only: `dashboard.home` may now select `archived_at`, so the rollout handoff lists
+  the migration as a prerequisite for any environment, and production readiness stays
+  unknown until a deployment runner reports it.
 - `dashboard.home` is only verified, because an additive field is a compatible change to
   what `reads` consumes. If its checks fail, it joins tx-1 as an update.
 - `auth.login` mentions `forgot_password`, but `mentions` does not order work, so tx-4

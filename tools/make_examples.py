@@ -82,7 +82,7 @@ def requirement(key, text, baseline, cases):
         "subject": {"target": "auth.login", "requirement": f"auth.login#expect.{key}"},
         "text": text,
         "contract_hash": d(f"contract:auth.login#expect.{key}:{text}"),
-        "policy": "tested",
+        "policy": {"tests": True, "review": True, "checks": [], "approval": False},
         "policy_source": "project",
         "baseline": baseline,
         "tests": [{"output": TESTS, "case": c} for c in cases],
@@ -255,7 +255,7 @@ def review_order():
             "previous_text": None,
             "contract_hash": d("contract:auth.login#expect.forgot_link:the forgot-password link goes to @{forgot_password}"),
             "context_hash": d("ctx:auth.login:tx-4"),
-            "policy": "tested",
+            "policy": {"tests": True, "review": True, "checks": [], "approval": False},
             "assess": ["conformance", "coverage"],
             "code": ["src/app/login/_parts/LoginForm.tsx", "tests/app/login/page.test.ts"],
             "coverage_candidates": [{
