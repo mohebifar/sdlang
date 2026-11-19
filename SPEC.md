@@ -1,67 +1,134 @@
-# Spec language: design draft v0
+# Spec language: design draft v0.1
 
-Exported on 2026-11-18 from the Claude Doc "Spec language: design draft v0".
-This file is now the working copy. Known weaknesses are listed in `REVIEW.md`.
+Working copy. v0 was exported on 2026-11-18; `REVIEW.md` is the self-review of v0,
+`DECISIONS.md` logs every change since, and `rounds/` holds the design rounds.
 
 ## Summary
 
-This draft proposes a small declarative language whose programs evaluate to a **spec graph**: typed nodes (pages, entities, actions, rules) joined by references. A CLI diffs that graph against recorded state and the code on disk, prints a reviewable plan, and hands each planned change to an agent as a scoped work order.
+A small declarative language whose programs evaluate to a **spec graph**: typed
+declarations (pages, entities, actions, rules) joined by typed edges. A CLI diffs that
+graph against recorded state and the code on disk, prints a reviewable plan, and applies
+it as a series of verified transactions, each handed to an agent as a scoped work order.
 
-Working names: files end in `.spec`, the CLI is `spec` (`spec plan`, `spec apply`). Every decision below is a first position, open to change.
+Working names: files end in `.spec`, the CLI is `spec` (`spec plan`, `spec apply`).
 
-| Decision | Choice in this draft | Why |
+| Decision | Choice | Why |
 | --- | --- | --- |
-| Syntax | Own declarative syntax that compiles to a JSON graph | A plan must be computable without running arbitrary code. A TypeScript SDK can target the same graph later. |
-| Identity | Every node has a symbolic name; its address is module path + kind + name | Changing a route or a prompt becomes an update, not delete-and-recreate. |
-| Status of code | Code is committed and is an input to every change | LLM output is not reproducible, so updates edit the baseline instead of regenerating it. |
-| Modules | A directory is a module; context inherits project → module → node | Splitting files needs no ceremony, and module boundaries bound what an agent reads. |
-| Framework constructs | Kinds such as `nextjs.page` come from packages, not the core | The core stays small. Packages carry skills, path conventions and checks. |
-| State | One record per node, committed to git beside the code | Each branch carries its own baseline, with fewer merge conflicts than one state file. |
-| Trust | Every acceptance criterion records how it was verified | "Applied" means checks passed, not that the agent said it finished. |
+| Syntax | Own declarative syntax that lowers to a JSON graph | A plan must be computable without running arbitrary code. Humans review the syntax; tools consume the graph. |
+| Identity | Every declaration has an address: module path + name | Changing a route, a prompt or even the kind is an update, not delete-and-recreate. |
+| Status of code | Code is committed and is an input to every change | LLM output is not reproducible, so changes edit the baseline instead of regenerating it. |
+| Unit of apply | A transaction: one changed declaration plus the dependents it breaks | An interface change and its callers cannot pass checks separately. |
+| Modules | A directory is a module; context inherits project → module → declaration | Splitting files needs no ceremony; module boundaries bound what an agent reads. |
+| Framework constructs | Kinds such as `nextjs.page` come from packages | The core stays small. |
+| State | One record per managed declaration, committed beside the code | Each branch carries its own baseline. |
+| Trust | Baseline and evidence are separate; evidence names the tree it ran on | "Applied" means checks passed on this code, not that an agent said so. |
 
 ## Goals and non-goals
 
-The language exists so a human reviews changes to intent (pages, entities, rules) and an agent works out the code.
+A human reviews changes to intent; an agent works out the code.
 
 Goals:
 
-- **Deterministic evaluation.** The same files always produce the same graph. No LLM runs before `apply`.
-- **Incremental change.** One edited node produces one scoped task, not a rebuild.
-- **Brownfield first.** Existing code can be adopted piece by piece, and hand-written parts stay hand-written.
-- **Deterministic tools before agents.** Where a migration generator or a codemod can make a change, the plan uses it and skips the LLM.
-- **Visible trust.** Every requirement shows whether it was tested, statically checked, judged by a reviewer agent, or not verified.
+- **Deterministic evaluation.** The same files always produce the same graph and plan. No LLM runs before `apply`.
+- **Incremental change.** One edited declaration produces one scoped transaction, not a rebuild.
+- **Brownfield first.** Existing code is adopted piece by piece; hand-written parts stay hand-written.
+- **Deterministic tools before agents.** Where a generator or codemod can make a change, the plan uses it.
+- **Visible trust.** Every requirement shows how, and on which tree, it was verified.
 
 Non-goals:
 
-- **A general-purpose language.** No loops, I/O or user-defined functions in v0.
+- **A general-purpose language.** No loops, I/O or user-defined functions.
 - **Replacing code.** Implementation detail stays in code. The spec says what and why.
-- **Reproducible builds from the spec alone.** Regenerating from scratch gives different code each time, so state and baseline code are part of the system.
-- **Formal verification.** Prose is first-class and partly unverifiable. The design exposes that instead of hiding it.
+- **Reproducible builds from the spec alone.** State and baseline code are part of the system.
+- **Formal verification.** Prose is first-class and partly unverifiable; the design exposes that.
 
-## Core model: the spec graph
+## Core model
 
-A project evaluates to a graph where each node is one declared piece of software and each edge is a reference between two nodes. Everything else (diff, plan, agent context, verification) is computed from that graph.
+### Declarations
 
-**Node anatomy.** Every node, whatever its kind, has four layers:
+A project evaluates to a graph of declarations. There are two sorts:
 
-| Layer | Example | Checked by the compiler? |
+- **Managed declarations** own outputs (files) and have a state record: pages, actions,
+  entities, components, endpoints.
+- **Context declarations** own nothing and have no state record: `project`, `stack`,
+  `use`, `module`, `rule`, `type`, `enum`, `extern`. They feed the context or public
+  projections of the declarations that reference or inherit them.
+
+Every declaration has four layers. The rule is to move information up the table.
+
+| Layer | Example | Checked |
 | --- | --- | --- |
-| Structure: typed fields defined by the node's kind | `route: "/login"`, an entity's fields | Yes |
-| References: edges to other nodes | `uses: [ui.input]`, `@{dashboard.home}` inside prose | Yes, a dangling reference is a compile error |
-| Intent: free prose | `prompt: """..."""` | No, the agent reads it |
-| Acceptance: `expect` lines | "invalid credentials show one generic error" | After apply, by tests or checks |
+| Structure: typed fields defined by the kind | `route: "/login"`, entity fields | By the compiler |
+| References: typed edges | `calls: [sign_in]`, `@{dashboard.home}` in prose | By the compiler; dangling is an error |
+| Intent: prose | `prompt: """..."""` | Read by the agent |
+| Acceptance: named `expect` items | `redirects: "valid credentials redirect to ..."` | After apply, by checks |
 
-The guiding rule: move information up this table whenever possible. Structure and references can be diffed and propagated exactly. A prose change can only be handed to an agent.
+### Identity
 
-**Identity.** A node's address is its module path plus its name, for example `auth.login`. Names are unique within a module across all kinds. The address is what state records are keyed by, so it must survive edits to any field.
+A declaration's **address** is its module path plus its name: `auth.login`,
+`core.Workspace`. The kind is not part of the address, so names are unique within a
+module across all kinds, and a kind change keeps the address (and plans as `replace`).
+State records, evidence and plan entries are keyed by address. A `moved` statement
+carries an address across a rename.
 
-**Renames.** A top-level `moved auth.login -> auth.sign_in` statement carries state across a rename. Without it, a rename plans as delete plus create.
+### Edges and relations
 
-**Two hashes per node.** The *interface hash* covers what other nodes can depend on: an entity's fields, a page's route, an action's signature. The *body hash* covers the rest: prompt, expectations, hints. Dependents are re-checked only when an interface hash changes, the same idea as incremental compilation.
+Every edge has a **relation**, fixed by the kind field it comes from. A relation states
+three things: what it **consumes** from the target, whether it **orders** work, and what
+**imports** it grants to the source's code.
+
+| Relation | Comes from | Consumes | Orders | Grants imports |
+| --- | --- | --- | --- | --- |
+| `calls` | `calls` | target's public projection | yes | target's public entry points |
+| `reads`, `writes` | `reads`, `writes` | entity schema | yes | entity's data-access module |
+| `uses` | `uses` | component or catalog contract | yes | target's runtime exports |
+| `types` | a type position, e.g. `output: Workspace` | type shape | yes | type-only imports |
+| `requires` | `requires` | capability contract | no | bound package's runtime exports |
+| `mentions` | `@{...}` in prose or `expect` | target's public projection | no | none |
+
+Package kinds may declare further relations with the same three properties. Reference
+cycles are legal; only cycles among changes that must be made jointly merge (see
+Transactions).
+
+### Projections and hashes
+
+Hashes are computed over canonical projections of the graph, never over source text.
+Canonical form resolves references to addresses, fills defaults, sorts unordered fields
+and normalises prose whitespace.
+
+| Projection | Covers | Invalidates |
+| --- | --- | --- |
+| `public` | `summary` plus fields the kind marks as interface (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents, through the edges that consume it |
+| `body` | Everything else the declaration states: prompt, hint, expect, uses | The declaration itself |
+| `context` | Inherited project and module prompts, matching rules, and package components: skills, output conventions, checks, generators, each hashed separately | The declaration, as a `verify` obligation |
+
+Because type references resolve recursively, changing a shared `type` changes the public
+projection of every action whose signature mentions it, and so reaches their callers.
+`extern` declarations record a hash of the source symbol they point to, so editing that
+code changes their public projection.
+
+State stores, for each outgoing edge, the hash of the projection consumed at the last
+apply. Planning compares these, so a dependent is invalidated exactly when what it
+consumed changed.
+
+### Evidence
+
+The **baseline** is the set of output hashes a human or a passing transaction accepted.
+**Evidence** is the result of a check, and records what it ran on:
+
+```
+{ "expect": "auth.login.redirects", "status": "tested",
+  "by": "tests/auth/login.test.ts#redirects",
+  "tree": "<git tree id>", "check": "<check definition hash>" }
+```
+
+Changing any input of a piece of evidence (an output it covers, its test, the check
+definition) marks it `stale`. Adopting a hand edit renews the baseline, not the evidence.
 
 ## Surface syntax
 
-The language has three statement forms: project statements, imports, and declarations of the shape `<kind> <name> { fields }`.
+The language has three statement forms: project statements, imports, and declarations of
+the shape `<kind> <name> { fields }`.
 
 ```
 // 1. Project statements (root file only)
@@ -95,23 +162,27 @@ nextjs.page login {
 }
 ```
 
-Changes from the original sketch, and why:
+- **Declarations are named, not called.** `nextjs.page login { route: "/login" }` rather
+  than `nextjs.page("/login", {...})`: a call has no stable identity.
+- **`stack` has named slots** so packages can check compatibility.
+- **`use "<package>" for <capability>`** binds a library to a capability name. Nodes write
+  `authentication.session` without naming the library. Swapping the library is a one-line
+  change whose blast radius the planner computes, and it plans as `update` on every
+  dependent: two libraries with the same capability name are not assumed compatible.
+- **Prose is triple-quoted**, because prompts contain Markdown backticks.
+- **`@{ref}` inside prose** is a `mentions` edge, checked at compile time.
 
-- **`nextjs.page("/login", {...})` becomes `nextjs.page login { route: "/login" }`.** A call has no stable identity. If the route were the identity, changing it would delete and recreate the page.
-- **`tech_stack "typescript", "nodejs", ...` becomes `stack { ... }` with named slots.** A flat list does not say which entry is the framework. Slots let packages check compatibility.
-- **`use "better-auth" for "authentication"` keeps its shape, but the role becomes an identifier: a capability.** Nodes write `authentication.session` or `authentication.skills` without naming the library. Swapping the library is then a one-line change whose blast radius the planner can compute. Free-text roles stay legal for the long tail: `use "pdf-lib" for "pdf generation"`.
-- **Backtick prose becomes triple-quoted strings.** Prompts often contain Markdown backticks.
-- **`@{ref}` inside prose is new.** A mention becomes a real edge, checked at compile time and followed during planning.
+**Values.** Strings, numbers, booleans, lists, records, references and type expressions
+such as `string?`, `uuid` or `"draft" | "sent"`. `let` binds constants.
 
-**Values.** Strings, numbers, booleans, lists, records, references, and type expressions such as `string?`, `uuid` or `"draft" | "sent"`. `let` binds constants.
-
-**Deliberately absent in v0.** Loops, conditionals, functions, I/O and environment access. Evaluation always terminates and depends only on the files. Reuse arrives in v1 as `template`: a parameterised group of declarations, such as CRUD pages for an entity, expanded at compile time so each resulting node has a stable address.
-
-**The TypeScript alternative.** Embedding the language in TypeScript, as Pulumi does, gives types and editor tooling for free. It also allows arbitrary code, so identity and determinism would rest on convention. Both frontends would emit the same graph JSON, so this choice is cheap to revisit.
+**Deliberately absent.** Loops, conditionals, functions, I/O and environment access.
+Reuse arrives as `template`, expanded at compile time so each resulting declaration has a
+stable address.
 
 ## Projects, files and modules
 
-A directory is a module: every `.spec` file in it shares one namespace, and subdirectories are submodules.
+A directory is a module: every `.spec` file in it shares one namespace, and
+subdirectories are submodules.
 
 ```
 acme/
@@ -120,23 +191,27 @@ acme/
     core/
       workspace.spec    entities shared across features
     auth/
-      module.spec       module header: summary, shared prompt, skills
+      module.spec       module header
       login.spec
-      signup.spec
+      forgot_password.spec
     dashboard/
       home.spec
   spec.lock             resolved package versions and content hashes
-  .spec/state/          one JSON record per node, committed
+  .spec/state/          one JSON record per managed declaration, committed
   src/                  generated and hand-written code
 ```
 
-- **File boundaries carry no meaning.** Moving a declaration between files in one directory changes nothing in the graph. Split files by size and by reviewer.
-- **Imports.** `import auth` brings in a local module by its path from `spec/`. `import nextjs` brings in a package. A name that matches both is a compile error. Capabilities bound with `use` (`ui`, `authentication`) are in scope everywhere.
-- **Visibility is context budgeting.** Declarations are private to their module unless marked `export`. An agent working in `auth` receives `auth` in full and only the exported interfaces of imported modules.
-- **Reference cycles are legal.** Two pages may link to each other. Only data and call dependencies order a plan, and those must be acyclic.
-- **The spec tree follows features, not code layout.** The package behind each kind decides where code lands, and state records the mapping.
+- **File boundaries carry no meaning.** Moving a declaration between files in one
+  directory changes nothing in the graph.
+- **Imports.** `import auth` brings in a local module by its path from `spec/`.
+  `import nextjs` brings in a package. A name that matches both is a compile error.
+- **Visibility is context budgeting.** Declarations are private to their module unless
+  marked `export`. An agent working in `auth` receives `auth` in full and only the public
+  projections of what it references elsewhere.
+- **The spec tree follows features, not code layout.** The kind's package decides where
+  code lands, and state records the mapping.
 
-**Inherited context.** Prompts, skills and rules flow project → module → node. A module sets its share in a header:
+**Inherited context.** Prompts, skills and rules flow project → module → declaration:
 
 ```
 module auth {
@@ -149,30 +224,31 @@ module auth {
 }
 ```
 
-Editing inherited context plans every node beneath it as `verify`, not `update`. The agent checks whether existing code still conforms and edits only where it does not. Without that distinction, one edit to the project prompt would regenerate the whole application.
+Editing inherited context changes the `context` projection of every declaration beneath
+it, which plans as a `verify` obligation, not an `update`.
 
 ## Definition kinds
 
-v0 needs twelve kinds: nine in the core and three from packages. Two more can wait.
-
-| Kind | Defines | Key fields | From | In v0 |
+| Kind | Defines | Key fields | Sort | From |
 | --- | --- | --- | --- | --- |
-| `project` | Name and project-wide context | summary, prompt | core | Yes |
-| `stack` | Language, runtime, framework, package manager | four named slots with version ranges | core | Yes |
-| `use ... for` | A library bound to a capability | package, capability, options | core | Yes |
-| `module` | Header for a directory | summary, prompt, skills | core | Yes |
-| `entity` | A persisted data type | typed fields, relations, constraints | core | Yes |
-| `type`, `enum` | Shared value types | fields or variants | core | Yes |
-| `action` | One unit of server-side behaviour, independent of transport | input, output, errors, requires, reads, writes | core | Yes |
-| `rule` | A cross-cutting constraint | applies_to, require, check | core | Yes |
-| `extern` | Existing code the spec references but does not manage | source path and symbol, summary | core | Yes |
-| `nextjs.page` | A routed screen | route, uses, calls, reads, requires | package | Yes |
-| `nextjs.endpoint` | An HTTP route | method, path, calls | package | Yes |
-| `ui.component` | A project-defined UI component | props, variants, uses | package | Yes |
-| `flow` | A user journey across pages, the source of end-to-end tests | steps | core | Later |
-| `job`, `event` | Background work, schedules, webhooks | trigger, calls | package | Later |
+| `project` | Name and project-wide context | summary, prompt | context | core |
+| `stack` | Language, runtime, framework, package manager | named slots | context | core |
+| `use ... for` | A library bound to a capability | package, capability, options | context | core |
+| `module` | Header for a directory | summary, prompt, skills | context | core |
+| `type`, `enum` | Shared value types | fields or variants | context | core |
+| `rule` | A cross-cutting constraint | applies_to, require, check | context | core |
+| `extern` | Existing code referenced but not managed | source, summary | context | core |
+| `entity` | A persisted data type | typed fields, relations, constraints | managed | core |
+| `action` | A callable contract, independent of transport | input, output, errors, requires, reads, writes | managed | core |
+| `nextjs.page` | A routed screen | route, uses, calls, reads, requires | managed | package |
+| `nextjs.endpoint` | An HTTP route | method, path, calls | managed | package |
+| `ui.component` | A project-defined UI component | props, variants, uses | managed | package |
+| `flow` | A user journey across pages | steps | managed | core, later |
+| `job`, `event` | Background work, schedules, webhooks | trigger, calls | managed | package, later |
 
-**Fields every node accepts.** `summary` (one line, shown in plans and passed to dependents), `prompt` (requirements in prose), `hint` (implementation guidance with no test obligation), `uses`, `skills`, `expect`, `depends_on` and `lifecycle`.
+**Fields every declaration accepts.** `summary` (one line, part of the public
+projection), `prompt` (requirements in prose), `hint` (implementation guidance with no
+test obligation), `uses`, `skills`, `expect`, `depends_on` and `lifecycle`.
 
 ```
 export entity Workspace {
@@ -207,25 +283,33 @@ extern ui.component LegacyChart {
 }
 ```
 
-**Why `action` is its own kind.** Business behaviour is declared once, and a page and an endpoint can both call it. A change to its signature then propagates to every caller through the graph.
+**`action` is a callable contract.** Its public projection is its signature (input,
+output, errors) and summary. It does not prescribe transport: a page can call it as a
+server function and an endpoint can expose it over HTTP. A change to its signature reaches
+every caller through `calls` edges.
 
-**Entities are special.** A field change implies a database migration, so the planner classifies each one as additive, destructive or needing a backfill. Destructive changes require an explicit flag on `apply`.
+**Entities imply migrations.** The planner classifies each field change as additive,
+destructive or needing a backfill. Destructive changes require an explicit flag on apply.
 
-**Rules attach by selector.** A rule becomes an edge to every node its `applies_to` matches, including nodes added later. Its `check` field states the required level of verification.
+**Rules attach by selector.** A rule adds its context to every declaration its
+`applies_to` matches, including declarations added later. `check` sets the minimum
+verification level for the requirement.
 
-## Packages and providers
+## Packages
 
-A package is what gives `nextjs.page` or `ui.input` a meaning. It ships five things:
+A package gives `nextjs.page` or `ui.input` a meaning. It ships:
 
-| A package ships | Example | Used for |
+| Component | Example | Used for |
 | --- | --- | --- |
-| Kinds: field schemas for declarations | `nextjs.page` with `route`, `rendering`, `layout` | Compile-time checking |
-| Catalog nodes: ready-made things to reference | `ui.input`, `ui.button`, `authentication.User` | `uses` lists and entity references |
-| Skills: instruction folders for agents | `authentication.skills` | Injected into the agent's work order |
-| Output conventions: where code for a kind lives | a page with route `/login` → `src/app/login/page.tsx` | Ownership and drift detection |
+| Kinds: field schemas and relations | `nextjs.page` with `route`, `calls` | Compile-time checking, edges |
+| Catalog declarations | `ui.input`, `authentication.User` | Referencing ready-made things |
+| Skills: instruction folders | `authentication.skills` | Mounted into work orders |
+| Output conventions | route `/login` → `src/app/login/page.tsx` | Ownership and drift detection |
 | Checks and generators | typecheck, build, `drizzle-kit generate` | Verification and deterministic steps |
 
-A kind is declared in the package's own `.spec` files:
+Each component is hashed separately into the `context` projection of declarations that
+use the package, so the plan can say *why* an upgrade affects a node (new skill text
+versus a changed output convention versus a new check).
 
 ```
 export kind page {
@@ -239,155 +323,228 @@ export kind page {
 }
 ```
 
-`@interface` marks the fields that feed the interface hash.
+`@interface` marks the fields that join the public projection.
 
-The package holds no code generator for pages. The agent writes the page; the package only says what a page is, where it lives and how to verify it.
+**Capabilities** are names a package declares it provides: `better-auth` provides
+`authentication` by exporting `User`, `session` and `skills`. v0 makes no claim that two
+providers of one capability are interchangeable.
 
-**Capabilities.** A capability is an interface a package declares it implements. `better-auth` implements `authentication` by exporting `User`, `session` and `skills`. Swapping in another implementation plans as `verify` or `update` on every node that references the capability.
+**Generators.** A package may register a deterministic generator for a class of change,
+for example Drizzle turning an entity diff into schema and migration files. The planner
+prefers a generator over an agent whenever one matches.
 
-**Generators.** A package may register a deterministic generator for a class of change. Drizzle can turn an entity diff into schema and migration files with no LLM. A field rename can run as a codemod over the regions that reference it. The planner picks a generator over an agent whenever one matches.
-
-**Distribution.** A package is an npm package holding `.spec` files and skill folders. `spec.lock` pins each version and content hash. Skill hashes feed each node's context hash, so a package upgrade appears in the plan as `verify` on the nodes that use it.
-
-**Bootstrapping.** Someone has to write these packages. v0 can ship one hand-written `nextjs` package and treat every other library as a free-text `use`, with its documentation fetched as a skill.
+**Distribution.** A package is an npm package holding `.spec` files and skill folders.
+`spec.lock` pins each version and content hash. v0 ships one hand-written `nextjs`
+package and treats every other library as a free-text `use` with its documentation
+fetched as a skill.
 
 ## State, plan and apply
 
-`spec plan` compares three things: the new graph, the recorded state, and the code on disk. It emits one action per affected node. `spec apply` runs each action as a scoped task and advances state only for nodes whose checks pass.
+`spec plan` compares the new graph, the recorded state and the code on disk, and writes a
+plan bound to exactly those inputs. `spec apply` executes the plan as a series of
+transactions and publishes state only for transactions whose checks pass.
 
 ```mermaid
 flowchart LR
-  A[Spec files<br/>.spec + packages] --> B[Evaluate<br/>new graph, no LLM]
-  B --> C[Diff the graphs<br/>one action per node]
-  BL[Baseline<br/>state: old graph<br/>code on disk: drift] --> C
-  C --> D[Plan<br/>reviewed by a human]
-  D -- spec apply --> E[Apply<br/>one task per node]
-  E --> F[Run the change<br/>generator or agent<br/>inside its write set]
-  F --> G{Checks pass?}
-  G -- yes --> H[Commit<br/>code and state]
-  G -- no --> I[Keep old state<br/>dependents skipped]
-  H -- becomes the next baseline --> BL
+  A[Spec files + packages] --> B[Evaluate<br/>new graph, no LLM]
+  BL[Baseline<br/>state + code on disk] --> C
+  B --> C[Diff and propagate<br/>old graph + new graph]
+  C --> D[Plan<br/>bound to inputs, reviewed]
+  D -- spec apply --> E[Transaction<br/>candidate worktree]
+  E --> F[Generator or agent<br/>inside the write set]
+  F --> G{Checks pass<br/>on the full tree?}
+  G -- yes --> H[Commit code,<br/>state and evidence]
+  G -- no --> I[Discard candidate<br/>dependent transactions skipped]
+  H -- next baseline --> BL
 ```
 
-Everything up to the plan is deterministic. An LLM first runs inside apply, and a node that fails its checks keeps its previous state.
+### State record
 
-**State record.** One file per node, for example `.spec/state/auth.login.json`:
+One file per managed declaration, for example `.spec/state/auth.login.json`:
 
 ```
 {
   "address": "auth.login",
   "kind": "nextjs.page",
-  "interface_hash": "9c1e...",
-  "body_hash": "41af...",
-  "context_hash": "d07b...",
-  "depends_on": { "dashboard.home": "77e2..." },
-  "applied_spec": "<normalized text of the node as last applied>",
+  "hashes": { "public": "9c1e...", "body": "41af...", "context": "d07b..." },
+  "context_parts": { "module:auth": "a1...", "nextjs:skills": "b2...", "nextjs:conventions": "c3..." },
+  "consumed": { "auth.sign_in": "77e2...", "dashboard.home": "51c0..." },
+  "applied_spec": "<canonical text of the declaration as last applied>",
   "outputs": [
-    { "path": "src/app/login/page.tsx", "region": "file", "hash": "be90..." },
-    { "path": "tests/auth/login.test.ts", "region": "file", "hash": "13c4..." }
+    { "path": "src/app/login/page.tsx", "hash": "be90..." },
+    { "path": "tests/auth/login.test.ts", "hash": "13c4..." }
   ],
-  "expect": [
-    { "id": "e1", "status": "tested", "by": "tests/auth/login.test.ts#redirects" }
+  "evidence": [
+    { "expect": "redirects", "status": "tested",
+      "by": "tests/auth/login.test.ts#redirects", "tree": "4b1d...", "check": "e0f2..." }
   ],
-  "provenance": { "model": "...", "lock": "5f3a...", "applied_at": "2026-11-18" }
+  "provenance": { "transaction": "tx-2026-11-18-003", "model": "...", "lock": "5f3a..." }
 }
 ```
 
-`context_hash` covers inherited prompts, rules, and skill and package versions. `depends_on` stores the interface hashes seen at the last apply. `applied_spec` lets the plan show a text diff of intent.
+State is committed with the spec and code it describes, so each branch carries a
+consistent triple and git history is the audit log.
 
-State is committed in the same commit as the spec and code it describes. Each branch then carries a consistent triple, git history is the audit log, and no remote backend is needed.
+### Plan entries
 
-**Plan algorithm.**
+Each affected declaration gets one plan entry with five independent dimensions, decided
+in this order:
 
-1. Evaluate the spec files to a new graph. No LLM runs.
-2. Load the state records as the old graph.
-3. Refresh: hash every owned output on disk and compare with state to find drift.
-4. Diff the graphs by address and classify each node with an action from the table below.
-5. Propagate: for every node whose interface hash changed, mark its dependents `verify`.
-6. Order by dependency into waves. Nodes in one wave have disjoint write sets and can run in parallel.
-7. Print the plan and write `plan.json`.
-
-| Action | Trigger | What runs |
+| Dimension | Values | Decided by |
 | --- | --- | --- |
-| `create` | The address is new | An agent writes new code from the spec |
-| `update` | Body or interface hash changed | An agent edits existing code, given old spec, new spec and current files |
-| `verify` | Only context or a dependency's interface changed | Checks confirm conformance; an agent edits only if they fail |
-| `replace` | Requested with `--replace`, or the node's kind changed | Old outputs are deleted and the code is regenerated |
-| `delete` | The address is gone | Owned outputs are removed and references cleaned up |
-| `move` | A `moved` statement | State is re-keyed; files are renamed if conventions require |
-| `resolve` | Drift detected | A human chooses adopt, absorb or overwrite |
+| Identity | new, same, moved, gone | Address diff and `moved` statements |
+| Lifecycle gate | allowed, frozen, protected | `lifecycle` field |
+| Drift | clean, drifted | Output hashes on disk versus baseline |
+| Change | create, update, replace, delete, detach, none | Projection diff, kind change, flags |
+| Obligation | none, verify | Propagation and context changes |
 
-**Update is an edit, not a regeneration.** The agent receives a spec diff ("prompt: +2 lines; uses: + ui.link") plus the current code, and is asked for the smallest change. This contains non-determinism: nodes that did not change are never re-rolled.
+A drifted declaration is **blocked** until a human resolves the drift; its change does not
+run. A `protected` declaration that leaves the spec cannot be deleted: the plan requires
+`detach`, which drops its state record and leaves the files as unmanaged code. Moving and
+updating at once is legal and shows as `moved + update`.
 
-**Work order.** Each plan step becomes a self-contained task:
+### Propagation and transactions
+
+1. Diff the old and new graphs by address.
+2. Propagate to a fixed point. A dependent is affected when the hash of a projection it
+   consumes, recomputed over the new graph, differs from the hash recorded in its state.
+   Edges are taken from both graphs, so a deleted edge or target still reaches its former
+   consumers.
+3. Each affected dependent gets an obligation. The target's kind classifies the change: a
+   change it declares backward-compatible (an additive entity field, a new optional
+   input) gives `verify`; anything else gives `update`. Unclassified changes are
+   incompatible.
+4. A **transaction** is a changed declaration plus every dependent with an `update`
+   obligation. Transactions that share a declaration merge.
+5. Transactions are ordered by ordering edges. If ordering edges form a cycle among
+   transactions, those transactions merge. A cycle in the reference graph alone merges
+   nothing.
+
+A breaking change to a widely called action produces one large transaction, which is
+correct. To stage it, add the new contract alongside the old (compatible), migrate callers
+in later plans, then remove the old contract.
+
+### Plan binding
+
+`spec plan` writes `plan.json`, which records its inputs:
 
 ```
 {
-  "node": "auth.login",
-  "action": "update",
-  "spec_diff": "...",
-  "write_set": ["src/app/login/page.tsx", "tests/auth/login.test.ts"],
-  "read_context": ["auth (module, full)", "dashboard.home (interface)", "ui.link (catalog)"],
-  "skills": ["authentication.skills"],
-  "must_pass": ["typecheck", "build", "expect:e1", "expect:e2", "expect:e4"]
+  "baseline_commit": "a41c...",
+  "graph_hash": "77d0...",
+  "lock_hash": "5f3a...",
+  "state_digest": "c9e1...",
+  "fingerprints": { "src/app/login/page.tsx": "be90...", "...": "..." },
+  "transactions": [
+    { "id": "tx-1", "entries": ["core.Workspace"], "obligations": ["dashboard.home"] }
+  ]
 }
 ```
 
-Writes outside `write_set` are rejected unless the agent declares a new file, which the node then owns.
+`spec apply` refuses to run if any input differs. Each transaction's write set is the
+union of its declarations' owned outputs, plus `may_create_under` directories the kind
+allows for new files (for example a page's test directory). A write outside that envelope
+fails the transaction and produces an amended plan for review.
 
-**Apply semantics.** Each node is its own transaction. State advances only when `must_pass` succeeds. A failed node keeps its old state, and later waves that depend on it are skipped. Running `plan` again picks up the remainder.
+### Apply
+
+v0 runs transactions serially:
+
+1. Create a candidate worktree from the current tree.
+2. Run each task in the transaction: a generator if one matches, otherwise an agent work
+   order. Within one transaction, tasks run in ordering-edge order in the same worktree.
+3. Run every required check on the full candidate tree, including the checks of
+   `verify`-obligated dependents.
+4. A `verify` dependent whose checks fail joins the transaction as an `update` if it lies
+   inside the reviewed envelope; otherwise the transaction fails with an amended plan.
+5. On success, commit code, state records and evidence together. On failure, discard the
+   candidate; transactions that depend on it are skipped. `spec plan` picks up the rest.
+
+| Change | Trigger | What runs |
+| --- | --- | --- |
+| `create` | New address | An agent writes code from the spec |
+| `update` | Body or public projection changed, or an incompatible consumed projection | An agent edits existing code, given old spec, new spec and current files |
+| `verify` (obligation) | Context changed, or a compatible consumed projection | Checks run; an agent edits only if they fail |
+| `replace` | `--replace`, or the kind changed | Old outputs are deleted and code is regenerated |
+| `delete` | Address gone | Owned outputs are removed |
+| `detach` | Requested, or required for a protected declaration | State is dropped; files stay |
+| `move` (identity) | A `moved` statement | State is re-keyed; files renamed if conventions require |
+
+**Update is an edit, not a regeneration.** The agent receives a spec diff plus the current
+code and is asked for the smallest change, so nodes that did not change are never
+re-rolled.
+
+**Work order.** Each agent task receives:
+
+```
+{
+  "transaction": "tx-3",
+  "node": "auth.login",
+  "change": "update",
+  "spec_diff": "...",
+  "write_set": ["src/app/login/page.tsx", "tests/auth/login.test.ts"],
+  "may_create_under": ["tests/auth/login/"],
+  "read_context": ["auth (module, full)", "dashboard.home (public)", "ui.link (catalog)"],
+  "skills": ["authentication.skills"],
+  "must_pass": ["typecheck", "build", "expect:redirects", "expect:forgot_link"]
+}
+```
 
 ## Agent interface
 
-This section was discussed after the first draft and is not yet in the Claude Doc.
-
-Agents never interpret the spec tree themselves. The `spec` CLI is the orchestrator: it compiles, diffs and decides what must change, then hands each change to an agent as a self-contained work order. The agent's only job is to make the code in a bounded set of files satisfy one node.
+Agents never interpret the spec tree. The `spec` CLI compiles, diffs, plans and hands
+each task to an agent as a self-contained work order. The agent's only job is to make the
+code in a bounded set of files satisfy one declaration.
 
 **Life of one task.**
 
-1. The CLI builds a work order per plan step. It contains the node's new spec text and the diff from the last applied version, the inherited project and module prompts, the interfaces (not the code) of the nodes it references, the skill folders named in `skills`, the write set, and the checks that must pass.
-2. Any coding agent runs it headless, in its own git worktree. The work order is rendered as the prompt, so the runtime is pluggable.
-3. The agent edits and self-checks, then writes a small result file: the files it touched, which test covers which `expect` id, and any new files it wants the node to own.
-4. The CLI verifies independently. It diffs the worktree, rejects writes outside the write set, and reruns the checks itself instead of trusting the agent's report.
-5. On a pass, the CLI updates state and commits. On a failure, it feeds the errors back for a bounded number of retries, then marks the node failed.
+1. The CLI builds the work order: the declaration's new canonical text and diff, inherited
+   prompts, the public projections of referenced declarations, the skills named in
+   `skills`, the write set and the checks.
+2. A coding agent runs it headless in the transaction's candidate worktree. The work order
+   is rendered as the prompt, so the runtime is pluggable.
+3. The agent edits and self-checks, then writes a result file: files touched, which test
+   covers which `expect` item, and any new files it wants owned.
+4. The CLI verifies independently: diffs the worktree, rejects writes outside the
+   envelope, and reruns the checks itself.
+5. On failure it feeds errors back for a bounded number of retries, then fails the
+   transaction.
 
-Nodes in the same wave have disjoint write sets, so they run in parallel worktrees and merge without conflicts.
+**Integration surfaces.** A subprocess (`spec apply --agent "<command>"`), an MCP server
+for pulling context on demand, and skills mounted as instruction folders.
 
-**Integration surfaces.**
+**Agents editing specs.** When a developer asks an agent to "add forgot password", the
+agent edits the `.spec` file, runs `spec plan`, shows the plan, then runs `spec apply`. A
+repo instruction file says owned files change only through the spec, and a pre-edit hook
+flags direct edits where the runtime supports one.
 
-- **Subprocess.** The minimum. `spec apply --agent "<command>"` pipes in the work order and reads the result file.
-- **MCP server.** The CLI exposes tools so the agent can pull context on demand: look up a referenced node's interface, request an extension to its write set, report test-to-`expect` mappings, and return "blocked" with a question when the spec is ambiguous or contradictory.
-- **Skills.** Packages ship them as ordinary instruction folders. `skills: [authentication.skills]` means "mount this folder for this task."
-
-**Agents editing specs.** When a developer asks an agent in the repo to "add forgot password", the agent should edit the `.spec` file, run `spec plan`, show the plan, then run `spec apply`. A repo instruction file tells agents that owned files change only through the spec, and a pre-edit hook (where the runtime supports one) blocks or flags direct edits to owned files. `absorb` and `spec import` run the other way: an agent reads code and proposes a spec patch for a human to review.
-
-**What the agent is not trusted with.** It does not choose its scope, declare itself done, or touch state. Those stay with the CLI.
+**What the agent is not trusted with.** It does not choose its scope, declare itself done,
+or touch state.
 
 ## Drift, hand-written code and shared files
 
-Code may be edited by hand. The planner detects the edit and asks a human what it means.
-
-Drift is an owned output whose hash on disk differs from state. It has three resolutions:
+Drift is an owned output whose hash on disk differs from the baseline. It blocks the
+declaration's change until resolved:
 
 | Resolution | Meaning | Effect |
 | --- | --- | --- |
-| `adopt` | The edit is fine and the spec still describes the code | State hash is updated; the spec is untouched |
+| `adopt` | The edit is fine and the spec still describes the code | Baseline hash renewed; affected evidence marked `stale` and re-run |
 | `absorb` | The edit changed behaviour the spec should capture | An agent proposes a spec patch, reviewed like any spec change |
-| `overwrite` | The edit was a mistake | The node is planned as `update` back to the spec |
+| `overwrite` | The edit was a mistake | Planned as `update` back to the spec |
 
-`absorb` is the code-to-spec direction. It keeps the spec honest without forbidding the hand edits any team makes during an incident.
+**Lifecycle.** `managed` (default): agents may edit outputs. `frozen`: agents never write;
+drift is reported but not blocking, and evidence still goes stale. `protected`: outputs
+are never deleted; leaving the spec requires `detach`.
 
-**Lifecycle.** Every node has a `lifecycle` field:
+**Existing codebases.** `spec import <path>` drafts a declaration from existing code and
+records its baseline, with all evidence `unverified`. `extern` references a symbol
+without managing it.
 
-- `managed` (default): agents may edit the node's outputs.
-- `frozen`: the spec documents the code, agents never write to it, and drift is ignored. For hand-tuned or sensitive code.
-- `protected`: outputs are never deleted, even if the node leaves the spec.
+**Ownership granularity.** v0 owns whole files.
 
-**Existing codebases.** `spec import src/app/login/page.tsx` drafts a node from existing code and records it in state without changing the code. `extern` is the lighter option: reference a symbol without managing it.
-
-**Ownership granularity.** v0 owns whole files. The next step is ownership by symbol through AST anchors, so two nodes can share a file. Hashing a normalized AST instead of bytes also stops formatter runs from registering as drift.
-
-**Shared files are the hard case.** `package.json`, a navigation component, middleware and a schema index are each touched by many nodes. The proposal is owner plus contributions: one node owns the file, and other nodes declare typed contributions to it.
+**Shared files.** `package.json`, navigation, middleware and schema indexes are touched by
+many declarations. The proposal is owner plus contributions: one declaration owns the
+file; others declare typed contributions to it.
 
 ```
 nextjs.page login {
@@ -396,29 +553,35 @@ nextjs.page login {
 }
 ```
 
-When the set of contributions changes, the owner is planned as `update`. The dependency manifest is the simplest instance: the project node owns it and derives it from `stack` and `use`.
-
 ## Verification
-
-A node counts as applied only when its checks pass, and each `expect` line records how it was verified.
 
 | Level | Catches | Supplied by | Deterministic |
 | --- | --- | --- | --- |
-| 1. Compile | Dangling references, type errors in the spec, selectors that match nothing | The language | Yes |
-| 2. Conformance | Code that departs from declared structure: wrong path for the route, imports outside `uses`, columns that differ from entity fields | The package, as AST checks | Yes |
-| 3. Build | Type errors, lint failures, a broken build | The package | Yes |
-| 4. Behaviour | An `expect` line with no passing test mapped to it | An agent writes the test; the runner executes it | The run is; test quality is not |
-| 5. Review | Prose requirements no test can cover, such as tone of copy | A separate agent that did not write the code | No |
+| 1. Compile | Dangling references, spec type errors, selectors matching nothing | The language | Yes |
+| 2. Conformance | Wrong output path, imports outside the allowed set, columns differing from entity fields | The package | Yes |
+| 3. Build | Type errors, lint failures, broken build | The package | Yes |
+| 4. Behaviour | An `expect` item with no passing test mapped to it | Tests, run by the CLI | The run is; test quality is not |
+| 5. Review | Prose requirements no test covers | A separate agent | No |
 
-**Statuses.** Each `expect` ends as `tested`, `checked`, `judged` or `unverified`. The apply summary prints the counts, for example "14 tested, 3 checked, 2 judged, 1 unverified". A rule or project setting can set a floor: `check: tested` fails the apply if a requirement only reached `judged`.
+**Allowed imports.** Code owned by a declaration may import only what its edges grant
+(see the relations table), plus the ambient imports its kind declares (for a
+`nextjs.page`, `next/*` and `react`). A page that mentions `admin.billing` in prose gains
+no right to import billing code; a page that `calls` an action may import that action's
+public entry point and nothing else it owns.
 
-**Level 2 makes `uses` binding.** An agent that reaches for an undeclared library fails conformance. The `uses` list is enforced, not advisory.
+**Statuses.** Each `expect` item ends as `tested`, `checked`, `judged`, `accepted` (a human
+signed off), `unverified`, or `stale` (its inputs changed since it ran). A rule or project
+setting can set a floor: `check: tested` fails the transaction if a requirement only
+reached `judged`.
 
-**Level 4 is the weak point.** If one agent writes both the code and its test, the test can pass trivially. Two mitigations: a separate agent writes the test from the `expect` text before implementation starts, and critical nodes get a mutation check, where the behaviour is broken on purpose and the test must fail.
+**Behaviour tests are the weak point.** If one agent writes both the code and its test, the
+test can pass trivially. Mitigations: a separate agent writes the test from the `expect`
+text before implementation, and critical declarations get a mutation check.
 
 ## Worked example
 
-A project with three feature modules, then the plan for one change: adding a forgot-password page.
+A project with three feature modules, then the plan for one change: adding a
+forgot-password page.
 
 `spec/app.spec`
 
@@ -463,7 +626,7 @@ export entity Workspace {
 }
 ```
 
-`spec/auth/login.spec` (the module header from the modules section sits beside it in `module.spec`)
+`spec/auth/login.spec`
 
 ```
 import nextjs
@@ -512,63 +675,108 @@ export nextjs.page home {
 }
 ```
 
-**The change.** Add `spec/auth/forgot_password.spec` with a page and an action, add one prompt line and `ui.link` to `login`, and add `archived_at: timestamp?` to `Workspace`. Meanwhile someone has hand-edited the signup page.
+**The change.** Add `spec/auth/forgot_password.spec`, add one prompt line and `ui.link`
+to `login`, and add `archived_at: timestamp?` to `Workspace`. Meanwhile someone has
+hand-edited the signup page.
+
+`spec/auth/forgot_password.spec`
+
+```
+import nextjs
+
+export nextjs.page forgot_password {
+  route: "/forgot-password"
+  summary: "Request a password reset email"
+  uses: [ui.form, ui.input, ui.button]
+  calls: [request_reset]
+  expect: [
+    "submitting any email shows the same confirmation message",
+  ]
+}
+
+action request_reset {
+  input: { email: email }
+  output: { sent: boolean }
+  errors: [RateLimited]
+  uses: [authentication.password_reset]
+  hint: "Use the library's reset flow. Never reveal whether the email exists."
+}
+```
 
 ```
 $ spec plan
 
-Spec changes (4 nodes)
+Spec changes
   + nextjs.page  auth.forgot_password     /forgot-password
   + action       auth.request_reset
   ~ nextjs.page  auth.login
       prompt   +1 line   "Link to @{forgot_password} under the password field."
       uses     + ui.link
-      expect   + e4      "the forgot-password link goes to @{forgot_password}"
+      expect   + forgot_link
   ~ entity       core.Workspace
-      + field  archived_at: timestamp?
-      migration: additive, generated by drizzle (no agent)
+      + field  archived_at: timestamp?    compatible (additive)
+      migration: generated by drizzle (no agent)
 
-Affected through dependencies (1 node)
-  ? nextjs.page  dashboard.home           verify: reads core.Workspace
+Obligations
+  ? nextjs.page  dashboard.home           verify: consumed core.Workspace changed (compatible)
 
-Drift (1 node)
+Blocked by drift
   ! nextjs.page  auth.signup              src/app/signup/page.tsx edited by hand (+14 -3)
       resolve with: adopt | absorb | overwrite
 
-Plan: 2 create, 2 update, 1 verify, 1 to resolve
-Waves: [core.Workspace] -> [auth.request_reset, dashboard.home] -> [auth.forgot_password, auth.login]
-Agent tasks: 3, plus 1 if verify fails. Generator tasks: 1.
+Transactions (serial)
+  tx-1  core.Workspace (generator)        then verify dashboard.home
+  tx-2  auth.request_reset (create)
+  tx-3  auth.forgot_password (create)     after tx-2: calls request_reset
+  tx-4  auth.login (update)
+
+Plan: 2 create, 2 update, 1 verify, 1 blocked. Agent tasks: 3, plus 1 if verify fails.
+Bound to a41c... (graph 77d0..., lock 5f3a...). Saved to plan.json.
 ```
 
 What the plan shows:
 
-- The `Workspace` change runs through a generator, with no LLM involved.
-- `dashboard.home` is only verified. The new field is additive, so its checks will most likely pass with no edit.
-- The signup drift blocks nothing else and is resolved on its own.
-- `app_requires_session` does not attach to the new page, because `/forgot-password` is outside `/app/**`.
+- `Workspace` changes through a generator; no LLM runs.
+- `dashboard.home` is only verified, because an additive field is a compatible change to
+  what `reads` consumes. If its checks fail, it joins tx-1 as an update.
+- `auth.login` mentions `forgot_password`, but `mentions` does not order work, so tx-4
+  need not wait for tx-3. Its route is known from the spec.
+- The signup drift blocks only signup.
+- `app_requires_session` does not attach to the new page: `/forgot-password` is outside
+  `/app/**`.
 
 ## Open questions and first milestone
 
-The riskiest assumption is that `update` works as a scoped edit: an agent given a spec diff and its owned files makes a small, correct change and stays inside its write set. The first milestone should test only that.
+The riskiest assumption is that `update` works as a scoped edit: given a spec diff and
+its owned files, an agent makes a small, correct change and stays inside its write set.
+The first milestone tests only that, and tests it against a control.
 
 **First milestone.**
 
-1. A parser and evaluator for `project`, `stack`, `use`, `module`, `nextjs.page` and `action`, emitting graph JSON.
-2. State records with whole-file ownership, and `spec plan` with create, update, delete and drift detection. No dependency propagation yet.
-3. `spec apply` that turns each step into a work order for one existing coding agent, with typecheck and build as the only checks.
-4. A trial on a toy Next.js app: ten spec edits in sequence. Measure first-time pass rate, writes outside the write set, and the size of each code diff relative to its spec diff.
+1. A runner driven by hand-written graph JSON: state records with whole-file ownership,
+   `plan` with create, update, delete and drift, serial transactions, and work orders for
+   one existing coding agent. Typecheck and build are the only package checks.
+2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
+   with callers, an adopted hand edit, and an edit that tempts the agent to widen its
+   scope. Each edit has an acceptance test written independently and outside the agent's
+   write set.
+3. A control arm: the same agent, the same baseline and the same edits phrased as plain
+   instructions with no graph or state.
+4. Measure: intended behaviour achieved, existing behaviour retained, writes outside the
+   envelope, review corrections, and code-diff size relative to spec-diff size.
+5. Only then: the parser and evaluator for `project`, `stack`, `use`, `module`,
+   `nextjs.page` and `action`.
 
-Deferred until that works: entities and migrations, rules, tests from `expect`, contributions, and any package beyond a hard-coded `nextjs`.
+Deferred until that works: entities and migrations, rules, tests from `expect`,
+contributions, parallel apply, and any package beyond a hard-coded `nextjs`.
 
 **Open questions.**
 
 | Question | Current lean |
 | --- | --- |
-| Own syntax or a TypeScript frontend first? | Own syntax, for static analysis. Revisit if parser and editor tooling cost dominates. |
-| How much belongs in structure versus prose? | Structure for anything another node references. Prose for the rest. |
-| How do prompts stay short, so the spec does not become code written in English? | A lint on prompt length, and pressure to move detail into fields, `hint` or skills. |
-| Are tests outputs of a node or nodes of their own? | Outputs of the node, each mapped to an `expect` id. |
-| What happens when two branches change the same node? | Per-node state files conflict exactly where the code does. After a merge, `plan` re-verifies those nodes. |
-| Is the agent runtime pluggable? | Yes. The work order JSON is the contract, and any coding agent can consume it. |
-| How are environments and secrets declared? | Out of scope for v0. The spec names required environment variables and nothing more. |
+| Own syntax or a TypeScript frontend first? | Own syntax, for static analysis. Revisit if tooling cost dominates. |
+| How much belongs in structure versus prose? | Structure for anything another declaration consumes. Prose for the rest. |
+| How do prompts stay short? | A lint on prompt length, and pressure to move detail into fields, `hint` or skills. |
+| Are tests outputs of a declaration or declarations of their own? | Outputs, each mapped to an `expect` item. |
+| What happens when two branches change the same declaration? | State files conflict where the code does. After any merge, evidence whose tree is not the merged tree is `stale` for checks that span declarations. |
 | What is the language called? | Undecided. `spec` is a placeholder. |
