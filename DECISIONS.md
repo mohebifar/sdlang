@@ -63,3 +63,20 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D3.14 [reject] Shared graph manifest for context declarations; instead `provenance.commit` locates the applied spec revision for change classification, with conservative fallback.
 - D3.15 [accept] Verification policies with an explicit satisfaction table; `accepted` is not a test.
 - D3.16 [defer] Identity epochs for pruning `moved` history; constraint and index naming (round 8).
+
+## Round 4: plan semantics
+
+- D4.1 [accept] `repair` is a cause of `update`, started by `spec repair`; requires a requirement-derived regression test that fails on the pre-fix tree; untestable bugs yield `judged` only — REVIEW flaw 2.
+- D4.2 [accept] `--unspecified` repairs cut; a missing requirement is added as an `expect` member.
+- D4.3 [accept] New `behaviour` projection; relations declare what they observe; observed changes give `verify` + `review` — REVIEW flaw 3.
+- D4.4 [accept] Implementation-only changes propagate `verify` over ordering relations, checks deduplicated; `verify_scope: "all"` option.
+- D4.5 [accept] Obligations `verify` (deterministic checks) and `review` (independent reviewer: conforms / does not / cannot determine) are independent and can both apply — REVIEW flaw 8 (meaning).
+- D4.6 [accept] Context changes classified by meaning: normative prose → review; hint, skills, generators → none; checks → verify; conventions, providers → update.
+- D4.7 [accept, refined] No forward-only flag for normative context; `hint` is the only forward-only input; plan prints review cost and batches with per-subject verdicts — REVIEW flaw 8 (cost).
+- D4.8 [accept] Delete: co-deleted references allowed, old graph finds consumers, enumerated owned outputs, shared-file owner joins, ownership transfer required, explicit guarantee stated — REVIEW flaw 9.
+- D4.9 [accept] Change vocabulary: create, update (strategies: edit, replace; causes include repair), delete, detach, none.
+- D4.10 [accept] Partial progress checked against the applied graph; per-transaction atomicity.
+- D4.11 [accept] Immutable plans with revisions, a receipt journal, crash detection via commit trailers; amendments rebind and recompute.
+- D4.12 [accept] Generator output validated like agent output; failures classified; no silent agent fallback.
+- D4.13 [accept] `spec plan --reconcile` after merges; runs on parent trees do not count for the merged tree.
+- D4.14 [accept] Checked-input digest excludes state, evidence and journal files.

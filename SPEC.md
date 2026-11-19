@@ -135,19 +135,19 @@ records claiming one output as an ownership conflict.
 ### Edges and relations
 
 Every edge has a **relation**, fixed by the kind field it comes from. A relation states
-three things: what it **consumes** from the target, whether it **orders** work, and what
-**imports** it grants to the source's code.
+what it **consumes** and **observes** from the target (see Propagation), whether it
+**orders** work, and what **imports** it grants to the source's code.
 
-| Relation | Comes from | Consumes | Orders | Grants imports |
-| --- | --- | --- | --- | --- |
-| `calls` | `calls` | target's public projection | yes | target's public entry points |
-| `reads`, `writes` | `reads`, `writes` | entity schema | yes | entity's data-access module |
-| `uses` | `uses` | component or catalog contract | yes | target's runtime exports |
-| `types` | a type position, e.g. `output: Workspace` | type shape | yes | type-only imports |
-| `requires` | `requires` | capability contract | no | bound package's runtime exports |
-| `mentions` | `@{...}` in prose or `expect` | target's public projection | no | none |
+| Relation | Comes from | Consumes | Observes | Orders | Grants imports |
+| --- | --- | --- | --- | --- | --- |
+| `calls` | `calls` | public projection | behaviour | yes | target's public entry points |
+| `reads`, `writes` | `reads`, `writes` | entity schema | behaviour | yes | entity's data-access module |
+| `uses` | `uses` | component or catalog contract | none | yes | target's runtime exports |
+| `types` | a type position, e.g. `output: Workspace` | type shape | none | yes | type-only imports |
+| `requires` | `requires` | capability contract | none | no | bound package's runtime exports |
+| `mentions` | `@{...}` in prose or `expect` | public projection | none | no | none |
 
-Package kinds may declare further relations with the same three properties. Reference
+Package kinds may declare further relations with the same properties. Reference
 cycles are legal; only cycles among changes that must be made jointly merge (see
 Transactions).
 
@@ -159,9 +159,10 @@ and normalises prose whitespace.
 
 | Projection | Covers | Invalidates |
 | --- | --- | --- |
-| `public` | `summary` plus fields the kind marks as interface (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents, through the edges that consume it |
-| `body` | Everything else the declaration states: prompt, hint, expect, uses | The declaration itself |
-| `context` | Inherited project and module prompts, matching rules, and package components: skills, output conventions, checks, generators, each hashed separately | The declaration, as a `verify` obligation |
+| `public` | `summary` plus fields the kind marks as interface (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents that consume it |
+| `behaviour` | Normative prose: `prompt`, `expect` and `errors` text, plus the normative context the declaration inherits | The declaration; dependents that observe it |
+| `body` | Everything else the declaration states: `hint`, `uses`, `skills` | The declaration itself |
+| `context` | Inherited prompts and hints, matching rules, and package components: skills, output conventions, checks, generators, each hashed separately | The declaration, as classified under Propagation |
 
 Because type references resolve recursively, changing a shared `type` changes the public
 projection of every action whose signature mentions it, and so reaches their callers.
@@ -482,8 +483,10 @@ module {
 }
 ```
 
-Editing inherited context changes the `context` projection of every declaration beneath
-it, which plans as a `verify` obligation, not an `update`.
+Editing an inherited `prompt` gives every declaration beneath it a `review` obligation,
+not an `update`: a reviewer checks whether the existing code already conforms, and only
+nonconforming declarations are edited. Editing an inherited `hint` gives no obligation,
+because a hint guides future work only (see Propagation).
 
 ## Definition kinds
 
@@ -679,108 +682,193 @@ consistent triple and git history is the audit log.
 
 ### Plan entries
 
-Each affected declaration gets one plan entry with five independent dimensions, decided
-in this order:
+Each affected declaration gets one plan entry with independent dimensions:
 
 | Dimension | Values | Decided by |
 | --- | --- | --- |
 | Identity | new, same, moved, gone | Address diff and `moved` statements |
 | Lifecycle gate | allowed, frozen, protected | `lifecycle` field |
 | Drift | clean, drifted | Output hashes on disk versus baseline |
-| Change | create, update, replace, delete, detach, none | Projection diff, kind change, flags |
-| Obligation | none, verify | Propagation and context changes |
+| Change | create, update, delete, detach, none | Projection diff, propagation, explicit requests |
+| Obligations | verify, review (either, both or neither) | Propagation and changed inputs |
 
-A drifted declaration is **blocked** until a human resolves the drift; its change does not
-run. A `protected` declaration that leaves the spec cannot be deleted: the plan requires
-`detach`, which drops its state record and leaves the files as unmanaged code. Moving and
-updating at once is legal and shows as `moved + update`.
+| Change | Trigger | What runs | Published on success |
+| --- | --- | --- | --- |
+| `create` | New managed address | Generator or agent, then obligations | Outputs, baseline, applied hashes, evidence |
+| `update` | Own projection changed; incompatible consumed projection; confirmed nonconformance; a repair request; a kind change (strategy `replace`) | Scoped edit of existing code, which may conclude no edit is needed | New baseline and evidence; a repair keeps contract hashes and records its cause |
+| `delete` | Address gone and nothing in the new graph references it | Removal of enumerated owned outputs, owner cleanup of contributions, checks | State removed; history stays in git |
+| `detach` | Requested, or required to remove a `protected` declaration | State removed; files stay as unmanaged code | No further conformance claim |
+| `none` | Only obligations apply | Obligations only | Renewed evidence |
 
-### Propagation and transactions
+| Obligation | Trigger | What runs | Escalation |
+| --- | --- | --- | --- |
+| `verify` | Any change in the transaction; changed check definitions; a compatible consumed projection; implementation impact (below); stale runs | The CLI runs conformance, build and mapped tests on the final candidate | A confirmed violation becomes `update`; a coverage gap becomes `review`; infrastructure failure stays a failure |
+| `review` | Changed normative prose the declaration observes or inherits; stale coverage; a policy that requires judgement | A reviewer agent that wrote none of the code answers per subject: conforms, does not conform (naming the requirement and the mismatch), or cannot determine | Does not conform becomes `update`; cannot determine leaves the policy unsatisfied |
 
-1. Diff the old and new graphs by address.
-2. Propagate to a fixed point. A dependent is affected when the hash of a projection it
-   consumes, recomputed over the new graph, differs from the hash recorded in its state.
-   Edges are taken from both graphs, so a deleted edge or target still reaches its former
-   consumers.
-3. Each affected dependent gets an obligation. The target's kind classifies the change: a
-   change it declares backward-compatible (an additive entity field, a new optional
-   input) gives `verify`; anything else gives `update`. Unclassified changes are
-   incompatible.
-4. A **transaction** is a changed declaration plus every dependent with an `update`
-   obligation. Transactions that share a declaration merge.
-5. Transactions are ordered by ordering edges. If ordering edges form a cycle among
-   transactions, those transactions merge. A cycle in the reference graph alone merges
-   nothing.
+A declaration may carry both obligations. A transaction publishes only when every
+obligation of every declaration in it is satisfied on the final candidate, at the strength
+its policies require. A review verdict never waives a required test and never upgrades
+evidence to `tested`. A drifted declaration is **blocked** until its drift is resolved. A
+`frozen` declaration that needs an `update` blocks its transaction rather than being
+skipped. `moved` combines with any change and shows as `moved + update`.
+
+### Propagation
+
+Each relation declares what it **consumes** and what it **observes**:
+
+- A change to a *consumed* projection (the target's `public` projection) gives the
+  dependent `update` if the target's kind classifies it as incompatible and `verify` if
+  compatible. Unclassified changes are incompatible.
+- A change to an *observed* projection (the target's `behaviour` projection: its `prompt`,
+  `expect` and `errors` text plus the normative context it inherits) gives the dependent
+  `verify` and `review`: tests catch what they cover, and the reviewer checks the caller's
+  assumptions against the behaviour diff, which its work order receives. `calls`, `reads`
+  and `writes` observe; `mentions`, `types` and `uses` do not.
+- **Implementation impact.** An `update` that changes code but no projection (a repair) still
+  changes runtime behaviour. Its transitive dependents over ordering relations get
+  `verify`. Checks are deduplicated by check definition and inputs, so a large closure costs
+  test time, not agent time. A project can set `verify_scope: "all"` to run the whole suite
+  instead.
+
+Context changes are classified by what changed, not by where it was declared:
+
+| Changed input | Obligation on each declaration it reaches |
+| --- | --- |
+| Inherited `prompt`, a rule's prompt or `expect` member | `review`, plus `verify` of mapped tests |
+| Inherited `hint`, skills, generator definitions | none: guidance applies to future work only |
+| Check definitions | `verify` |
+| Output conventions | `update` (files move to their new locators) |
+| Capability provider or options | `update` |
+
+`hint` is non-normative by definition, which is the only forward-only context. There is no
+flag to apply a normative change "going forward": a project prompt that now requires a
+suspension check applies to every existing endpoint. The plan prints the cost instead:
+affected subjects, unique checks, review batches and the contingent update count. One
+reviewer task may cover many declarations for the same change, but must return a verdict
+for each.
+
+Propagation runs to a fixed point over both the old and the new graph, so a deleted edge or
+target still reaches its former consumers.
+
+### Transactions
+
+1. A **transaction** is a changed declaration plus every dependent with an `update`
+   obligation. Transactions that share a declaration merge. A cross-declaration member
+   move or a shared-file contribution change also joins the declarations involved.
+2. A transaction with no change, only obligations (a check definition changed), is rooted
+   at the obligations themselves.
+3. Transactions are ordered by ordering edges; deletions run in reverse order. If ordering
+   edges form a cycle among transactions, those transactions merge and their tasks run as
+   one coordinated work order. A cycle in the reference graph alone merges nothing.
 
 A breaking change to a widely called action produces one large transaction, which is
-correct. To stage it, add the new contract alongside the old (compatible), migrate callers
+correct. To stage it: add the new contract alongside the old (compatible), migrate callers
 in later plans, then remove the old contract.
 
-### Plan binding
+**Partial progress.** Each transaction is checked against the *applied graph* (declarations
+already published, plus the current transaction), not the whole desired graph, so a page
+whose action is applied but whose own transaction has not run yet is pending, not
+nonconforming. Earlier transactions stay published if a later one fails: atomicity is per
+transaction, not per plan.
 
-`spec plan` writes `plan.json`, which records its inputs:
+### Repair
+
+`spec repair auth.login --requirement expect.generic_error --observed "<what went wrong>"`
+plans an `update` with cause `repair`. The spec does not change. The work order carries
+the requirement revision, the observation and the intended correction, and requires:
+
+1. A regression test, judged by the reviewer to follow from the cited requirement, that
+   fails on the pre-fix tree and passes on the candidate, under the same check definition.
+   Both runs are recorded.
+2. Every other requirement of the declaration still satisfied.
+3. Where automated reproduction is not possible (layout, a race), the agent records why;
+   the evidence is then `judged`, and a `tested` policy stays unsatisfied.
+
+A repair cannot change behaviour that no requirement states: if the bug reveals a missing
+requirement, add an `expect` member, which makes the change an ordinary `update`. A repair
+on a drifted declaration takes the exact drifted files as its input and preserves edits
+unrelated to the requirement; it never adopts the drift first. If the hand edit changed
+intended behaviour, the right resolution is `absorb`.
+
+### Delete
+
+A declaration may be deleted only when nothing in the new graph references it; references
+among declarations deleted together are allowed. The old graph identifies former
+consumers, which are already `update`s because their edges changed. The delete
+transaction contains those consumers, the owner of every shared file the deleted
+declaration contributed to, and the deleted declaration. It removes the outputs enumerated
+in state, including files the agent registered under `may_create_under` (permission to
+create is not ownership of a directory). If the deleted declaration owns a shared file
+that others still contribute to, the plan requires an ownership transfer first.
+
+The guarantee is exactly this: graph references are valid, managed code imports only what
+its edges grant, and configured checks pass. An unmanaged service that calls the deleted
+route by URL is outside it unless a check covers it. Deleting an entity generates a
+destructive migration and requires an explicit flag.
+
+### Plan binding, journal and amendments
+
+`spec plan` writes an immutable `plan.json` bound to its inputs:
 
 ```json
 {
-  "baseline_commit": "a41c...",
-  "graph_hash": "77d0...",
-  "lock_hash": "5f3a...",
-  "state_digest": "c9e1...",
-  "fingerprints": { "src/app/login/page.tsx": "be90...", "...": "..." },
+  "plan": "p-2026-11-18-01",
+  "revision": 1,
+  "baseline_commit": "a41c",
+  "graph_hash": "77d0",
+  "lock_hash": "5f3a",
+  "state_digest": "c9e1",
+  "fingerprints": { "src/app/login/page.tsx": "be90", "src/app/signup/page.tsx": "a7d2" },
   "transactions": [
-    { "id": "tx-1", "entries": ["core.Workspace"], "obligations": ["dashboard.home"] }
+    { "id": "tx-1", "entries": ["core.Workspace"], "obligations": { "dashboard.home": ["verify"] } }
   ]
 }
 ```
 
-`spec apply` refuses to run if any input differs. Each transaction's write set is the
-union of its declarations' owned outputs, plus `may_create_under` directories the kind
-allows for new files (for example a page's test directory). A write outside that envelope
-fails the transaction and produces an amended plan for review.
+`spec apply` refuses to start if any input differs. Each published transaction appends a
+receipt to `.spec/journal/<plan>.jsonl` naming its input commit and its result commit.
+Resuming checks that chain, skips published transactions and starts the next one from a
+fresh candidate; any unexpected edit requires a new plan. A crash after publishing but
+before the journal entry is detected from the result commit, which carries the
+transaction id in its trailer.
+
+Each transaction's write envelope is the union of its declarations' owned outputs plus the
+`may_create_under` directories their kinds allow. A write outside the envelope, a needed
+escalation outside it, or a generator that cannot handle its change produces an
+**amended plan**: a new revision with a new binding, recomputed propagation, transaction
+membership and order. The failed candidate is kept as a reviewable patch. Nothing widens
+scope under the old plan's authority.
 
 ### Apply
 
 v0 runs transactions serially:
 
 1. Create a candidate worktree from the current tree.
-2. Run each task in the transaction: a generator if one matches, otherwise an agent work
-   order. Within one transaction, tasks run in ordering-edge order in the same worktree.
-3. Run every required check on the full candidate tree, including the checks of
-   `verify`-obligated dependents.
-4. A `verify` dependent whose checks fail joins the transaction as an `update` if it lies
-   inside the reviewed envelope; otherwise the transaction fails with an amended plan.
-5. On success, commit code, state records and evidence together. On failure, discard the
-   candidate; transactions that depend on it are skipped. `spec plan` picks up the rest.
+2. Run each task: a generator if the reviewed plan chose one, otherwise an agent work order
+   (see Agent interface). Generator output is validated exactly like agent output; a failed
+   generator is reset, classified (unsupported change, generator defect, infrastructure,
+   invalid output) and never silently replaced by an agent.
+3. Discharge every obligation on the final candidate: run checks, then reviews.
+4. An obligation that escalates to `update` inside the envelope joins the transaction;
+   outside it, the transaction fails with an amended plan.
+5. On success, commit code, state records and evidence together, then append the receipt.
+   On failure, discard the candidate; transactions that depend on it are skipped.
 
-| Change | Trigger | What runs |
-| --- | --- | --- |
-| `create` | New address | An agent writes code from the spec |
-| `update` | Body or public projection changed, or an incompatible consumed projection | An agent edits existing code, given old spec, new spec and current files |
-| `verify` (obligation) | Context changed, or a compatible consumed projection | Checks run; an agent edits only if they fail |
-| `replace` | `--replace`, or the kind changed | Old outputs are deleted and code is regenerated |
-| `delete` | Address gone | Owned outputs are removed |
-| `detach` | Requested, or required for a protected declaration | State is dropped; files stay |
-| `move` (identity) | A `moved` statement | State is re-keyed; files renamed if conventions require |
+Evidence records the digest of the checked inputs, which excludes state records, evidence
+and journal files, so committing a receipt does not invalidate the evidence it records.
 
 **Update is an edit, not a regeneration.** The agent receives a spec diff plus the current
-code and is asked for the smallest change, so nodes that did not change are never
+code and is asked for the smallest change, so declarations that did not change are never
 re-rolled.
 
-**Work order.** Each agent task receives:
+### Reconciling after a merge
 
-```json
-{
-  "transaction": "tx-3",
-  "node": "auth.login",
-  "change": "update",
-  "spec_diff": "...",
-  "write_set": ["src/app/login/page.tsx", "tests/auth/login.test.ts"],
-  "may_create_under": ["tests/auth/login/"],
-  "read_context": ["auth (module, full)", "dashboard.home (public)", "ui.link (catalog)"],
-  "skills": ["authentication.skills"],
-  "must_pass": ["typecheck", "build", "auth.login#expect.redirects", "auth.login#expect.forgot_link"]
-}
-```
+`spec plan --reconcile` runs after a branch merge. It records both parents and the merge
+base in the binding, runs the three-way identity reconciliation from "Moves", and blocks on
+identity or ownership conflicts instead of choosing the newer state file. Coverage
+judgements survive only where their inputs are unchanged; runs on either parent's tree do
+not count for the merged tree, so affected checks rerun. The result is an ordinary plan,
+applied with `spec apply`, and may contain work even when the merged spec has no diff.
 
 ## Agent interface
 
