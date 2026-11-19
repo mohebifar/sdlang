@@ -1,7 +1,13 @@
-# Spec language: design draft v0.1
+# Spec language: design draft v0.2
 
 Working copy. v0 was exported on 2026-11-18; `REVIEW.md` is the self-review of v0,
 `DECISIONS.md` logs every change since, and `rounds/` holds the design rounds.
+
+Contents: Summary · Goals · Core model (declarations, identity, moves, edges, projections,
+evidence) · Surface syntax · Projects, files and modules · Definition kinds · Packages ·
+State, plan and apply · Agent interface (reference: `PROTOCOL.md`) · Ownership and drift ·
+Verification · Runtime state · Worked example · First milestone and open questions.
+Grammar: `GRAMMAR.ebnf`. Checker: `tools/check_examples.py`.
 
 ## Summary
 
@@ -52,8 +58,8 @@ A project evaluates to a graph of declarations. There are two sorts:
   entities, components, endpoints, the `stack` (toolchain files) and any `use` binding
   whose package declares integration files.
 - **Context declarations** own nothing and have no state record: `project`, `module`,
-  `rule`, `type`, `extern`, and `use` bindings without outputs. They feed the context or public projections
-  of the declarations that reference or inherit them. They still have addresses, and
+  `rule`, `type`, `environment`, `extern`, and `use` bindings without outputs. They feed
+  the projections of declarations that reference or inherit them; they have addresses, and
   their effects are recorded in the state of each managed declaration they reach.
 
 Every declaration has four layers. The rule is to move information up the table.
@@ -63,7 +69,7 @@ Every declaration has four layers. The rule is to move information up the table.
 | Structure: typed fields defined by the kind | `route: "/login"`, entity fields | By the compiler |
 | References: typed edges | `calls: [sign_in]`, `@{dashboard.home}` in prose | By the compiler; dangling is an error |
 | Intent: prose | `prompt: """..."""` | Read by the agent |
-| Acceptance: named `expect` members | `redirects: "valid credentials redirect to ..."` | After apply, by checks |
+| Acceptance: named `expect` members | `redirects: "valid credentials redirect to ..."` | After apply, by evidence (tests, review, checks, approval) |
 
 ### Identity
 
@@ -87,7 +93,7 @@ collections*; members are always keyed by name, never by position or text hash:
 Keys are unique within a collection; `#fields.name` and `#expect.name` are distinct.
 
 **Other identities.** A package catalog symbol is identified by its canonical package and
-export path (`npm:ui-sdk::input`), never by the alias it was imported under, and appears
+export path (`npm:ui-sdk::Input`), never by the alias it was imported under, and appears
 only in graph JSON and state. A capability is identified by its name; its provider and
 options are inputs. An output is identified by its slot (`#outputs.page`); its file path
 is a locator that may change, so a route edit moves a file rather than deleting one.
@@ -141,16 +147,16 @@ what it **consumes** and **observes** from the target (see Propagation), whether
 
 | Relation | Comes from | Consumes | Observes | Orders | Grants imports |
 | --- | --- | --- | --- | --- | --- |
-| `calls` | `calls` | public projection | behaviour | yes | target's public entry points |
-| `reads`, `writes` | `reads`, `writes` | entity schema | behaviour | yes | entity's data-access module |
+| `calls` | `calls` | public projection | behaviour | yes | the target kind's `exports` |
+| `reads`, `writes` | `reads`, `writes` | entity read or write contract | behaviour | yes | the entity's data-access exports |
 | `uses` | `uses` | component or catalog contract | none | yes | target's runtime exports |
 | `types` | a type position, e.g. `output: Workspace` | type shape | none | yes | type-only imports |
 | `requires` | `requires` | capability contract | none | no | bound package's runtime exports |
 | `mentions` | `@{...}` in prose or `expect` | public projection | none | no | none |
 
-Package kinds may declare further relations with the same properties. Reference
-cycles are legal; only cycles among changes that must be made jointly merge (see
-Transactions).
+Relations are fixed by the core in v0; package kinds attach them to fields with
+`@relation`. Reference cycles are legal; only cycles among changes that must be made
+jointly merge (see Transactions).
 
 ### Projections and hashes
 
@@ -160,7 +166,7 @@ and normalises prose whitespace.
 
 | Projection | Covers | Invalidates |
 | --- | --- | --- |
-| `public` | `summary` plus fields the kind marks as interface (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents that consume it |
+| `public` | `summary` plus `@interface` fields (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents that consume it |
 | `behaviour` | Normative prose: `prompt`, `expect` and `errors` text, plus the normative context the declaration inherits | The declaration; dependents that observe it |
 | `body` | Everything else the declaration states: `hint`, `uses`, `skills` | The declaration itself |
 | `context` | Inherited prompts and hints, matching rules, and package components: skills, output conventions, checks, generators, each hashed separately | The declaration, as classified under Propagation |
@@ -248,7 +254,8 @@ export nextjs.page login {
 | `type <name> = <type>` | `type Plan = "free" \| "team"` | Any module |
 | `let <name> = <expr>` | `let max_name = 80` | Any module |
 | `moved <address> -> <address>` | `moved auth.login -> auth.sign_in` | Any module |
-| `kind`, `annotation` | definitions | Package sources only |
+| `environment <name> { }` | a deployment target to observe (see Runtime state) | Root module |
+| `kind`, `annotation`, `check`, `generator` | definitions | Package sources only |
 
 `export` may precede `type`, `let` and declarations. Bodies hold **fields** (`name: expr`)
 and **sections** (`name { ... }`); which fields and sections are legal is fixed by the
@@ -356,8 +363,8 @@ Mentions in strings use the same resolver. `self` names the enclosing declaratio
 address may no longer exist. Forward references and reference cycles are legal;
 `let` and `type` cycles are errors.
 
-A capability bound to a package with no spec package (no catalog) exposes only its own
-name: `uses: [pdf]` grants imports of the whole library and nothing more.
+A capability bound to a library with no spec package exposes only its own name:
+`uses: [pdf]` grants imports of that library and nothing more.
 
 ### Annotations
 
@@ -467,8 +474,8 @@ acme/
   `import nextjs` brings in a package. A name that matches both is a compile error.
 - **Visibility bounds context.** Declarations are private to their module unless marked
   `export`. An agent receives its own declarations in full, the projections of what they
-  reference, and sibling declarations in its module only as optional context (see Context
-  assembly).
+  reference, and sibling declarations in its module only as optional context (see `PROTOCOL.md`,
+  Context assembly).
 - **The spec tree follows features, not code layout.** The kind's package decides where
   code lands, and state records the mapping.
 
@@ -498,7 +505,7 @@ because a hint guides future work only (see Propagation).
 | `stack` | Language, runtime, framework, package manager; owns toolchain files | named slots | managed | core |
 | `use ... for` | A library bound to a capability | package, capability, options | managed if its package declares outputs, else context | core |
 | `module` | Header for a directory | summary, prompt, skills | context | core |
-| `type`, `enum` | Shared value types | fields or variants | context | core |
+| `type` | A shared value type | `= <type expression>` | context | core |
 | `rule` | A cross-cutting constraint | applies_to, prompt, expect | context | core |
 | `environment` | A deployment target the CLI observes | database binding, connection variable, expected resource | context | core |
 | `extern` | Existing code referenced but not managed | source, summary | context | core |
@@ -511,22 +518,11 @@ because a hint guides future work only (see Propagation).
 | `job`, `event` | Background work, schedules, webhooks | trigger, calls | managed | package, later |
 
 **Fields every declaration accepts.** `summary` (one line, part of the public
-projection), `prompt` (requirements in prose), `hint` (implementation guidance with no
-test obligation), `uses`, `skills`, `expect`, `depends_on` and `lifecycle`.
+projection), `prompt` (normative requirements in prose), `hint` (non-normative guidance),
+`uses`, `skills`, `expect` and `lifecycle`. The project also accepts `verify` (the default
+policy) and `verify_scope`.
 
 ```spec
-export entity Workspace {
-  summary: "A team's shared space"
-  fields {
-    id: uuid @id
-    name: string @max_length(80)
-    slug: string @unique
-    owner: ref authentication.User
-    plan: "free" | "team" = "free"
-    created_at: timestamp = now
-  }
-}
-
 action create_workspace {
   input: { name: string }
   output: Workspace
@@ -541,16 +537,6 @@ action create_workspace {
   """
 }
 
-rule app_requires_session {
-  applies_to: select nextjs.page where route matches "/app/**"
-  expect {
-    redirects {
-      text: "unauthenticated visitors are redirected to @{auth.login}"
-      verify: "tested"
-    }
-  }
-}
-
 extern ui.component LegacyChart {
   source: "src/components/legacy-chart.tsx#LegacyChart"
   summary: "D3 chart kept from the old dashboard"
@@ -562,8 +548,9 @@ output, errors) and summary. It does not prescribe transport: a page can call it
 server function and an endpoint can expose it over HTTP. A change to its signature reaches
 every caller through `calls` edges.
 
-**Entities imply migrations.** The planner classifies each field change as additive,
-destructive or needing a backfill. Destructive changes require an explicit flag on apply.
+**Entities imply migrations.** An `entity` takes its generator (schema file, migration)
+from the `database` binding's package; changes are classified as described in Runtime
+state.
 
 **Rules attach by selector.** A rule adds its prompt to the context, and its `expect`
 members to the requirements, of every managed declaration its `applies_to` matches,
@@ -777,10 +764,11 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
 {
   "address": "auth.login",
   "kind": "nextjs.page",
-  "hashes": { "public": "9c1e", "body": "41af", "context": "d07b" },
+  "hashes": { "public": "9c1e", "behaviour": "3b70", "body": "41af", "context": "d07b" },
   "context_parts": { "module:auth": "a1c3", "rule:app.app_requires_session": "0d4e", "pkg:nextjs:skills": "b2f0" },
   "consumed": [
     { "relation": "calls", "target": "auth.sign_in", "projection": "public", "hash": "77e2" },
+    { "relation": "calls", "target": "auth.sign_in", "projection": "behaviour", "hash": "18aa" },
     { "relation": "mentions", "target": "dashboard.home", "projection": "public", "hash": "51c0" }
   ],
   "members": { "expect.redirects": "c19a", "expect.generic_error": "8e02", "expect.busy_button": "f4d1" },
@@ -796,20 +784,23 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
   "evidence": [
     {
       "subject": { "target": "auth.login", "requirement": "auth.login#expect.redirects" },
-      "coverage": { "contract": "c19a", "test": "tests:valid_credentials", "test_hash": "6a2b", "by": "reviewer-agent" },
-      "run": { "tree": "4b1d", "check": "e0f2", "result": "passed" },
-      "status": "tested"
+      "policy": { "tests": true, "review": true, "checks": [], "approval": false },
+      "coverage": { "contract": "c19a", "tests": [{ "output": "auth.login#outputs.tests", "case": "valid_credentials" }],
+                    "oracle": "6a2b", "verdict": "sufficient", "dispatch": "p-2026-11-18-01/r1/tx-4/2" },
+      "run": { "inputs": "4b1d", "check": "e0f2", "attempts": ["passed"] },
+      "summary": "tested"
     }
   ],
-  "provenance": { "transaction": "tx-2026-11-18-003", "commit": "a41c", "lock": "5f3a", "model": "..." }
+  "provenance": { "transaction": "tx-4", "plan": "p-2026-11-18-01/r1", "commit": "a41c", "lock": "5f3a" }
 }
 ```
 
-`members` holds each member's contract hash. `outputs` are keyed by slot or created-output
+Digests are abbreviated in this document; state stores full tagged digests. `members`
+holds each member's contract hash. `outputs` are keyed by slot or created-output
 key; `path` is only a locator. A generator-written output additionally records the
-generator's identity and the digest of the aggregate input it was produced from. `consumed` has one entry per relation and
-target, since one target can supply different projections to different edges. `status` is
-derived from `coverage` and `run`. `provenance.commit` locates the exact spec revision this
+generator's identity and the digest of the aggregate input it was produced from.
+`consumed` has one entry per relation, target and projection, since one target can supply different projections to different edges. `summary`
+is derived from `coverage` and `run`. `provenance.commit` locates the exact spec revision this
 record was applied from: the planner reads old canonical projections from it when it must
 classify a change (an optional field added versus a required one removed) or show an old
 versus new diff. If that commit is unreachable, the planner falls back to treating every
@@ -844,10 +835,10 @@ Each affected declaration gets one plan entry with independent dimensions:
 | `review` | Changed normative prose the declaration observes or inherits; stale coverage; a policy that requires judgement | A reviewer agent that wrote none of the code answers per subject: conforms, does not conform (naming the requirement and the mismatch), or cannot determine | Does not conform becomes `update`; cannot determine leaves the policy unsatisfied |
 
 A declaration may carry both obligations. A transaction publishes only when every
-obligation of every declaration in it is satisfied on the final candidate, at the strength
-its policies require. A review verdict never waives a required test and never upgrades
-evidence to `tested`. Drift blocks a managed declaration until resolved (see Hashes and drift). A
-`frozen` declaration that needs an `update` blocks its transaction rather than being
+obligation of every declaration in it is satisfied on the final candidate and every
+policy is met. A review verdict never waives a required test and never upgrades
+evidence to `tested`. Drift blocks a managed declaration until resolved (see Hashes and
+drift). A `frozen` declaration that needs an `update` blocks its transaction rather than being
 skipped. `moved` combines with any change and shows as `moved + update`.
 
 ### Propagation
@@ -921,7 +912,7 @@ the requirement revision, the observation and the intended correction, and requi
    Both runs are recorded.
 2. Every other requirement of the declaration still satisfied.
 3. Where automated reproduction is not possible (layout, a race), the agent records why;
-   the evidence is then `judged`, and a `tested` policy stays unsatisfied.
+   the evidence is then review only, and a policy that requires tests stays unsatisfied.
 
 A repair cannot change behaviour that no requirement states: if the bug reveals a missing
 requirement, add an `expect` member, which makes the change an ordinary `update`. A repair
@@ -936,7 +927,7 @@ among declarations deleted together are allowed. The old graph identifies former
 consumers, which are already `update`s because their edges changed. The delete
 transaction contains those consumers, the owner of every shared file the deleted
 declaration contributed to, and the deleted declaration. It removes the outputs enumerated
-in state, including files the agent registered under `may_create_under` (permission to
+in state, including files the agent registered under a creation root (permission to
 create is not ownership of a directory). If the deleted declaration owns a shared file
 that others still contribute to, the plan requires an ownership transfer first.
 
@@ -972,7 +963,7 @@ before the journal entry is detected from the result commit, which carries the
 transaction id in its trailer.
 
 Each transaction's write envelope is the union of its declarations' owned outputs plus the
-`may_create_under` directories their kinds allow. A write outside the envelope, a needed
+creation roots their kinds declare. A write outside the envelope, a needed
 escalation outside it, or a generator that cannot handle its change produces an
 **amended plan**: a new revision with a new binding, recomputed propagation, transaction
 membership and order. The failed candidate is kept as a reviewable patch. Nothing widens
@@ -1015,126 +1006,32 @@ Agents never interpret the spec tree. The CLI compiles, plans and hands each tas
 agent as a self-contained order; the agent's only job is to make the code in a bounded set
 of files satisfy the order's subjects. Results are claims; the CLI owns verification.
 
-The protocol is four JSON documents, each with a JSON Schema in `schemas/` and a worked
-example in `examples/` for tx-4 of the worked example below. `tools/make_examples.py`
-generates the examples and `tools/check_examples.py` validates them, recomputes their
-binding hashes and checks the cross-document rules a schema cannot express.
+The protocol is four JSON documents with JSON Schemas in `schemas/`, specified in
+`PROTOCOL.md`: a **work order** (CLI → coding agent), a **result** (`submitted` or
+`blocked`), a **review order** (CLI → reviewer) and a **review verdict**. Its load-bearing
+rules:
 
-| Document | Written by | Purpose |
-| --- | --- | --- |
-| `work-order` | CLI | One coding dispatch: subjects, spec diffs, context, envelope, requirements, checks |
-| `result` | coding agent | `submitted` or `blocked`, created-output claims, proposed test bindings, repair regression |
-| `review-order` | CLI | Per-subject conformance, coverage and regression assessments against a frozen candidate |
-| `review-verdict` | reviewer agent | One verdict per subject and assessment |
-
-### Binding
-
-Every order carries a `dispatch` id unique across plans, revisions and attempts, and a
-`binding`: plan hash, transaction, base commit, the exact input snapshot (which differs
-from the commit for a repair on drifted files, or a later task in a transaction), graph and
-lock hashes, and `order_hash`, the sha256 of the order's canonical JSON with that field
-removed. A reply must echo `dispatch` and `order_hash`; a reply that does not match the
-outstanding dispatch is discarded. Digests are full and tagged (`sha256:...`, `git:...`).
-
-### Life of one dispatch
-
-1. The CLI writes the order to the protocol area `.spec/run/<dispatch>/`, which is never
-   published or owned, renders it as Markdown on the agent's stdin, and runs the agent
-   command (`spec apply --agent "<command>"`) in the candidate worktree with
-   `SPEC_WORK_ORDER` and `SPEC_RESULT` set.
-2. The agent edits files and may run the checks marked `self_check` through the MCP
-   server. It writes its result atomically at `result_path` and exits.
-3. On exit or timeout the CLI stops the agent's whole process tree and freezes the
-   candidate. Exit status is informational: a non-zero exit with a valid result is still a
-   claim, and a zero exit with no valid result is a protocol failure.
-4. The CLI derives the diff itself, checks it against each subject's envelope, ownership
-   claims and allowed imports (resolved to export level), and runs every check from pinned
-   definitions outside the worktree, so an agent cannot weaken a check by editing it.
-5. It runs the repair reproduction if any (the candidate's regression test against the
-   pre-fix snapshot, then against the candidate), then dispatches reviews against the
-   frozen snapshot. If the candidate changes afterwards, affected runs and reviews are
-   invalidated and repeated.
-
-A coordinated transaction (an ordering cycle) is one order with several subjects, each
-with its own envelope, so authority stays attributed to an owner.
-
-### Retries
-
-`attempt.max` defaults to 3. A failed attempt is recorded as a classified failure
-(`implementation`, `test`, `infrastructure`, `protocol`) with the check's definition hash,
-the snapshot, a normalised failure fingerprint, a bounded excerpt and a handle to the full
-log. Infrastructure failures are rerun by the CLI a bounded number of times and never
-consume a coding attempt. The next coding attempt continues in the same candidate with
-every structured failure inline. Restarting from a checkpoint (the task's entry, or the
-whole transaction's) is an explicit recovery action with a recorded reason, never automatic,
-and abandoned candidates are kept as patches. Nothing from a failed transaction publishes.
-
-### Blocked
-
-`blocked` is a claim the CLI classifies, not an accepted fact. Each blocker kind names what
-would resolve it and the evidence the agent gathered:
-
-| Blocker | Example | Resolution |
-| --- | --- | --- |
-| `spec_question` | "Should the link open in a new tab?" | A reviewed spec change (the agent may attach a patch); then re-plan |
-| `authority_request` | a dependency, an extra write path, an import | An amended plan, or a `use` added to the spec |
-| `environment` | the package registry is down | Operational recovery, journaled as an execution input |
-
-A blocker whose evidence does not support it (the requested package is already in the
-lock) is rejected and counts as a failed attempt. An accepted blocker stops the
-transaction. Behaviour answers belong in the spec; scope answers belong in an amended plan;
-operational answers never become spec text.
-
-### Context assembly
-
-Context is assembled deterministically from the bound graph:
-
-- **Inline, always, never truncated:** each subject's canonical spec, previous spec, diff
-  and name resolution; inherited normative context (project, then ancestor modules
-  outermost first, then matching rules by address) with previous text where it changed;
-  every requirement; the envelope; and every consumed or observed projection of what the
-  subjects reference, changed or not.
-- **Required but fetched:** current file contents and other required items too large to
-  inline are listed in `context.manifest` with immutable resource handles and served in
-  full by the `read_context` tool. Required content is never summarised.
-- **Optional, packed by policy `context-pack/1`:** omitted in this order when the budget
-  is short: unreferenced sibling declarations, catalog documentation, non-normative hints,
-  skill bodies; within a class, largest first, ties by id. Omitted items stay in the
-  manifest and remain fetchable.
-
-The budget records the renderer, tokenizer, limits and reserved output and feedback
-space, so the count is reproducible. If the inline part alone exceeds the limit, `spec
-plan` fails and names the largest contributors.
-
-### Reviews
-
-The reviewer is a separate session with no write authority that wrote none of the
-candidate's code; its independence is established by the runner's provenance, not by
-anything it reports. A review order can batch many subjects, but the verdict must answer
-every requested subject and assessment exactly once: conformance (`conforms`,
-`does_not_conform` with the mismatch, `cannot_determine` with what is missing), coverage of
-each candidate test set (`sufficient`, `insufficient`, `cannot_determine`), and for repairs
-whether the regression test follows from the requirement and demonstrates the observation.
-Normative prompt text with no `expect` member is reviewed as a compiler-issued context
-subject. A verdict never creates a passing run and never upgrades evidence to `tested`.
-
-### MCP tools
-
-| Tool | Class | Does |
-| --- | --- | --- |
-| `get_task` | read | The order's obligations, ownership and entry points |
-| `get_declaration(address, projection)` | read | A projection from the bound graph, if the subjects' edges or module visibility allow it, with its hash |
-| `read_context(resource, cursor)` | read | Any manifest resource, paged, bytes matching its digest |
-| `get_diagnostic(receipt, cursor)` | read | Full logs of an earlier failure |
-| `run_self_check(id)` | execute | A `self_check` check from its pinned definition, sandboxed; its receipt is advisory |
-| `validate_result(draft)` | read | Schema, binding, envelope and ownership errors for a draft result against the current candidate |
-
-There are no tools that write state, widen the envelope or record evidence. Two limits are
-stated plainly. Projection filtering selects context; it is not confidentiality while the
-agent can read the repository. And validating the final tree cannot prove that no
-forbidden write happened in between (a check script edited, run and restored), which is
-why checks run from protected definitions and, where available, the runner isolates the
-filesystem.
+- **Binding.** Every order has a unique dispatch id and a binding to exact inputs (plan,
+  input snapshot, graph, lock) with a recomputable `order_hash`; replies echo it or are
+  discarded.
+- **Verification is the CLI's.** After the agent exits, the CLI freezes the candidate,
+  derives the diff itself, enforces each subject's envelope, ownership claims and
+  export-level import grants, and runs every check from pinned definitions outside the
+  worktree. Reviews run on that frozen snapshot.
+- **Retries** continue in the same candidate with classified, fingerprinted failures;
+  infrastructure failures are rerun without consuming an attempt; restarting from a
+  checkpoint is an explicit recovery action.
+- **Blocked** is a claim with evidence, classified as a spec question (resolved by a
+  reviewed spec change), an authority request (an amended plan or a `use`), or an
+  environment problem (operational recovery). Unsupported claims count as failed attempts.
+- **Context** is assembled deterministically: the mandatory set (spec, diff, normative
+  context, requirements, envelope, every consumed or observed projection) is inline and
+  never truncated; other required items are fetched in full; optional items are packed by a
+  fixed policy.
+- **Reviews** come from a session that wrote none of the code and cannot write; every
+  requested subject gets exactly one verdict; a verdict never creates a passing run.
+- **Tools** (MCP) are read-only except `run_self_check`; none writes state, widens the
+  envelope or records evidence.
 
 **Agents editing specs.** When a developer asks an agent to "add forgot password", the
 agent edits the `.spec` file, runs `spec plan`, shows the plan, then runs `spec apply`. A
@@ -1684,19 +1581,20 @@ Spec changes
       rollout prerequisite: migration workspace_archived_at applied before code that reads it
 
 Obligations
-  ? nextjs.page  dashboard.home           verify: consumed core.Workspace changed (compatible)
+  ? nextjs.page  dashboard.home           verify: reader-compatible change to core.Workspace
 
 Blocked by drift
   ! nextjs.page  auth.signup              src/app/signup/page.tsx edited by hand (+14 -3)
-      resolve with: adopt | absorb | overwrite
+      resolve with: adopt | absorb | overwrite | repair
 
 Transactions (serial)
-  tx-1  core.Workspace (generator)        then verify dashboard.home
+  tx-1  core.Workspace, database (generator: schema, migration, schema index)
+                                          then verify dashboard.home
   tx-2  auth.request_reset (create)
   tx-3  auth.forgot_password (create)     after tx-2: calls request_reset
   tx-4  auth.login (update)
 
-Plan: 2 create, 2 update, 1 verify, 1 blocked. Agent tasks: 3, plus 1 if verify fails.
+Plan: 2 create, 3 update (2 by generator), 1 verify, 1 blocked. Agent tasks: 3, plus 1 if verify fails.
 Bound to a41c... (graph 77d0..., lock 5f3a...). Saved to plan.json.
 ```
 
@@ -1706,8 +1604,10 @@ What the plan shows:
   source only: `dashboard.home` may now select `archived_at`, so the rollout handoff lists
   the migration as a prerequisite for any environment, and production readiness stays
   unknown until a deployment runner reports it.
-- `dashboard.home` is only verified, because an additive field is a compatible change to
-  what `reads` consumes. If its checks fail, it joins tx-1 as an update.
+- The `database` binding joins tx-1 because it owns the retained migration and the schema
+  index that collects every entity.
+- `dashboard.home` is only verified, because an optional field is reader-compatible and
+  `reads` consumes the read contract. If its checks fail, it joins tx-1 as an update.
 - `auth.login` mentions `forgot_password`, but `mentions` does not order work, so tx-4
   need not wait for tx-3. Its route is known from the spec.
 - The signup drift blocks only signup.
@@ -1723,12 +1623,14 @@ The first milestone tests only that, and tests it against a control.
 **First milestone.**
 
 1. A runner driven by hand-written graph JSON: state records with whole-file ownership,
-   `plan` with create, update, delete and drift, serial transactions, and work orders for
-   one existing coding agent. Typecheck and build are the only package checks.
+   `plan` with create, update, delete and drift, serial transactions, the work-order and
+   result protocol for one existing coding agent, and one hard-coded `nextjs` adapter.
+   Typecheck and build are the only package checks.
 2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
-   with callers, an adopted hand edit, and an edit that tempts the agent to widen its
-   scope. Each edit has an acceptance test written independently and outside the agent's
-   write set.
+   with callers, a compatible input widening, a normative prose change to an action, a
+   route move with created parts, an adopted hand edit, and an edit that tempts the agent to
+   widen its scope. Each edit has an acceptance test written independently and outside the
+   agent's write set.
 3. A control arm: the same agent, the same baseline and the same edits phrased as plain
    instructions with no graph or state.
 4. Measure: intended behaviour achieved, existing behaviour retained, writes outside the
@@ -1736,8 +1638,8 @@ The first milestone tests only that, and tests it against a control.
 5. Only then: the parser and evaluator for `project`, `stack`, `use`, `module`,
    `nextjs.page` and `action`.
 
-Deferred until that works: entities and migrations, rules, tests from `expect`,
-contributions, parallel apply, and any package beyond a hard-coded `nextjs`.
+Deferred until that works: entities and migrations, rules, test-first, contributions,
+parallel apply, package distribution, and any adapter beyond `nextjs`.
 
 **Open questions.**
 
@@ -1746,6 +1648,4 @@ contributions, parallel apply, and any package beyond a hard-coded `nextjs`.
 | Own syntax or a TypeScript frontend first? | Own syntax, for static analysis. Revisit if tooling cost dominates. |
 | How much belongs in structure versus prose? | Structure for anything another declaration consumes. Prose for the rest. |
 | How do prompts stay short? | A lint on prompt length, and pressure to move detail into fields, `hint` or skills. |
-| Are tests outputs of a declaration or declarations of their own? | Outputs, each mapped to an `expect` item. |
-| What happens when two branches change the same declaration? | State files conflict where the code does. After any merge, evidence whose tree is not the merged tree is `stale` for checks that span declarations. |
-| What is the language called? | Undecided. `spec` is a placeholder. |
+| What is the language called? | Undecided; see `QUESTIONS.md`. `spec` is a placeholder. |

@@ -141,3 +141,11 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D8.10 [accept] The CLI never runs migrations or deploys; `spec rollout` hands off prerequisites to an external runner; source transactions never wait for production — REVIEW flaw 6.
 - D8.11 [accept] Secrets declared by name; allowlisted protocol metadata; versioned test profiles; separate observer credentials.
 - D8.12 [accept] Cross-declaration requirements expressed as `expect` on the stating declaration; `flow` deferred.
+
+## Editorial pass (between rounds 8 and 9)
+
+- E.1 [accept] Consistency fixes across sections written in different rounds: relations are core-fixed (removed "packages may declare relations"), `enum` and `depends_on` removed from tables, `may_create_under` replaced by creation roots, state record shows the `behaviour` hash and the coverage/run evidence shape, policies stated as conjunctions throughout.
+- E.2 [accept] Worked example: the `database` binding joins tx-1 (it owns the retained migration and the schema index); drift resolutions include `repair`; plan counts corrected.
+- E.3 [accept] Agent protocol reference moved to `PROTOCOL.md`; SPEC.md keeps the load-bearing rules — readability.
+- E.4 [accept] Resolved open questions removed from SPEC.md; taste decisions listed in `QUESTIONS.md` with provisional defaults.
+- E.5 [accept] Milestone trial gains a compatible widening, a normative prose change, and a route move with created parts, per rounds 4, 5 and 7.

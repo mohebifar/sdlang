@@ -618,7 +618,7 @@ def main(argv):
         except ParseError as e:
             failures.append(f"positive case rejected: {name}: {e}")
     total = {"spec": 0, "json": 0}
-    for path in argv or ["SPEC.md"]:
+    for path in argv or ["SPEC.md", "PROTOCOL.md"]:
         count, f = check_spec_md(path)
         failures += f
         for k in total:
