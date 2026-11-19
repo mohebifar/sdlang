@@ -19,10 +19,12 @@ Shared definitions (digests, addresses, members, subjects, test locators, polici
 ## Binding
 
 Every order carries a `dispatch` id unique across plans, revisions and attempts, and a
-`binding`: plan hash, transaction, base commit, the exact input snapshot (which differs
-from the commit for a repair on drifted files, or a later task in a transaction), graph and
-lock hashes, and `order_hash`, the sha256 of the order's canonical JSON with that field
-removed. A reply must echo `dispatch` and `order_hash`; a reply that does not match the
+`binding` with the plan hash, graph and lock hashes, and `order_hash`: the sha256 of the
+order's canonical JSON with that field removed. A work order also binds what the agent
+starts from: transaction, base commit and the exact input snapshot (which differs from the
+commit for a repair on drifted files, or for a later task in a transaction). A review order
+instead binds the frozen `candidate_snapshot` it judges; its transaction and base are
+recoverable from the plan. A reply must echo `dispatch` and `order_hash`; a reply that does not match the
 outstanding dispatch is discarded. Digests are full and tagged (`sha256:...`, `git:...`).
 
 ## Life of one dispatch
@@ -78,7 +80,9 @@ operational answers never become spec text.
 
 Context is assembled deterministically from the bound graph:
 
-- **Inline, always, never truncated:** each subject's canonical spec, previous spec, diff
+- **Inline, always, never truncated** (`context.inherited`, `context.references` and the
+  subjects; the schema has no other way to carry them): each subject's canonical spec,
+  previous spec, diff
   and name resolution; inherited normative context (project, then ancestor modules
   outermost first, then matching rules by address) with previous text where it changed;
   every requirement; the envelope; and every consumed or observed projection of what the
@@ -105,7 +109,9 @@ every requested subject and assessment exactly once: conformance (`conforms`,
 each candidate test set (`sufficient`, `insufficient`, `cannot_determine`), and for repairs
 whether the regression test follows from the requirement and demonstrates the observation.
 Normative prompt text with no `expect` member is reviewed as a compiler-issued context
-subject. A verdict never creates a passing run and never upgrades evidence to `tested`.
+subject, `<target>#context.h_<first 12 hex digits of the text's hash>`. Resource handles in a
+review order are bound to the frozen candidate, never reused from the work order, whose
+handles name the pre-edit bytes. Coverage candidates carry each test's oracle digest. A verdict never creates a passing run and never upgrades evidence to `tested`.
 
 ## MCP tools
 
@@ -124,3 +130,28 @@ agent can read the repository. And validating the final tree cannot prove that n
 forbidden write happened in between (a check script edited, run and restored), which is
 why checks run from protected definitions and, where available, the runner isolates the
 filesystem.
+
+## Generator protocol
+
+A generator is run like a check (see SPEC.md, Packages → Checks and generators) with one
+JSON document on stdin and one on stdout. Version 1:
+
+| Input field | Meaning |
+| --- | --- |
+| `protocol` | `"intentlang.generator/1"` |
+| `dispatch`, `binding` | As for a work order; the reply echoes them |
+| `subjects` | Each declaration the generator produces: address, old and new canonical graph entries, and its consumed aggregate input (for an owner with contributions or `collects`) |
+| `envelope` | Writable output slots and retained roots, with expected digests |
+| `decisions` | Explicit answers the generator may need (for example `rename_field` pairs from `moved`) |
+| `generation_id` | A fixed value to use for any generated name or timestamp |
+| `staging` | The directory the generator writes into; the CLI copies validated files into the candidate |
+
+| Output field | Meaning |
+| --- | --- |
+| `status` | `"written"`, `"unsupported"` (the change is outside what this generator handles) or `"needs_decision"` (with the questions; the plan is amended) |
+| `files` | Each written file: output slot or retained root, relative path, digest |
+| `retained` | For retained roots: artifact id, dependencies and checksum (migrations, backfill manifests) |
+
+The CLI validates the output exactly like an agent's: envelope, ownership, digests, then
+checks. An `unsupported` result is never silently handed to an agent.
+

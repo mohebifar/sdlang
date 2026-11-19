@@ -459,6 +459,7 @@ NEGATIVE = {
     "repeated export": "export export action a {\n}\n",
     "member address without collection": "moved a.b#redirects -> a.b#expect.x\n",
     "template is not v0": "template crud(e: entity) {\n}\n",
+    "record inside a selector operand list": "rule r {\n  applies_to: select * where config in [{ mode: \"a\" }]\n}\n",
     "meta with unknown field": "rule r {\n  applies_to: select * where meta.path == \"x\"\n}\n",
 }
 
@@ -500,6 +501,7 @@ SCHEMA_EXAMPLES = [
     ("result", "examples/result.json"),
     ("review-order", "examples/review-order.json"),
     ("review-verdict", "examples/review-verdict.json"),
+    ("graph", "examples/graph.json"),
 ]
 
 _R = {"schema": "intentlang.result/1", "dispatch": "p-1/r1/tx-1/1",
@@ -551,7 +553,7 @@ def check_schemas():
     except ImportError:
         return ["jsonschema not installed: cannot validate schemas (pip install jsonschema)"], 0
     schemas = {}
-    for name in ["common", "work-order", "result", "review-order", "review-verdict"]:
+    for name in ["common", "work-order", "result", "review-order", "review-verdict", "graph"]:
         schemas[name] = json.load(open(f"schemas/{name}.schema.json"))
         jsonschema.Draft202012Validator.check_schema(schemas[name])
     registry = Registry().with_resources(
@@ -580,6 +582,15 @@ def check_schemas():
     for t in rs.get("tests", []):
         if (t["subject"]["target"], t["subject"]["requirement"]) not in order_subjects:
             failures.append(f"result: test binding for unknown subject {t['subject']}")
+    stale = set(m["resource"] for m in wo["context"]["manifest"]) & set(ro["context"]["manifest"])
+    if stale:
+        failures.append(f"review-order: reuses pre-edit resource handles {sorted(stale)}")
+    gr = docs["graph"]
+    addrs = {x["address"] for x in gr["declarations"]}
+    for x in gr["declarations"]:
+        for e in x["edges"]:
+            if "::" not in e["target"] and e["target"] not in addrs and e["relation"] != "mentions":
+                failures.append(f"graph: {x['address']} edge to unknown {e['target']}")
     if [s["id"] for s in rv["subjects"]] != [s["id"] for s in ro["subjects"]]:
         failures.append("review-verdict: subjects must match the review order exactly")
     if wo["attempt"]["number"] > wo["attempt"]["max"]:

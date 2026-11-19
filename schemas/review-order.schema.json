@@ -131,14 +131,15 @@
                     "additionalProperties": false,
                     "required": [
                       "test",
-                      "definition_hash"
+                      "oracle"
                     ],
                     "properties": {
                       "test": {
                         "$ref": "common.schema.json#/$defs/test"
                       },
-                      "definition_hash": {
-                        "$ref": "common.schema.json#/$defs/digest"
+                      "oracle": {
+                        "$ref": "common.schema.json#/$defs/digest",
+                        "description": "Oracle digest: the case plus its helpers, fixtures, setup, runner configuration and snapshots."
                       }
                     }
                   }

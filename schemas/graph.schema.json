@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/graph.schema.json",
+  "title": "Spec graph",
+  "description": "The evaluated, canonical graph a frontend emits and the planner consumes. Every name is resolved; short forms are expanded; defaults are filled. Canonical JSON (sorted keys, no insignificant whitespace, UTF-8, NFC strings) of a projection is what gets hashed. The first milestone's runner reads this directly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "lock", "modules", "declarations", "moves"],
+  "properties": {
+    "schema": { "const": "intentlang.graph/1" },
+    "lock": { "$ref": "common.schema.json#/$defs/digest" },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "imports"],
+        "properties": {
+          "path": { "type": "string", "description": "Dotted module path; \"\" for the root module." },
+          "header": { "$ref": "#/$defs/fields" },
+          "imports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["alias", "source"],
+              "properties": {
+                "alias": { "type": "string" },
+                "source": { "type": "string", "description": "module:<path> or package:<canonical package id>" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "declarations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["address", "module", "kind", "sort", "exported", "fields", "members", "edges", "lifecycle", "source"],
+        "properties": {
+          "address": { "$ref": "common.schema.json#/$defs/address" },
+          "module": { "type": "string" },
+          "kind": { "type": "string", "description": "core:<kind> or <canonical package id>::<kind>" },
+          "sort": { "enum": ["managed", "context"] },
+          "exported": { "type": "boolean" },
+          "extern": { "type": "boolean" },
+          "fields": { "$ref": "#/$defs/fields" },
+          "members": {
+            "description": "Addressable collections, short forms expanded: collection -> key -> member fields.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/fields" }
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relation", "target", "via"],
+              "properties": {
+                "relation": { "enum": ["calls", "reads", "writes", "uses", "types", "requires", "mentions", "contributes"] },
+                "target": { "type": "string", "description": "An address or a canonical catalog symbol." },
+                "via": { "type": "string", "description": "The field or member path the edge comes from, e.g. calls, prompt, expect.redirects.text." }
+              }
+            }
+          },
+          "lifecycle": { "enum": ["managed", "frozen", "protected"] },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "on", "args"],
+              "properties": {
+                "name": { "type": "string" },
+                "on": { "type": "string", "description": "\"\" for the declaration, else a field or member path." },
+                "args": { "type": "array", "items": { "$ref": "#/$defs/value" } }
+              }
+            }
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "line"],
+            "properties": { "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 } }
+          }
+        }
+      }
+    },
+    "moves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "scope"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "scope": { "enum": ["declaration", "module", "member"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } },
+    "value": {
+      "description": "A canonical value. Plain JSON for literals, lists and records; tagged objects for everything else.",
+      "anyOf": [
+        { "type": ["string", "number", "boolean", "null"] },
+        { "type": "array", "items": { "$ref": "#/$defs/value" } },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$prose"],
+          "properties": { "$prose": { "type": "string", "description": "Dedented, LF line ends, no trailing spaces, mentions rewritten to @{<address>}." } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$ref"],
+          "properties": { "$ref": { "type": "string" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$type"],
+          "properties": {
+            "$type": { "enum": ["builtin", "named", "list", "record", "union", "optional", "ref", "literal"] },
+            "name": { "type": "string" },
+            "of": { "$ref": "#/$defs/value" },
+            "fields": { "$ref": "#/$defs/fields" },
+            "options": { "type": "array", "items": { "$ref": "#/$defs/value" } },
+            "value": { "type": ["string", "number", "boolean", "null"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$record"],
+          "properties": { "$record": { "$ref": "#/$defs/fields" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["$init"],
+          "properties": { "$init": { "const": "now" } }
+        }
+      ]
+    }
+  }
+}

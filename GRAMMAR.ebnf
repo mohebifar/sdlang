@@ -91,7 +91,9 @@ Access        ::= 'meta' '.' Word                (* module, name or kind *)
                 | Word ( '.' Word )*             (* a field of the candidate *)
 CompareOp     ::= '==' | '!=' | '<' | '<=' | '>' | '>='
                 | 'matches' | 'in' | 'contains'
-Operand       ::= String | Number | 'true' | 'false' | 'null' | Path | List
+Operand       ::= String | Number | 'true' | 'false' | 'null' | Path
+                | OperandList
+OperandList   ::= '[' Gap ( Operand ( Sep Operand )* Sep? )? Gap ']'
 
 Path          ::= Ident ( '.' Word )*
 Sep           ::= ',' Gap

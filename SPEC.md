@@ -160,19 +160,27 @@ jointly merge (see Transactions).
 
 ### Projections and hashes
 
-Hashes are computed over canonical projections of the graph, never over source text.
-Canonical form resolves references to addresses, fills defaults, sorts unordered fields
-and normalises prose whitespace.
+Hashes are computed over canonical projections of the graph, never over source text. A
+frontend emits the graph as JSON (`schemas/graph.schema.json`, example `examples/graph.json`)
+with every name resolved, member short forms expanded and defaults filled. A projection's
+hash is the sha256 of its canonical JSON: sorted keys, no insignificant whitespace, UTF-8,
+NFC strings; reference-valued lists that are sets (`uses`, `calls`, `reads`) sorted; prose
+dedented, with LF line ends, trailing spaces removed and mentions rewritten to
+`@{<address>}`.
 
 | Projection | Covers | Invalidates |
 | --- | --- | --- |
 | `public` | `summary` plus `@interface` fields (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents that consume it |
 | `behaviour` | Normative prose: `prompt`, `expect` and `errors` text, plus the normative context the declaration inherits | The declaration; dependents that observe it |
-| `body` | Everything else the declaration states: `hint`, `uses`, `skills` | The declaration itself |
-| `context` | Inherited prompts and hints, matching rules, and package components: skills, output conventions, checks, generators, each hashed separately | The declaration, as classified under Propagation |
+| `body` | Everything else the declaration states except guidance: `uses`, non-interface kind fields | The declaration itself |
+| `guidance` | `hint` and `skills` | Nothing: guidance shapes future work only, so a change creates no obligation |
+| `context` | Inherited prompts and hints, matching rules, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation |
 
-Because type references resolve recursively, changing a shared `type` changes the public
-projection of every action whose signature mentions it, and so reaches their callers.
+A type reference inside a public projection is replaced by the referenced type's address
+and public hash, so changing a shared `type` changes the public projection of every action
+whose signature mentions it, and so reaches their callers. Mutually recursive types are
+hashed together: the strongly connected component's members, sorted by address, form one
+hash input, and each member's hash is that component hash plus its own address.
 `extern` declarations record a hash of the source symbol they point to, so editing that
 code changes their public projection.
 
@@ -182,28 +190,29 @@ consumed changed.
 
 ### Evidence
 
-The **baseline** is the set of output hashes a human or a passing transaction accepted.
-**Evidence** for a requirement has two parts, kept separately:
-
-- **Coverage**: a judgement that a given test covers a given revision of the
-  requirement's text. It is made by a reviewer that did not write the code (a human or a
-  separate agent) and records the requirement's contract hash and the test's oracle
-  digest (see Tests).
-- **Run**: the test passed, on a recorded git tree, under a recorded check definition.
-
-A requirement is `tested` only when both are current. Editing an expectation's text keeps
-its test binding but invalidates coverage, because an unchanged test that still passes
-may no longer test the new sentence. Changing an output the test covers, the test itself
-or the check definition invalidates the run. Either makes the evidence `stale`. Adopting a
-hand edit renews the baseline, not the evidence.
-
-The evidence subject is a pair, so rule requirements fit the same model:
-`{ "target": "dashboard.home", "requirement": "app.app_requires_session#expect.redirects" }`.
+The **baseline** is the set of output digests a human or a passing transaction accepted.
+**Evidence** is separate: a record of what was checked, by whom, on which inputs, for which
+revision of a requirement (see Verification). Adopting a hand edit renews the baseline, never
+the evidence. The subject of evidence is a pair, so a rule's requirement applied to a page
+fits the same model:
+`{ "target": "dashboard.home", "requirement": "app_requires_session#expect.redirects" }`.
 
 ## Surface syntax
 
 The normative grammar is `GRAMMAR.ebnf`; `tools/check_examples.py` parses every `spec`
 block in this document against it. This section explains the choices.
+
+**Own syntax, no TypeScript frontend in v0.** Identity, edges, attachment and visibility all
+need a compiler whatever the spelling, so TypeScript would save the parser and little else.
+A credible embedding would be either a restricted, statically interpreted subset (another
+language with its own diagnostics) or an evaluated builder (which breaks the promise that
+planning runs no authored code, and makes reviewers read the computation instead of the
+change). The tooling plan is deliberately small: one parser with source spans and
+preserved comments serving compiler, diagnostics and formatter; syntax highlighting; a
+formatter that never rewrites prose; then a thin language server (diagnostics, completion,
+hover, go to definition, references) on the compiler's resolver, with rename deferred until
+it can emit the `moved` statements a rename needs. A TypeScript frontend can come later if
+the milestone shows demand; it would lower to the same graph and pass the same fixtures.
 
 ```spec
 // Root module only: project, stack, use
@@ -255,7 +264,7 @@ export nextjs.page login {
 | `let <name> = <expr>` | `let max_name = 80` | Any module |
 | `moved <address> -> <address>` | `moved auth.login -> auth.sign_in` | Any module |
 | `environment <name> { }` | a deployment target to observe (see Runtime state) | Root module |
-| `kind`, `annotation`, `check`, `generator` | definitions | Package sources only |
+| `kind`, `annotation`, `check`, `generator`, `binding` | definitions | Package sources only |
 
 `export` may precede `type`, `let` and declarations. Bodies hold **fields** (`name: expr`)
 and **sections** (`name { ... }`); which fields and sections are legal is fixed by the
@@ -321,11 +330,12 @@ as a value or as a type:
 | `T?` | error | optional: `T` or `null`, and omittable as a record field |
 | `ref T` | error | reference to a managed declaration, e.g. an entity foreign key |
 | `path` | reference to a declaration or constant | named type |
-| `path { ... }` | constructor record of a kind or catalog type, e.g. a contribution | error |
+| `path { ... }` | constructor record: a contribution to the owner declaration `path`, or a value of catalog type `path` | error |
 | `self` | the enclosing declaration | error |
 
-Defaults (`= expr`) and annotations are legal only where a record describes a schema:
-entity `fields`, `input`, `output`, kind `fields`. Defaults apply when a field is omitted,
+Defaults (`= expr`) and field annotations are legal only where a record describes a schema:
+entity `fields`, `input`, `output`, kind `fields` and annotation `parameters`. Declaration
+annotations go after a declaration's name. Defaults apply when a field is omitted,
 not when it is `null`. `now` is a symbolic initializer meaning "at creation time"; the
 compiler never reads the clock. Enum-like values are string literals (`verify: "tested"`,
 `lifecycle: "frozen"`), and enumerations are unions: `type Plan = "free" | "team"`.
@@ -374,15 +384,19 @@ Each annotation is a declaration with a definition, never free-form metadata:
 ```spec
 export annotation index {
   targets: ["entity_field"]
+  projection: "public"
+  repeatable: false
   parameters {
     method: "btree" | "hash" = "btree"
   }
 }
 ```
 
-The compiler resolves the name like any path (`@database.index("hash")`), checks the
-target, the field type and the arguments, rejects repeats, and puts the application into
-the projection the definition names. Packages export annotations; their meaning is
+A definition has `targets` (any of `entity_field`, `schema_field`, `kind_field`,
+`declaration`), `projection` (`public`, `body` or `guidance`: where an application is
+hashed), `repeatable` (default `false`) and an ordered `parameters` schema matched
+positionally. The compiler resolves the name like any path (`@database.index("hash")`),
+checks the target, the field type and the arguments, and rejects repeats unless allowed. Packages export annotations; their meaning is
 consumed by the package's own checks and generators, never invented by the compiler.
 
 Core annotations:
@@ -432,7 +446,7 @@ a warning, since rules also cover declarations added later.
 | Sort | Names |
 | --- | --- |
 | Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `annotation` |
-| Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator` |
+| Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator`, `binding` |
 | Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret` |
 | Constants | `now` |
 | Annotations | see above |
@@ -574,6 +588,7 @@ A package is an npm package whose `package.json` has a static `intentlang` entry
   "name": "@intentlang/nextjs",
   "intentlang": {
     "format": 1,
+    "name": "nextjs",
     "entry": "./spec/index.spec",
     "skills": { "app_router": "./skills/app-router" },
     "provides": {
@@ -592,6 +607,13 @@ declarations; it is a namespace, not a behavioural contract, and two providers o
 capability are never assumed interchangeable (D1.7). Each component (kind schemas,
 conventions, skills, checks, generators) is hashed separately, so a plan can say *why* an
 upgrade affects a declaration.
+
+`name` is the package's import name: `import nextjs` resolves through `spec.lock` to the one
+locked package whose manifest declares `"name": "nextjs"`; if none or several do, the import
+must name the package (`import package "@intentlang/nextjs" as nextjs`). A provider that
+accepts `use` options declares an `options` type in its spec sources
+(`"options": "DrizzleOptions"` in the manifest); the record after `use ... for database` is
+checked against it, and options on a provider without one are an error.
 
 Relations are fixed by the core in v0. A package kind uses them through `@relation`, and
 cannot define new ones or replace a core field such as `uses`.
@@ -644,8 +666,17 @@ URL-to-path conversion; a package that maps routes to paths must define that map
 explicitly and reject routes it does not support. Paths are repository-relative,
 normalised and checked for escapes, aliases and collisions.
 
-Deferred until an adapter needs them: custom relations, `accepts` and `collects` (with
-contributions), retained-artifact metadata (with migrations), kind inheritance, hooks.
+Two further sections and one further form exist for owners of shared and retained files.
+They are specified with the features that use them and are **not** needed by the first
+milestone:
+
+| Extension | Meaning | Specified in |
+| --- | --- | --- |
+| `accepts { }` | The contribution schema an owner kind takes, with `order` and `exclusive` keys | Contributions |
+| `collects: select ...` | Implicit membership by selector, with rule-selector restrictions | Contributions |
+| `binding <capability> { }` | Package-only form defining what a `use` binding owns: `outputs`, `creates`, `retains` (retained-artifact roots, each with a producer: `generator` or `agent`), `collects`, `generator`, `observer`, `options` | Toolchain and retained artifacts; Runtime state |
+
+Still deferred: custom relations, kind inheritance, hooks.
 
 ### Compatibility
 
@@ -678,10 +709,13 @@ export generator registry {
 }
 ```
 
-A check has a `purpose` (`build` or `conformance`, which selects its result protocol), a
-`scope` (`declaration` or `project`) and a `run` argv executed without a shell. A generator
-has only `run`; its inputs, outputs and result format come from a versioned core protocol,
-and it writes only inside the envelope the CLI issues. "Deterministic" is operational: the
+A check has a `purpose` (`build`, `conformance` or `test`, which selects its result
+protocol: exit status, per-rule results, or per-case results as in Verification → Tests), a
+`scope` (`declaration` or `project`) and a `run` argv executed without a shell. A test
+check is run once per test output; that run's id is `<check>:<output member>`
+(`nextjs.test:auth.login#outputs.tests`). A generator has only `run`; its inputs, outputs
+and result format follow the generator protocol in `PROTOCOL.md`, and it writes only inside
+the envelope the CLI issues. "Deterministic" is operational: the
 runner supplies the whole input closure (generator and dependency digests, runtime image,
 old and new canonical graph, baseline artifacts, candidate input files, explicit decisions
 such as renames, a fixed generation id for names and timestamps) and blocks every other
@@ -765,7 +799,7 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
   "address": "auth.login",
   "kind": "nextjs.page",
   "hashes": { "public": "9c1e", "behaviour": "3b70", "body": "41af", "context": "d07b" },
-  "context_parts": { "module:auth": "a1c3", "rule:app.app_requires_session": "0d4e", "pkg:nextjs:skills": "b2f0" },
+  "context_parts": { "module:auth": "a1c3", "rule:app_requires_session": "0d4e", "pkg:nextjs:skills": "b2f0" },
   "consumed": [
     { "relation": "calls", "target": "auth.sign_in", "projection": "public", "hash": "77e2" },
     { "relation": "calls", "target": "auth.sign_in", "projection": "behaviour", "hash": "18aa" },
@@ -779,7 +813,7 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
                     "path": "src/app/login/_parts/LoginForm.tsx", "bytes": "77ab", "formatted": "77a0" }
   },
   "contributions": {
-    "nav": { "owner": "app.main_nav", "payload": "9f3e", "materialized_in": ["app.main_nav#outputs.registry"] }
+    "nav": { "owner": "main_nav", "payload": "9f3e", "materialized_in": ["main_nav#outputs.registry"] }
   },
   "evidence": [
     {
@@ -950,7 +984,8 @@ destructive migration and requires an explicit flag.
   "state_digest": "c9e1",
   "fingerprints": { "src/app/login/page.tsx": "be90", "src/app/signup/page.tsx": "a7d2" },
   "transactions": [
-    { "id": "tx-1", "entries": ["core.Workspace"], "obligations": { "dashboard.home": ["verify"] } }
+    { "id": "tx-1", "entries": ["core.Workspace", "database"],
+      "obligations": { "dashboard.home": { "kinds": ["verify"], "contingent": ["src/app/app/page.tsx", "tests/app/app/page.test.ts"] } } }
   ]
 }
 ```
@@ -963,8 +998,11 @@ before the journal entry is detected from the result commit, which carries the
 transaction id in its trailer.
 
 Each transaction's write envelope is the union of its declarations' owned outputs plus the
-creation roots their kinds declare. A write outside the envelope, a needed
-escalation outside it, or a generator that cannot handle its change produces an
+creation roots their kinds declare. Every declaration with an obligation in the transaction
+also has a **contingent envelope** (its own owned outputs), listed in the plan and reviewed
+with it, so a `verify` or `review` that escalates to `update` can join the transaction
+without a new plan. A write outside the envelope, an escalation outside the contingent
+envelopes, or a generator that cannot handle its change produces an
 **amended plan**: a new revision with a new binding, recomputed propagation, transaction
 membership and order. The failed candidate is kept as a reviewable patch. Nothing widens
 scope under the old plan's authority.
@@ -1006,32 +1044,13 @@ Agents never interpret the spec tree. The CLI compiles, plans and hands each tas
 agent as a self-contained order; the agent's only job is to make the code in a bounded set
 of files satisfy the order's subjects. Results are claims; the CLI owns verification.
 
-The protocol is four JSON documents with JSON Schemas in `schemas/`, specified in
-`PROTOCOL.md`: a **work order** (CLI → coding agent), a **result** (`submitted` or
-`blocked`), a **review order** (CLI → reviewer) and a **review verdict**. Its load-bearing
-rules:
-
-- **Binding.** Every order has a unique dispatch id and a binding to exact inputs (plan,
-  input snapshot, graph, lock) with a recomputable `order_hash`; replies echo it or are
-  discarded.
-- **Verification is the CLI's.** After the agent exits, the CLI freezes the candidate,
-  derives the diff itself, enforces each subject's envelope, ownership claims and
-  export-level import grants, and runs every check from pinned definitions outside the
-  worktree. Reviews run on that frozen snapshot.
-- **Retries** continue in the same candidate with classified, fingerprinted failures;
-  infrastructure failures are rerun without consuming an attempt; restarting from a
-  checkpoint is an explicit recovery action.
-- **Blocked** is a claim with evidence, classified as a spec question (resolved by a
-  reviewed spec change), an authority request (an amended plan or a `use`), or an
-  environment problem (operational recovery). Unsupported claims count as failed attempts.
-- **Context** is assembled deterministically: the mandatory set (spec, diff, normative
-  context, requirements, envelope, every consumed or observed projection) is inline and
-  never truncated; other required items are fetched in full; optional items are packed by a
-  fixed policy.
-- **Reviews** come from a session that wrote none of the code and cannot write; every
-  requested subject gets exactly one verdict; a verdict never creates a passing run.
-- **Tools** (MCP) are read-only except `run_self_check`; none writes state, widens the
-  envelope or records evidence.
+The protocol is four JSON documents, specified in `PROTOCOL.md` with JSON Schemas in
+`schemas/`: a work order, a result, a review order and a review verdict. Every order is bound
+to exact inputs and every reply must echo that binding. After the agent exits, the CLI
+freezes the candidate and verifies it itself: it derives the diff, enforces envelopes,
+ownership and import grants, and runs checks from pinned definitions the agent cannot edit.
+Reviews come from a separate session on that frozen snapshot. Retries, blocked claims,
+context assembly and the tool surface are in `PROTOCOL.md`.
 
 **Agents editing specs.** When a developer asks an agent to "add forgot password", the
 agent edits the `.spec` file, runs `spec plan`, shows the plan, then runs `spec apply`. A
@@ -1052,22 +1071,8 @@ truth.
 
 ### Outputs
 
-A kind declares named output slots and creation roots:
-
-```spec
-export kind page {
-  fields {
-    route: route_path @interface
-  }
-  outputs {
-    page: "src/app/${route}/page.tsx"
-    tests: "tests/app/${route}/page.test.ts"
-  }
-  creates {
-    parts: "src/app/${route}/_parts/"
-  }
-}
-```
+A kind declares named output slots (`outputs`) and creation roots (`creates`); see the `page`
+kind under Packages → Kind definitions.
 
 - **Slots.** Required slots exist when the create transaction publishes; nothing is
   pre-created. A slot's path is a locator recomputed from fields, so a route change moves
@@ -1152,12 +1157,16 @@ nextjs.page login {
   `stack`; the manifest and lockfile are maintained by the package manager through a
   generator. An agent that needs a dependency returns `blocked` with the concrete `use` it
   needs; it never runs a package manager itself.
-- **A `use` binding owns its integration files** when its package declares outputs: the
-  database binding owns `drizzle.config.ts` and the schema index. Its address is its
-  capability name. Bindings whose package declares no outputs remain context.
-- **Retained artifacts.** A published migration is retained: it is immutable, never deleted
-  (not even when its entity is deleted), and recorded in the state of the binding that
-  produced it. A mistake in a published migration is corrected by a later migration.
+- **A `use` binding owns its integration files** when its package defines a `binding` for
+  that capability (see Packages → Kind definitions): the database binding owns
+  `drizzle.config.ts`, the schema index (`collects: select entity`) and the retained
+  migration and backfill roots. Its address is its capability name. Bindings whose package
+  defines no `binding` remain context.
+- **Retained artifacts.** A published migration or backfill is retained: it is immutable,
+  never deleted (not even when its entity is deleted), and recorded in the state of the
+  binding that owns its root. Each retained root names its producer: migrations are written
+  by the binding's generator, backfills by an agent dispatch whose envelope is one new file
+  under the backfill root. A mistake in a published migration is corrected by a later migration.
   Publishing a migration file says nothing about whether a database has run it (see Runtime
   state).
 - Files no declaration owns are unmanaged: agents cannot write them, but they still count
@@ -1250,9 +1259,11 @@ and a human approval discharges only `approval`.
 
 **Status** is reported per evidence kind, as an outcome plus currency (`tests: passed,
 current; review: conforms, stale`), because a requirement can have a current review, a
-stale coverage judgement and a fresh failed run at once. The summary labels used in plans
-and in state (`tested`, `judged`, `accepted`, `unverified`, `stale`) are derived from that
-and carry no extra meaning.
+stale coverage judgement and a fresh failed run at once. The summary label used in plans and
+state is derived, in this order: `failed` if any required evidence failed or was judged
+nonconforming; `stale` if any is stale; `unverified` if any is missing; otherwise the policy
+is met and the label names it (`tested` if it includes tests, else `judged` if it includes
+review, else `accepted`).
 
 ### Tests
 
@@ -1296,7 +1307,8 @@ The per-case result protocol (runner-neutral, emitted by the package's test chec
 }
 ```
 
-**Test first (optional).** With `test_first: true`, a new or changed requirement revision
+**Test first (optional).** With `test_first: true` on the project (or on a module header,
+for that module), a new or changed requirement revision
 whose policy includes tests gets its test written first, by a separate dispatch whose
 envelope covers the test output and the support files it needs. The CLI records the initial
 outcome honestly (assertion failure, setup failure, already passing, not executable yet)
@@ -1535,9 +1547,29 @@ export nextjs.page home {
 }
 ```
 
-**The change.** Add `spec/auth/forgot_password.spec`, add one prompt line and `ui.link`
-to `login`, and add `archived_at: timestamp?` to `Workspace`. Meanwhile someone has
-hand-edited the signup page.
+**The change.** Add `spec/auth/forgot_password.spec`; in `login`, add one prompt line,
+`ui.link` and the `forgot_link` expectation; and add `archived_at: timestamp?` to
+`Workspace`'s fields. Meanwhile someone has hand-edited the signup page. The revised `login`:
+
+```spec
+export nextjs.page login {
+  route: "/login"
+  summary: "A page where you can sign in"
+  uses: [ui.form, ui.input, ui.button, ui.link]
+  calls: [sign_in]
+  prompt: """
+    Email and password form in the shared auth card.
+    On success go to @{dashboard.home}.
+    Link to @{forgot_password} under the password field.
+  """
+  expect {
+    redirects: "valid credentials redirect to @{dashboard.home}"
+    generic_error: "invalid credentials show one generic error and keep the email filled in"
+    busy_button: "the submit button is disabled while the request is in flight"
+    forgot_link: "the forgot-password link goes to @{forgot_password}"
+  }
+}
+```
 
 `spec/auth/forgot_password.spec`
 
@@ -1594,7 +1626,12 @@ Transactions (serial)
   tx-3  auth.forgot_password (create)     after tx-2: calls request_reset
   tx-4  auth.login (update)
 
-Plan: 2 create, 3 update (2 by generator), 1 verify, 1 blocked. Agent tasks: 3, plus 1 if verify fails.
+Changes: 2 create, 3 update (2 by generator), 1 verify-only, 1 drift-blocked
+Coding dispatches: 3 (tx-2, tx-3, tx-4)
+Reviews: coverage of forgot_password#expect.same_message and login#expect.forgot_link,
+         plus any requirement whose test oracle changes; batches formed at apply time
+Contingency: dashboard.home may escalate to update inside its contingent envelope
+Rollout: workspace_archived_at is a prerequisite; target readiness unknown
 Bound to a41c... (graph 77d0..., lock 5f3a...). Saved to plan.json.
 ```
 
@@ -1607,7 +1644,12 @@ What the plan shows:
 - The `database` binding joins tx-1 because it owns the retained migration and the schema
   index that collects every entity.
 - `dashboard.home` is only verified, because an optional field is reader-compatible and
-  `reads` consumes the read contract. If its checks fail, it joins tx-1 as an update.
+  `reads` consumes the read contract. If a check confirms a violation, it escalates to
+  `update` and joins tx-1 within its contingent envelope, which the plan listed and the
+  human reviewed; anything wider needs an amended plan.
+- Every requirement is under the project's `verify: "tested"`, so new or changed
+  requirements need tests plus a coverage review; the plan counts review subjects but not
+  batches, which depend on what the agents produce.
 - `auth.login` mentions `forgot_password`, but `mentions` does not order work, so tx-4
   need not wait for tx-3. Its route is known from the spec.
 - The signup drift blocks only signup.
@@ -1645,7 +1687,6 @@ parallel apply, package distribution, and any adapter beyond `nextjs`.
 
 | Question | Current lean |
 | --- | --- |
-| Own syntax or a TypeScript frontend first? | Own syntax, for static analysis. Revisit if tooling cost dominates. |
 | How much belongs in structure versus prose? | Structure for anything another declaration consumes. Prose for the rest. |
 | How do prompts stay short? | A lint on prompt length, and pressure to move detail into fields, `hint` or skills. |
 | What is the language called? | Undecided; see `QUESTIONS.md`. `spec` is a placeholder. |

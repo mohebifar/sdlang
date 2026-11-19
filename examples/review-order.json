@@ -2,7 +2,7 @@
   "schema": "intentlang.review-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
   "binding": {
-    "order_hash": "sha256:19bec95940e83d867f96ebda0316832b60a5c8af5e2deb08461d0863bb3457d5",
+    "order_hash": "sha256:91d1fa7ba3aa14b4eb1ef00f92e6b50c42926deddd7442d875427178f0efbf93",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -42,11 +42,11 @@
                 "output": "auth.login#outputs.tests",
                 "case": "forgot_link"
               },
-              "definition_hash": "sha256:3e81208d16966e80ce4493b79aa9e1d6979c7dea28dab48b74cc8fe3492dec47"
+              "oracle": "sha256:cd7789a2299cd73f2f9a41fc0bb39a98808c37dbc972f220ff88f6f84eb85ef3"
             }
           ],
           "run_receipts": [
-            "run:tx-4:1:tests:auth.login"
+            "run:tx-4:1:nextjs.test:auth.login#outputs.tests"
           ]
         }
       ]
@@ -54,8 +54,8 @@
   ],
   "context": {
     "manifest": [
-      "ctx:code:3b42c43ea5ff",
-      "ctx:code:a9314433231f"
+      "ctx:code:ed0375d5756e",
+      "ctx:code:4676e9b927fe"
     ]
   },
   "verdict_path": ".spec/run/p-2026-11-18-01/r1/tx-4/2/verdict.json",

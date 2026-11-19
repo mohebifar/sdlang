@@ -149,3 +149,18 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - E.3 [accept] Agent protocol reference moved to `PROTOCOL.md`; SPEC.md keeps the load-bearing rules — readability.
 - E.4 [accept] Resolved open questions removed from SPEC.md; taste decisions listed in `QUESTIONS.md` with provisional defaults.
 - E.5 [accept] Milestone trial gains a compatible widening, a normative prose change, and a route move with created parts, per rounds 4, 5 and 7.
+
+## Round 9: final pass
+
+- D9.1 [accept] Own syntax; no TypeScript frontend in v0; minimal tooling plan; open question closed.
+- D9.2 [accept] Canonical graph format (`schemas/graph.schema.json`) with canonicalisation and SCC hashing rules — the milestone runner consumes graph JSON.
+- D9.3 [accept] `guidance` projection (`hint`, `skills`) creates no obligation, including for a declaration's own hint.
+- D9.4 [accept] Extension sections `accepts`, `collects` and the package-only `binding` form, marked outside the milestone.
+- D9.5 [accept] Package import names and `use` options types declared in the manifest — REVIEW flaw 4 (`use` options) completed.
+- D9.6 [accept] Annotation definitions declare `targets`, `projection`, `repeatable`, ordered `parameters` — REVIEW flaw 4 (annotations) completed.
+- D9.7 [accept] Check `purpose: "test"` with per-output run ids; generator protocol in PROTOCOL.md; retained roots name their producer.
+- D9.8 [accept] Contingent envelopes for obligated declarations, reviewed with the plan, so escalation needs no new plan.
+- D9.9 [accept] Protocol fixes: candidate-bound review handles, `#context.h_<hex>` subjects, identifier test tags, mandatory inline references, `oracle` digests, binding prose per order type.
+- D9.10 [accept] Root-module addresses carry no filename (`app_requires_session`).
+- D9.11 [accept] Selector operand lists narrowed in the grammar to match the parser.
+- D9.12 [accept] Worked example shows the revised `login`, contingent escalation and full plan accounting; readability cuts applied.

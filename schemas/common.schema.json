@@ -30,7 +30,8 @@
           "$ref": "#/$defs/address"
         },
         "requirement": {
-          "$ref": "#/$defs/member"
+          "$ref": "#/$defs/member",
+          "description": "A named member, or a compiler-issued context subject <target>#context.h_<hex> for normative prompt text without an expect member."
         }
       }
     },
@@ -48,7 +49,8 @@
         },
         "case": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "The stable tag written into the test; identifier-shaped so it can appear in a member address (outputs.<slot>.cases.<tag>)."
         }
       }
     },

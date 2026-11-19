@@ -95,25 +95,25 @@ def work_order():
     catalog = [("ui.form", "Form"), ("ui.input", "Input"), ("ui.button", "Button"), ("ui.link", "Link")]
     refs = [
         {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "public",
-         "viewpoint": "applied", "hash": d("public:auth.sign_in"), "inline": True,
+         "viewpoint": "applied", "hash": d("public:auth.sign_in"),
          "text": 'action sign_in {\n  summary: ""\n  input: { email: email, password: string }\n'
                  '  output: authentication.session\n  errors { invalid_credentials, rate_limited }\n}\n'},
         {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "behaviour",
-         "viewpoint": "applied", "hash": d("behaviour:auth.sign_in"), "inline": True,
+         "viewpoint": "applied", "hash": d("behaviour:auth.sign_in"),
          "text": "errors:\n  invalid_credentials: Email or password is wrong\n"
                  "  rate_limited: Too many attempts; try again later\ninherited normative context:\n"
                  "  project: " + PROJECT_PROMPT + "  module auth: " + AUTH_PROMPT.replace("\n", " ") + "\n"},
         {"from": "auth.login", "target": "dashboard.home", "relation": "mentions", "projection": "public",
-         "viewpoint": "applied", "hash": d("public:dashboard.home"), "inline": True,
+         "viewpoint": "applied", "hash": d("public:dashboard.home"),
          "text": 'nextjs.page home { route: "/app" summary: "Lists the signed-in user\'s workspaces" }\n'},
         {"from": "auth.login", "target": "auth.forgot_password", "relation": "mentions", "projection": "public",
-         "viewpoint": "desired", "hash": d("public:auth.forgot_password"), "inline": True,
+         "viewpoint": "desired", "hash": d("public:auth.forgot_password"),
          "text": 'nextjs.page forgot_password { route: "/forgot-password" summary: "Request a password reset email" }\n'},
     ]
     for alias, export in catalog:
         refs.append({"from": "auth.login", "target": f"npm:ui-sdk::{export}", "relation": "uses",
                      "projection": "catalog", "viewpoint": "applied", "hash": d(f"catalog:ui-sdk:{export}"),
-                     "inline": True, "text": f"{export}: component contract from ui-sdk ({alias})\n"})
+                     "text": f"{export}: component contract from ui-sdk ({alias})\n"})
     manifest = [
         {"id": "skill:authentication.skills", "class": "skill", "required": False, "included": False,
          "resource": res("skill", "better-auth"), "hash": d("skill:better-auth"), "tokens": 6200},
@@ -208,7 +208,7 @@ def work_order():
             {"id": "nextjs.typecheck", "definition_hash": d("check:nextjs.typecheck"), "self_check": True},
             {"id": "nextjs.build", "definition_hash": d("check:nextjs.build"), "self_check": True},
             {"id": "nextjs.conformance", "definition_hash": d("check:nextjs.conformance"), "self_check": True},
-            {"id": "tests:auth.login#outputs.tests", "definition_hash": d("check:vitest:auth.login"),
+            {"id": "nextjs.test:auth.login#outputs.tests", "definition_hash": d("check:nextjs.test"),
              "self_check": True},
         ],
         "result_path": ".spec/run/p-2026-11-18-01/r1/tx-4/1/result.json",
@@ -261,12 +261,12 @@ def review_order():
             "coverage_candidates": [{
                 "id": "c1",
                 "tests": [{"test": {"output": TESTS, "case": "forgot_link"},
-                           "definition_hash": d("testdef:forgot_link")}],
-                "run_receipts": ["run:tx-4:1:tests:auth.login"],
+                           "oracle": d("oracle:candidate:forgot_link")}],
+                "run_receipts": ["run:tx-4:1:nextjs.test:auth.login#outputs.tests"],
             }],
         }],
-        "context": {"manifest": [res("code", "src/app/login/_parts/LoginForm.tsx"),
-                                 res("code", "tests/app/login/page.test.ts")]},
+        "context": {"manifest": [res("code", "candidate:tx-4:1:src/app/login/_parts/LoginForm.tsx"),
+                                 res("code", "candidate:tx-4:1:tests/app/login/page.test.ts")]},
         "verdict_path": ".spec/run/p-2026-11-18-01/r1/tx-4/2/verdict.json",
         "tools": {"mcp": {"transport": "stdio",
                           "command": ["spec", "mcp", "--dispatch", "p-2026-11-18-01/r1/tx-4/2"],
@@ -292,6 +292,71 @@ def review_verdict(order):
     }
 
 
+def graph():
+    """The canonical graph of the auth module before the change (SPEC.md worked example)."""
+    s = lambda t: {"$type": "builtin", "name": t}
+    login_prompt = "Email and password form in the shared auth card.\nOn success go to @{dashboard.home}.\n"
+    return {
+        "schema": "intentlang.graph/1",
+        "lock": d("lock:5f3a"),
+        "modules": [
+            {"path": "auth",
+             "header": {
+                 "summary": "Sign-in, sign-up and session handling",
+                 "prompt": {"$prose": AUTH_PROMPT},
+                 "skills": [{"$ref": "npm:better-auth::skills"}],
+             },
+             "imports": [{"alias": "nextjs", "source": "package:npm:@intentlang/nextjs"},
+                         {"alias": "dashboard", "source": "module:dashboard"}]},
+        ],
+        "declarations": [
+            {
+                "address": "auth.login", "module": "auth", "kind": "npm:@intentlang/nextjs::page",
+                "sort": "managed", "exported": True,
+                "fields": {
+                    "route": "/login",
+                    "summary": "A page where you can sign in",
+                    "uses": [{"$ref": "npm:ui-sdk::Button"}, {"$ref": "npm:ui-sdk::Form"}, {"$ref": "npm:ui-sdk::Input"}],
+                    "calls": [{"$ref": "auth.sign_in"}],
+                    "prompt": {"$prose": login_prompt},
+                },
+                "members": {"expect": {
+                    "busy_button": {"text": {"$prose": "the submit button is disabled while the request is in flight"}},
+                    "generic_error": {"text": {"$prose": "invalid credentials show one generic error and keep the email filled in"}},
+                    "redirects": {"text": {"$prose": "valid credentials redirect to @{dashboard.home}"}},
+                }},
+                "edges": [
+                    {"relation": "calls", "target": "auth.sign_in", "via": "calls"},
+                    {"relation": "mentions", "target": "dashboard.home", "via": "expect.redirects.text"},
+                    {"relation": "mentions", "target": "dashboard.home", "via": "prompt"},
+                    {"relation": "uses", "target": "npm:ui-sdk::Button", "via": "uses"},
+                    {"relation": "uses", "target": "npm:ui-sdk::Form", "via": "uses"},
+                    {"relation": "uses", "target": "npm:ui-sdk::Input", "via": "uses"},
+                ],
+                "lifecycle": "managed",
+                "source": {"file": "spec/auth/login.spec", "line": 4},
+            },
+            {
+                "address": "auth.sign_in", "module": "auth", "kind": "core:action",
+                "sort": "managed", "exported": False,
+                "fields": {
+                    "input": {"$type": "record", "fields": {"email": s("email"), "password": s("string")}},
+                    "output": {"$type": "named", "name": "npm:better-auth::session"},
+                    "hint": {"$prose": "Use the library's email and password flow. Do not hand-roll hashing."},
+                },
+                "members": {"errors": {
+                    "invalid_credentials": {"summary": "Email or password is wrong", "code": "invalid_credentials"},
+                    "rate_limited": {"summary": "Too many attempts; try again later", "code": "rate_limited"},
+                }},
+                "edges": [{"relation": "types", "target": "npm:better-auth::session", "via": "output"}],
+                "lifecycle": "managed",
+                "source": {"file": "spec/auth/login.spec", "line": 20},
+            },
+        ],
+        "moves": [],
+    }
+
+
 def main():
     wo = work_order()
     ro = review_order()
@@ -300,6 +365,7 @@ def main():
         "examples/result.json": result(wo),
         "examples/review-order.json": ro,
         "examples/review-verdict.json": review_verdict(ro),
+        "examples/graph.json": graph(),
     }
     for path, obj in files.items():
         with open(os.path.join(ROOT, path), "w") as f:

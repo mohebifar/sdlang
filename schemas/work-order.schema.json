@@ -167,7 +167,7 @@
           }
         },
         "references": {
-          "description": "Consumed and observed projections of everything the subjects reference, changed or not.",
+          "description": "Consumed and observed projections of everything the subjects reference, changed or not. Always inline: part of the mandatory context, never truncated or fetched.",
           "type": "array",
           "items": {
             "type": "object",
@@ -179,7 +179,7 @@
               "projection",
               "viewpoint",
               "hash",
-              "inline"
+              "text"
             ],
             "properties": {
               "from": {
@@ -209,9 +209,6 @@
               "hash": {
                 "$ref": "common.schema.json#/$defs/digest"
               },
-              "inline": {
-                "type": "boolean"
-              },
               "text": {
                 "type": "string"
               },
@@ -220,27 +217,7 @@
                   "string",
                   "null"
                 ]
-              },
-              "resource": {
-                "$ref": "common.schema.json#/$defs/resource"
               }
-            },
-            "if": {
-              "properties": {
-                "inline": {
-                  "const": true
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "text"
-              ]
-            },
-            "else": {
-              "required": [
-                "resource"
-              ]
             }
           }
         },
@@ -347,7 +324,8 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "<check name>, or <check name>:<test output member> for a test check scoped to one output."
           },
           "definition_hash": {
             "$ref": "common.schema.json#/$defs/digest"

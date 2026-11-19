@@ -2,7 +2,7 @@
   "schema": "intentlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:0ad5af11a69deb1bc9cfd12224e25582133873e59dcbe61e5fcbf2cb20b31614",
+    "order_hash": "sha256:a265f9525465b6a54f340efc7771b15244f21d623e96159cb4fc6bae2ce17d79",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -227,7 +227,6 @@
         "projection": "public",
         "viewpoint": "applied",
         "hash": "sha256:243c73b4bfa005d3560bae141ab389c48fbc1ffea583bb22081911581e0dceec",
-        "inline": true,
         "text": "action sign_in {\n  summary: \"\"\n  input: { email: email, password: string }\n  output: authentication.session\n  errors { invalid_credentials, rate_limited }\n}\n"
       },
       {
@@ -237,7 +236,6 @@
         "projection": "behaviour",
         "viewpoint": "applied",
         "hash": "sha256:02f06cb7f706c0ce7e28ffa0a7457c66e37d15f22fec1bed60a83de9552480ed",
-        "inline": true,
         "text": "errors:\n  invalid_credentials: Email or password is wrong\n  rate_limited: Too many attempts; try again later\ninherited normative context:\n  project: Server-render by default. All copy in plain English, sentence case.\n  module auth: All auth screens use one centered card layout. Never reveal whether an email address is registered. \n"
       },
       {
@@ -247,7 +245,6 @@
         "projection": "public",
         "viewpoint": "applied",
         "hash": "sha256:6b657c409592910600ea2fb0f436aea454f6b704b65e028eac754d8c089fe5e9",
-        "inline": true,
         "text": "nextjs.page home { route: \"/app\" summary: \"Lists the signed-in user's workspaces\" }\n"
       },
       {
@@ -257,7 +254,6 @@
         "projection": "public",
         "viewpoint": "desired",
         "hash": "sha256:29b4eeadb09376a64cc0be0b4542fa5ad60acd074b2f5a5cb09ae5028ff8706e",
-        "inline": true,
         "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
       },
       {
@@ -267,7 +263,6 @@
         "projection": "catalog",
         "viewpoint": "applied",
         "hash": "sha256:f97c9d75fdf69b7cf33b05266cce4bd3131caf5e6d30a62c872d949143eb49be",
-        "inline": true,
         "text": "Form: component contract from ui-sdk (ui.form)\n"
       },
       {
@@ -277,7 +272,6 @@
         "projection": "catalog",
         "viewpoint": "applied",
         "hash": "sha256:d807f8480ca04ecce441e0848d9fc4d01c73f07cc2de03ec84d742fefd099a3c",
-        "inline": true,
         "text": "Input: component contract from ui-sdk (ui.input)\n"
       },
       {
@@ -287,7 +281,6 @@
         "projection": "catalog",
         "viewpoint": "applied",
         "hash": "sha256:eaf0aa8008432cf226aa6bc1dfdd0f66e02e931a411676efda37c2eb4e3683d9",
-        "inline": true,
         "text": "Button: component contract from ui-sdk (ui.button)\n"
       },
       {
@@ -297,7 +290,6 @@
         "projection": "catalog",
         "viewpoint": "applied",
         "hash": "sha256:a1e8cd9d0e310dd63c5d73ad477e60a9e05422e331d21a1fed5726e1105fc4e9",
-        "inline": true,
         "text": "Link: component contract from ui-sdk (ui.link)\n"
       }
     ],
@@ -375,8 +367,8 @@
       "self_check": true
     },
     {
-      "id": "tests:auth.login#outputs.tests",
-      "definition_hash": "sha256:ff77e1673df6a1475243243a32305764d22951a17b0ce0f27cdf608628700bf6",
+      "id": "nextjs.test:auth.login#outputs.tests",
+      "definition_hash": "sha256:183e890ed86b1fdad9b7f84bd009872d4f0702aedd22e68631bdffc4ec7da8a0",
       "self_check": true
     }
   ],
