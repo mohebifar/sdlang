@@ -5,7 +5,7 @@
   "intentlang": {
     "format": 1,
     "name": "nextjs",
-    "entry": "./spec/index.spec",
+    "entry": "./spec/index.int",
     "skills": { "app_router": "./skills/app-router" },
     "migrations": "./spec/migrations.json"
   }

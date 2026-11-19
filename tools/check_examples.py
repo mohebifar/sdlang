@@ -606,7 +606,7 @@ def check_graphs(before, after, plan):
     nested["declarations"].append({"address": "auth.child.page", "module": "auth.child",
         "kind": "npm:@intentlang/nextjs::page", "sort": "managed", "exported": False,
         "fields": {"route": "/child"}, "members": {}, "edges": [], "lifecycle": "managed",
-        "source": {"file": "spec/auth/child/page.spec", "line": 1}})
+        "source": {"file": "spec/auth/child/page.int", "line": 1}})
     nested_variant = copy.deepcopy(nested)
     for m in nested_variant["modules"]:
         if m["path"] == "auth":
@@ -744,7 +744,7 @@ def main(argv):
             failures.append(f"positive case rejected: {name}: {e}")
     total = {"spec": 0, "json": 0}
     import glob
-    for path in sorted(glob.glob("examples/*.spec")):
+    for path in sorted(glob.glob("examples/*.int")):
         total["spec"] += 1
         try:
             parse(open(path).read())

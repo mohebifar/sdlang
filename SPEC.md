@@ -16,7 +16,7 @@ declarations (pages, entities, actions, rules) joined by typed edges. A CLI diff
 graph against recorded state and the code on disk, prints a reviewable plan, and applies
 it as a series of verified transactions, each handed to an agent as a scoped work order.
 
-Working names: files end in `.spec`, the CLI is `spec` (`spec plan`, `spec apply`).
+Working names: files end in `.int`, the CLI is `spec` (`spec plan`, `spec apply`).
 
 | Decision | Choice | Why |
 | --- | --- | --- |
@@ -497,21 +497,21 @@ override and detachment rules that cost more than they save in v0.
 
 ## Projects, files and modules
 
-A directory is a module: every `.spec` file in it shares one namespace, and
+A directory is a module: every `.int` file in it shares one namespace, and
 subdirectories are submodules.
 
 ```text
 acme/
   spec/
-    app.spec            project, stack, use, project-wide rules
+    app.int            project, stack, use, project-wide rules
     core/
-      workspace.spec    entities shared across features
+      workspace.int    entities shared across features
     auth/
-      module.spec       module header
-      login.spec
-      forgot_password.spec
+      module.int       module header
+      login.int
+      forgot_password.int
     dashboard/
-      home.spec
+      home.int
   spec.lock             resolved package versions and content hashes
   .spec/state/          one JSON record per managed declaration, committed
   src/                  generated and hand-written code
@@ -624,7 +624,7 @@ A package is an npm package whose `package.json` has a static `intentlang` entry
   "intentlang": {
     "format": 1,
     "name": "nextjs",
-    "entry": "./spec/index.spec",
+    "entry": "./spec/index.int",
     "skills": { "app_router": "./skills/app-router" },
     "provides": {
       "nextjs": { "page": "page", "typecheck": "typecheck", "build": "build" }
@@ -710,7 +710,7 @@ which takes the same `outputs`, `creates`, `exports`, `ambient`, `checks`, `gene
 `skills` sections, but no `fields`: the core owns the schema. This is how an adapter gives
 every `action` its server module and every project's `stack` its toolchain files. At most
 one locked package may implement a given core kind; two is a compile error naming both.
-The milestone adapter is written out in full in `examples/nextjs-adapter.spec` (kinds,
+The milestone adapter is written out in full in `examples/nextjs-adapter.int` (kinds,
 `implements action`, `implements stack`, checks, generator, and its route-to-path rule),
 and `schemas/package-manifest.schema.json` defines the manifest, marking the fields a v0
 implementation may rely on.
@@ -731,7 +731,7 @@ key to `{ path, producer }`, where `producer` is `"generator"` (the binding's ge
 writes each artifact, as with migrations) or `"agent"` (an agent dispatch writes exactly one
 new file under the root, as with backfills); retained artifacts are immutable once
 published. `observer` names an `observer` definition (package-only, like `generator`, with a
-`run` argv) that reads an environment for `spec observe`. `examples/drizzle-binding.spec`
+`run` argv) that reads an environment for `spec observe`. `examples/drizzle-binding.int`
 writes the worked example's database provider out in full: its `binding database`,
 `implements entity`, annotations, check, generator and observer.
 
@@ -1131,7 +1131,7 @@ Reviews come from a separate session on that frozen snapshot. Retries, blocked c
 context assembly and the tool surface are in `PROTOCOL.md`.
 
 **Agents editing specs.** When a developer asks an agent to "add forgot password", the
-agent edits the `.spec` file, runs `spec plan`, shows the plan, then runs `spec apply`. A
+agent edits the `.int` file, runs `spec plan`, shows the plan, then runs `spec apply`. A
 repo instruction file says owned files change only through the spec, and a pre-edit hook
 flags direct edits where the runtime supports one.
 
@@ -1304,7 +1304,7 @@ $ spec import src/lib/auth.ts
   src/lib/auth.ts  exports signIn, requestReset; imported by src/app/login/page.tsx, src/app/forgot-password/page.tsx
   proposal: one integration owner (a file serving two would-be actions)
     + acme.lib  auth.auth_lib   outputs.main = src/lib/auth.ts   strategy: acquire
-  accept with: spec import src/lib/auth.ts --accept  (writes spec/auth/auth_lib.spec and a plan)
+  accept with: spec import src/lib/auth.ts --accept  (writes spec/auth/auth_lib.int and a plan)
 ```
 
 ```spec
@@ -1600,7 +1600,7 @@ checks and generators never receive.
 A project with three feature modules, then the plan for one change: adding a
 forgot-password page.
 
-`spec/app.spec`
+`spec/app.int`
 
 ```spec
 import nextjs
@@ -1636,7 +1636,7 @@ rule app_requires_session {
 }
 ```
 
-`spec/core/workspace.spec`
+`spec/core/workspace.int`
 
 ```spec
 export entity Workspace {
@@ -1651,7 +1651,7 @@ export entity Workspace {
 }
 ```
 
-`spec/auth/login.spec`
+`spec/auth/login.int`
 
 ```spec
 import nextjs
@@ -1684,7 +1684,7 @@ action sign_in {
 }
 ```
 
-`spec/dashboard/home.spec`
+`spec/dashboard/home.int`
 
 ```spec
 import nextjs
@@ -1703,7 +1703,7 @@ export nextjs.page home {
 }
 ```
 
-**The change.** Add `spec/auth/forgot_password.spec`; in `login`, add one prompt line,
+**The change.** Add `spec/auth/forgot_password.int`; in `login`, add one prompt line,
 `ui.link` and the `forgot_link` expectation; and add `archived_at: timestamp?` to
 `Workspace`'s fields. Meanwhile someone has hand-edited the signup page. The revised `login`:
 
@@ -1727,7 +1727,7 @@ export nextjs.page login {
 }
 ```
 
-`spec/auth/forgot_password.spec`
+`spec/auth/forgot_password.int`
 
 ```spec
 import nextjs
@@ -1823,7 +1823,7 @@ The first milestone tests only that, and tests it against a control.
 1. A runner driven by hand-written graph JSON: state records with whole-file ownership,
    `plan` with create, update, delete and drift, serial transactions, the work-order and
    result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
-   in `examples/nextjs-adapter.spec`, hard-coded. Its four checks run: typecheck, build,
+   in `examples/nextjs-adapter.int`, hard-coded. Its four checks run: typecheck, build,
    test (the independent acceptance tests and agent-written tests, through the per-case
    protocol) and conformance limited to ownership and the import rule.
 2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change

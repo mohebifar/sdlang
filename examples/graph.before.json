@@ -75,7 +75,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 1
       }
     },
@@ -114,7 +114,7 @@
         }
       ],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 22
       }
     },
@@ -200,7 +200,7 @@
         }
       ],
       "source": {
-        "file": "spec/auth/login.spec",
+        "file": "spec/auth/login.int",
         "line": 4
       }
     },
@@ -253,7 +253,7 @@
         }
       ],
       "source": {
-        "file": "spec/auth/login.spec",
+        "file": "spec/auth/login.int",
         "line": 20
       }
     },
@@ -271,7 +271,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/auth/signup.spec",
+        "file": "spec/auth/signup.int",
         "line": 1
       }
     },
@@ -289,7 +289,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 18
       }
     },
@@ -351,7 +351,7 @@
         }
       ],
       "source": {
-        "file": "spec/core/workspace.spec",
+        "file": "spec/core/workspace.int",
         "line": 1
       },
       "annotations": [
@@ -430,7 +430,7 @@
         }
       ],
       "source": {
-        "file": "spec/dashboard/home.spec",
+        "file": "spec/dashboard/home.int",
         "line": 4
       },
       "applies": [
@@ -462,7 +462,7 @@
         }
       ],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 19
       }
     },
@@ -500,7 +500,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 11
       }
     },
@@ -518,7 +518,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.spec",
+        "file": "spec/app.int",
         "line": 20
       }
     }

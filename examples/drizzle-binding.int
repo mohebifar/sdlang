@@ -1,4 +1,4 @@
-// drizzle-intentlang, spec/index.spec: the database provider used by SPEC.md's worked
+// drizzle-intentlang, spec/index.int: the database provider used by SPEC.md's worked
 // example (`use "drizzle" for database { dialect: "postgres" }`). Not part of the first
 // milestone; it shows the binding vocabulary in full.
 

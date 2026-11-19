@@ -1,4 +1,4 @@
-// @intentlang/nextjs, spec/index.spec: the first milestone's only adapter.
+// @intentlang/nextjs, spec/index.int: the first milestone's only adapter.
 // Supported: one App Router layout, static routes only (route_path admits nothing else in
 // v0), and the exact toolchain pinned by the package's own lock. Path templates use the
 // core substitution rule for route_path (SPEC.md, Packages -> Kind definitions).

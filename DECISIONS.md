@@ -179,7 +179,7 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D11.6 [accept] Structural type recursion legal, alias cycles errors; selector operator/type matrix; `select []` rejected — REVIEW flaw 4 completed.
 - D11.7 [accept] Review orders carry inline normative context and references; regression evidence per repair subject; `not_automatable` reviews.
 - D11.8 [accept] Schemas for MCP tools and the generator protocol, with validated generator examples.
-- D11.9 [accept] `implements <core kind>` package form with a one-implementer rule; the milestone adapter written in the language (`examples/nextjs-adapter.spec`); package manifest schema.
+- D11.9 [accept] `implements <core kind>` package form with a one-implementer rule; the milestone adapter written in the language (`examples/nextjs-adapter.int`); package manifest schema.
 - D11.10 [accept] Milestone measures coverage-review quality with seeded weak tests.
 
 ## Round 11 rescore
@@ -198,7 +198,7 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D12.8 [accept] Milestone runs all four adapter checks.
 - D12.9 [accept] Generator protocol covers deletion and relocation.
 - D12.10 [accept] Core `route_path` substitution rule; v0 routes are static only.
-- D12.11 [accept] `binding` vocabulary specified, `observer` definitions, `examples/drizzle-binding.spec`.
+- D12.11 [accept] `binding` vocabulary specified, `observer` definitions, `examples/drizzle-binding.int`.
 
 ## Final scores (round 12) and stop
 
@@ -248,3 +248,8 @@ these corrections and were not revised.
 | 8. `verify` fuzzy and costly | Fixed | Plan entries, Propagation, Verification, PROTOCOL.md Reviews (D4.5–D4.7, D12.1) |
 | 9. `delete` cleanup hand-waved | Fixed | Delete (D4.8) |
 | 10. Multi-file nodes unspecified | Fixed (whole-file ownership; symbol ownership deferred, D5.5) | Ownership and drift (D5.1–D5.2) |
+
+## Author's answers to QUESTIONS.md (2026-11-18)
+
+- A.1 [accept] All provisional defaults Q1–Q10 are kept as decisions, except the file extension.
+- A.2 [change] Source files end in `.int` instead of `.spec`. The CLI stays `spec`, as do the `spec/` source directory, the `.spec/` state directory and `spec.lock`, which are named after the CLI rather than the extension. The two adapter examples were renamed to `examples/*.int`, and the worked graph's source paths changed with them, so the example hashes were regenerated. `.int` has no GitHub Linguist entry. Its known uses (Micro Focus COBOL intermediate code, Unreal Engine localisation, some game scripts) are outside this audience. Round files keep the old paths because they record what was said at the time.
