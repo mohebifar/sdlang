@@ -2,31 +2,57 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://intentlang.dev/schemas/graph.schema.json",
   "title": "Spec graph",
-  "description": "The evaluated, canonical graph a frontend emits and the planner consumes. Every name is resolved; short forms are expanded; defaults are filled. Canonical JSON (sorted keys, no insignificant whitespace, UTF-8, NFC strings) of a projection is what gets hashed. The first milestone's runner reads this directly.",
+  "description": "The evaluated, canonical graph a frontend emits and the planner consumes. Every name is resolved; short forms are expanded; defaults are filled. Canonical JSON (sorted keys, no insignificant whitespace, UTF-8, NFC strings) of a projection is what gets hashed. The first milestone's runner reads this directly. Arrays that are sets (edges, set-valued reference fields such as uses/calls/reads, applies) are sorted by the canonical JSON of their elements; all other arrays keep authored order. Signature records (action input and output) are field values; their keys are also the addressable members input.<key> and output.<key>.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "lock", "modules", "declarations", "moves"],
+  "required": [
+    "schema",
+    "lock",
+    "modules",
+    "declarations",
+    "moves"
+  ],
   "properties": {
-    "schema": { "const": "intentlang.graph/1" },
-    "lock": { "$ref": "common.schema.json#/$defs/digest" },
+    "schema": {
+      "const": "intentlang.graph/1"
+    },
+    "lock": {
+      "$ref": "common.schema.json#/$defs/digest"
+    },
     "modules": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "imports"],
+        "required": [
+          "path",
+          "imports"
+        ],
         "properties": {
-          "path": { "type": "string", "description": "Dotted module path; \"\" for the root module." },
-          "header": { "$ref": "#/$defs/fields" },
+          "path": {
+            "type": "string",
+            "description": "Dotted module path; \"\" for the root module."
+          },
+          "header": {
+            "$ref": "#/$defs/fields"
+          },
           "imports": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["alias", "source"],
+              "required": [
+                "alias",
+                "source"
+              ],
               "properties": {
-                "alias": { "type": "string" },
-                "source": { "type": "string", "description": "module:<path> or package:<canonical package id>" }
+                "alias": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "description": "module:<path> or package:<canonical package id>"
+                }
               }
             }
           }
@@ -38,21 +64,52 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["address", "module", "kind", "sort", "exported", "fields", "members", "edges", "lifecycle", "source"],
+        "required": [
+          "address",
+          "module",
+          "kind",
+          "sort",
+          "exported",
+          "fields",
+          "members",
+          "edges",
+          "lifecycle",
+          "source"
+        ],
         "properties": {
-          "address": { "$ref": "common.schema.json#/$defs/address" },
-          "module": { "type": "string" },
-          "kind": { "type": "string", "description": "core:<kind> or <canonical package id>::<kind>" },
-          "sort": { "enum": ["managed", "context"] },
-          "exported": { "type": "boolean" },
-          "extern": { "type": "boolean" },
-          "fields": { "$ref": "#/$defs/fields" },
+          "address": {
+            "$ref": "common.schema.json#/$defs/address"
+          },
+          "module": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "core:<kind> or <canonical package id>::<kind>"
+          },
+          "sort": {
+            "enum": [
+              "managed",
+              "context"
+            ]
+          },
+          "exported": {
+            "type": "boolean"
+          },
+          "extern": {
+            "type": "boolean"
+          },
+          "fields": {
+            "$ref": "#/$defs/fields"
+          },
           "members": {
             "description": "Addressable collections, short forms expanded: collection -> key -> member fields.",
             "type": "object",
             "additionalProperties": {
               "type": "object",
-              "additionalProperties": { "$ref": "#/$defs/fields" }
+              "additionalProperties": {
+                "$ref": "#/$defs/fields"
+              }
             }
           },
           "edges": {
@@ -60,33 +117,94 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["relation", "target", "via"],
+              "required": [
+                "relation",
+                "target",
+                "via"
+              ],
               "properties": {
-                "relation": { "enum": ["calls", "reads", "writes", "uses", "types", "requires", "mentions", "contributes"] },
-                "target": { "type": "string", "description": "An address or a canonical catalog symbol." },
-                "via": { "type": "string", "description": "The field or member path the edge comes from, e.g. calls, prompt, expect.redirects.text." }
+                "relation": {
+                  "enum": [
+                    "calls",
+                    "reads",
+                    "writes",
+                    "uses",
+                    "types",
+                    "requires",
+                    "mentions",
+                    "contributes",
+                    "collects"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "description": "An address or a canonical catalog symbol."
+                },
+                "via": {
+                  "type": "string",
+                  "description": "The field or member path the edge comes from, e.g. calls, prompt, expect.redirects.text."
+                }
               }
             }
           },
-          "lifecycle": { "enum": ["managed", "frozen", "protected"] },
+          "lifecycle": {
+            "enum": [
+              "managed",
+              "frozen",
+              "protected"
+            ]
+          },
           "annotations": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["name", "on", "args"],
+              "required": [
+                "name",
+                "on",
+                "args"
+              ],
               "properties": {
-                "name": { "type": "string" },
-                "on": { "type": "string", "description": "\"\" for the declaration, else a field or member path." },
-                "args": { "type": "array", "items": { "$ref": "#/$defs/value" } }
+                "name": {
+                  "type": "string"
+                },
+                "on": {
+                  "type": "string",
+                  "description": "\"\" for the declaration, else a field or member path."
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
               }
             }
           },
           "source": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["file", "line"],
-            "properties": { "file": { "type": "string" }, "line": { "type": "integer", "minimum": 1 } }
+            "required": [
+              "file",
+              "line"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "description": "Diagnostics only; never part of any hash."
+          },
+          "applies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rules whose selector matched this declaration, computed by the frontend, sorted by address."
           }
         }
       }
@@ -96,58 +214,249 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["from", "to", "scope"],
+        "required": [
+          "from",
+          "to",
+          "scope"
+        ],
         "properties": {
-          "from": { "type": "string" },
-          "to": { "type": "string" },
-          "scope": { "enum": ["declaration", "module", "member"] }
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "declaration",
+              "module",
+              "member"
+            ]
+          }
         }
       }
     }
   },
   "$defs": {
-    "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } },
+    "fields": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/value"
+      }
+    },
     "value": {
       "description": "A canonical value. Plain JSON for literals, lists and records; tagged objects for everything else.",
       "anyOf": [
-        { "type": ["string", "number", "boolean", "null"] },
-        { "type": "array", "items": { "$ref": "#/$defs/value" } },
         {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["$prose"],
-          "properties": { "$prose": { "type": "string", "description": "Dedented, LF line ends, no trailing spaces, mentions rewritten to @{<address>}." } }
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
         },
         {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["$ref"],
-          "properties": { "$ref": { "type": "string" } }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["$type"],
-          "properties": {
-            "$type": { "enum": ["builtin", "named", "list", "record", "union", "optional", "ref", "literal"] },
-            "name": { "type": "string" },
-            "of": { "$ref": "#/$defs/value" },
-            "fields": { "$ref": "#/$defs/fields" },
-            "options": { "type": "array", "items": { "$ref": "#/$defs/value" } },
-            "value": { "type": ["string", "number", "boolean", "null"] }
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["$record"],
-          "properties": { "$record": { "$ref": "#/$defs/fields" } }
+          "required": [
+            "$prose"
+          ],
+          "properties": {
+            "$prose": {
+              "type": "string",
+              "description": "Dedented, LF line ends, no trailing spaces, mentions rewritten to @{<address>}."
+            }
+          }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["$init"],
-          "properties": { "$init": { "const": "now" } }
+          "required": [
+            "$ref"
+          ],
+          "properties": {
+            "$ref": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "description": "A type expression, discriminated by $type.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "name"
+              ],
+              "properties": {
+                "$type": {
+                  "const": "builtin"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "name"
+              ],
+              "properties": {
+                "$type": {
+                  "const": "named"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "An address or canonical catalog symbol."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "of"
+              ],
+              "properties": {
+                "$type": {
+                  "enum": [
+                    "list",
+                    "optional",
+                    "ref"
+                  ]
+                },
+                "of": {
+                  "$ref": "#/$defs/value"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "fields"
+              ],
+              "properties": {
+                "$type": {
+                  "const": "record"
+                },
+                "fields": {
+                  "$ref": "#/$defs/fields"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "options"
+              ],
+              "properties": {
+                "$type": {
+                  "const": "union"
+                },
+                "options": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "$type",
+                "value"
+              ],
+              "properties": {
+                "$type": {
+                  "const": "literal"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$record"
+          ],
+          "properties": {
+            "$record": {
+              "$ref": "#/$defs/fields"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$init"
+          ],
+          "properties": {
+            "$init": {
+              "const": "now"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$select"
+          ],
+          "properties": {
+            "$select": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kinds",
+                "where"
+              ],
+              "properties": {
+                "kinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Canonical kind ids, sorted; [\"*\"] for any."
+                },
+                "where": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The predicate in canonical source form (single spaces, fully parenthesised), or null."
+                }
+              }
+            }
+          }
         }
       ]
     }

@@ -1,0 +1,28 @@
+{
+  "protocol": "intentlang.generator/1",
+  "dispatch": "p-2026-11-18-01/r1/tx-1/1",
+  "order_hash": "sha256:a1e8bf186432447392b58b041e1f7e6b89cb67433b56a6ca945cd119fc4d72a4",
+  "status": "written",
+  "files": [
+    {
+      "target": "core.Workspace#outputs.schema",
+      "relative_path": "src/db/schema/workspace.ts",
+      "digest": "sha256:cfe7bfc1d5a247307cedd12b5e5bd15c83286b010dcef6c5e4cfaf9d34ffb8ac"
+    },
+    {
+      "target": "retain:migrations",
+      "relative_path": "drizzle/0002_workspace_archived_at.sql",
+      "digest": "sha256:d9a8d719d641f05607451932db0232064a463d2f7e215850ddab4a8bb1299afc"
+    }
+  ],
+  "retained": [
+    {
+      "id": "0002_workspace_archived_at",
+      "root": "migrations",
+      "depends_on": [
+        "0001_workspace"
+      ],
+      "checksum": "sha256:d9a8d719d641f05607451932db0232064a463d2f7e215850ddab4a8bb1299afc"
+    }
+  ]
+}

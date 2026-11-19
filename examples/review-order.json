@@ -2,7 +2,7 @@
   "schema": "intentlang.review-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
   "binding": {
-    "order_hash": "sha256:91d1fa7ba3aa14b4eb1ef00f92e6b50c42926deddd7442d875427178f0efbf93",
+    "order_hash": "sha256:c2192ec2d54286c61f5c7a9775c363c37c8cc9f553d16107a2aa8af7e1ddbed0",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -53,6 +53,31 @@
     }
   ],
   "context": {
+    "inherited": [
+      {
+        "source": "project",
+        "normative": true,
+        "hash": "sha256:ffb3a7aa1af34ba228ded8853863cac58ed0cbf9ce003ec64fdfa568b2e744c9",
+        "text": "Server-render by default. All copy in plain English, sentence case.\n"
+      },
+      {
+        "source": "module:auth",
+        "normative": true,
+        "hash": "sha256:3f78a14946eb1fd6d6e8c26d501f064d57f6dfb02a78f6a64e65e07e38b8da9f",
+        "text": "All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
+      }
+    ],
+    "references": [
+      {
+        "from": "auth.login",
+        "target": "auth.forgot_password",
+        "relation": "mentions",
+        "projection": "public",
+        "viewpoint": "desired",
+        "hash": "sha256:29b4eeadb09376a64cc0be0b4542fa5ad60acd074b2f5a5cb09ae5028ff8706e",
+        "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
+      }
+    ],
     "manifest": [
       "ctx:code:ed0375d5756e",
       "ctx:code:4676e9b927fe"

@@ -20,7 +20,7 @@ import sys
 
 KEYWORDS = {
     "import", "export", "extern", "use", "for", "as", "moved", "let", "type",
-    "kind", "annotation", "project", "stack", "module",
+    "kind", "annotation", "implements", "project", "stack", "module",
     "package", "ref", "self", "select", "where", "and", "or", "not", "exists",
     "meta", "matches", "in", "contains", "true", "false", "null",
 }
@@ -57,7 +57,7 @@ def scan_string_parts(body, line, prose):
             if body[i] == "@":
                 ok = inner == "self" or (PATH_RE.fullmatch(inner) and inner.split(".")[0] not in KEYWORDS)
             else:
-                ok = WORD_RE.fullmatch(inner) is not None
+                ok = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?", inner) is not None
             if close == -1 or not ok:
                 raise ParseError(f"line {line}: malformed {body[i:i+2]}...}} in string")
             if text:
@@ -299,6 +299,8 @@ class Parser:
             self.take(); self.ident(); self.block()
         elif self.atkw("annotation"):
             self.take(); self.ident(); self.block()
+        elif self.atkw("implements"):
+            self.take(); self.word(); self.block()
         else:
             self.named_decl()
 
@@ -383,6 +385,11 @@ class Parser:
         if self.atp("*"):
             self.take()
         elif self.atp("["):
+            k = 1
+            while self.at("NL", k=k):
+                k += 1
+            if self.atp("]", k=k):
+                self.err("a selector kind list may not be empty")
             self.seq("[", "]", self.path)
         else:
             self.path()
@@ -460,6 +467,7 @@ NEGATIVE = {
     "member address without collection": "moved a.b#redirects -> a.b#expect.x\n",
     "template is not v0": "template crud(e: entity) {\n}\n",
     "record inside a selector operand list": "rule r {\n  applies_to: select * where config in [{ mode: \"a\" }]\n}\n",
+    "empty selector kind list": "rule r {\n  applies_to: select []\n}\n",
     "meta with unknown field": "rule r {\n  applies_to: select * where meta.path == \"x\"\n}\n",
 }
 
@@ -501,7 +509,12 @@ SCHEMA_EXAMPLES = [
     ("result", "examples/result.json"),
     ("review-order", "examples/review-order.json"),
     ("review-verdict", "examples/review-verdict.json"),
-    ("graph", "examples/graph.json"),
+    ("graph", "examples/graph.before.json"),
+    ("graph", "examples/graph.after.json"),
+    ("plan", "examples/plan.json"),
+    ("package-manifest", "examples/package.json"),
+    ("generator#input", "examples/generator.input.json"),
+    ("generator#output", "examples/generator.output.json"),
 ]
 
 _R = {"schema": "intentlang.result/1", "dispatch": "p-1/r1/tx-1/1",
@@ -518,8 +531,10 @@ GOOD_RESULTS = {
         "kind": "authority_request",
         "request": {"type": "dependency", "package": "zod", "version": "^3.23.0", "capability": "validation"},
         "evidence": _EVID}),
-    "repair with no automated reproduction": dict(_R, status="submitted", regression={
-        "kind": "not_automatable", "reason": "layout overlap only visible at 320px in Safari"}),
+    "repair with no automated reproduction": dict(_R, status="submitted", regression=[{
+        "subject": {"target": "auth.login", "requirement": "auth.login#expect.busy_button"},
+        "kind": "not_automatable", "reason": "layout overlap only visible at 320px in Safari",
+        "artifacts": ["src/app/login/_parts/evidence/before.png"]}]),
 }
 
 # Result files the result schema must reject.
@@ -530,8 +545,11 @@ BAD_RESULTS = {
     "positional requirement id": dict(_R, status="submitted", tests=[{
         "subject": {"target": "auth.login", "requirement": "auth.login#e1"},
         "tests": [{"output": "auth.login#outputs.tests", "case": "c"}]}]),
-    "regression with test and reason": dict(_R, status="submitted", regression={
-        "kind": "automated", "tests": [{"output": "a.b#outputs.tests", "case": "c"}], "reason": "x"}),
+    "regression with test and reason": dict(_R, status="submitted", regression=[{
+        "subject": {"target": "a.b", "requirement": "a.b#expect.c"},
+        "kind": "automated", "tests": [{"output": "a.b#outputs.tests", "case": "c"}], "reason": "x"}]),
+    "regression without subject": dict(_R, status="submitted", regression=[{
+        "kind": "automated", "tests": [{"output": "a.b#outputs.tests", "case": "c"}]}]),
     "short digest": dict(_R, status="submitted", order_hash="sha256:abcd"),
     "blocker without evidence": dict(_R, status="blocked", blocked={
         "kind": "environment", "problem": "registry down"}),
@@ -546,6 +564,49 @@ def _canonical_hash(obj, field):
     return "sha256:" + hashlib.sha256(blob).hexdigest()
 
 
+def check_graphs(before, after, plan):
+    """Graphs are closed (no dangling edges), their projection hashes match
+    examples/hashes.json as recomputed by tools/canon.py, and plan.json's change set and
+    ordering follow from the two graphs."""
+    import sys as _sys
+    _sys.path.insert(0, "tools")
+    import canon
+    failures = []
+    for label, g in (("before", before), ("after", after)):
+        addrs = {x["address"] for x in g["declarations"]}
+        for x in g["declarations"]:
+            for e in x["edges"]:
+                if "::" not in e["target"] and e["target"] not in addrs:
+                    failures.append(f"graph.{label}: {x['address']} has a dangling {e['relation']} edge to {e['target']}")
+            for r in x.get("applies", []):
+                if r not in addrs:
+                    failures.append(f"graph.{label}: {x['address']} applies unknown rule {r}")
+    expected = json.load(open("examples/hashes.json"))
+    if expected != {"before": canon.projections(before), "after": canon.projections(after)}:
+        failures.append("examples/hashes.json does not match tools/canon.py over the graphs")
+    derived = canon.diff_graphs(before, after)
+    by_change = {}
+    for e in plan["entries"]:
+        by_change.setdefault(e["change"], set()).add(e["address"])
+    for change in ("create", "update", "delete"):
+        if set(derived[change]) != by_change.get(change, set()):
+            failures.append(f"plan.json {change} set {sorted(by_change.get(change, set()))} "
+                            f"!= derived {derived[change]}")
+    if set(derived["obligations"]) != by_change.get("none", set()):
+        failures.append(f"plan.json obligation-only entries {sorted(by_change.get('none', set()))} "
+                        f"!= derived {sorted(derived['obligations'])}")
+    tx_of = {e["address"]: e["transaction"] for e in plan["entries"]}
+    after_of = {t["id"]: set(t["after"]) for t in plan["transactions"]}
+    decls = {x["address"]: x for x in after["declarations"]}
+    for a, x in decls.items():
+        for e in x["edges"]:
+            if e["relation"] in canon.CONSUMING and e["target"] in tx_of and a in tx_of:
+                ta, tb = tx_of[a], tx_of[e["target"]]
+                if ta != tb and e["target"] in derived["create"] and tb not in after_of.get(ta, set()):
+                    failures.append(f"plan.json: {ta} ({a}) must run after {tb} ({e['target']})")
+    return failures
+
+
 def check_schemas():
     try:
         import jsonschema
@@ -553,23 +614,33 @@ def check_schemas():
     except ImportError:
         return ["jsonschema not installed: cannot validate schemas (pip install jsonschema)"], 0
     schemas = {}
-    for name in ["common", "work-order", "result", "review-order", "review-verdict", "graph"]:
+    for name in ["common", "work-order", "result", "review-order", "review-verdict", "graph", "plan",
+                 "package-manifest", "generator", "mcp-tools"]:
         schemas[name] = json.load(open(f"schemas/{name}.schema.json"))
         jsonschema.Draft202012Validator.check_schema(schemas[name])
     registry = Registry().with_resources(
         [(s["$id"], Resource.from_contents(s)) for s in schemas.values()])
 
     def validator(name):
+        if "#" in name:  # a sub-schema such as generator#input
+            base, part = name.split("#")
+            ref = {"$ref": schemas[base]["$id"] + "#/$defs/" + part}
+            return jsonschema.Draft202012Validator(ref, registry=registry)
         return jsonschema.Draft202012Validator(schemas[name], registry=registry)
 
     failures, docs = [], {}
     for name, path in SCHEMA_EXAMPLES:
         doc = json.load(open(path))
-        docs[name] = doc
+        docs[path] = docs[name] = doc
         for err in validator(name).iter_errors(doc):
             failures.append(f"{path}: {err.json_path}: {err.message[:200]}")
     wo, rs, ro, rv = (docs[k] for k in ("work-order", "result", "review-order", "review-verdict"))
     # Bindings: order hashes are recomputable; replies echo the dispatch and hash.
+    gi, go = docs["generator#input"], docs["generator#output"]
+    if _canonical_hash(gi, "binding") != gi["binding"]["order_hash"]:
+        failures.append("generator input: binding.order_hash does not match")
+    if (go["dispatch"], go["order_hash"]) != (gi["dispatch"], gi["binding"]["order_hash"]):
+        failures.append("generator output: dispatch/order_hash do not echo the input")
     for name, order in (("work-order", wo), ("review-order", ro)):
         if _canonical_hash(order, "binding") != order["binding"]["order_hash"]:
             failures.append(f"{name}: binding.order_hash does not match the canonical order")
@@ -585,12 +656,8 @@ def check_schemas():
     stale = set(m["resource"] for m in wo["context"]["manifest"]) & set(ro["context"]["manifest"])
     if stale:
         failures.append(f"review-order: reuses pre-edit resource handles {sorted(stale)}")
-    gr = docs["graph"]
-    addrs = {x["address"] for x in gr["declarations"]}
-    for x in gr["declarations"]:
-        for e in x["edges"]:
-            if "::" not in e["target"] and e["target"] not in addrs and e["relation"] != "mentions":
-                failures.append(f"graph: {x['address']} edge to unknown {e['target']}")
+    failures += check_graphs(docs["examples/graph.before.json"], docs["examples/graph.after.json"],
+                             docs["plan"])
     if [s["id"] for s in rv["subjects"]] != [s["id"] for s in ro["subjects"]]:
         failures.append("review-verdict: subjects must match the review order exactly")
     if wo["attempt"]["number"] > wo["attempt"]["max"]:
@@ -629,6 +696,13 @@ def main(argv):
         except ParseError as e:
             failures.append(f"positive case rejected: {name}: {e}")
     total = {"spec": 0, "json": 0}
+    import glob
+    for path in sorted(glob.glob("examples/*.spec")):
+        total["spec"] += 1
+        try:
+            parse(open(path).read())
+        except ParseError as e:
+            failures.append(f"{path}: {e}")
     for path in argv or ["SPEC.md", "PROTOCOL.md"]:
         count, f = check_spec_md(path)
         failures += f

@@ -9,6 +9,11 @@ import difflib
 import hashlib
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import canon  # noqa: E402
+from worked_graph import GRAPH_BEFORE, GRAPH_AFTER, plan_fixture  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -177,7 +182,7 @@ def work_order():
                     {"module": "react", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
                     {"module": "ui-sdk", "exports": ["Form", "Input", "Button", "Link"], "mode": "runtime",
                      "via": "uses:ui.form,ui.input,ui.button,ui.link"},
-                    {"module": "src/server/auth/sign_in.ts", "exports": ["signIn"], "mode": "runtime",
+                    {"module": "src/server/auth/sign_in.ts", "exports": ["default"], "mode": "runtime",
                      "via": "calls:auth.sign_in"},
                     {"module": "src/app/login/_parts/*", "exports": ["*"], "mode": "runtime", "via": "own outputs"},
                 ],
@@ -265,8 +270,18 @@ def review_order():
                 "run_receipts": ["run:tx-4:1:nextjs.test:auth.login#outputs.tests"],
             }],
         }],
-        "context": {"manifest": [res("code", "candidate:tx-4:1:src/app/login/_parts/LoginForm.tsx"),
-                                 res("code", "candidate:tx-4:1:tests/app/login/page.test.ts")]},
+        "context": {
+            "inherited": [
+                {"source": "project", "normative": True, "hash": d("ctx:project"), "text": PROJECT_PROMPT},
+                {"source": "module:auth", "normative": True, "hash": d("ctx:module:auth"), "text": AUTH_PROMPT},
+            ],
+            "references": [
+                {"from": "auth.login", "target": "auth.forgot_password", "relation": "mentions",
+                 "projection": "public", "viewpoint": "desired", "hash": d("public:auth.forgot_password"),
+                 "text": 'nextjs.page forgot_password { route: "/forgot-password" summary: "Request a password reset email" }\n'},
+            ],
+            "manifest": [res("code", "candidate:tx-4:1:src/app/login/_parts/LoginForm.tsx"),
+                         res("code", "candidate:tx-4:1:tests/app/login/page.test.ts")]},
         "verdict_path": ".spec/run/p-2026-11-18-01/r1/tx-4/2/verdict.json",
         "tools": {"mcp": {"transport": "stdio",
                           "command": ["spec", "mcp", "--dispatch", "p-2026-11-18-01/r1/tx-4/2"],
@@ -292,69 +307,55 @@ def review_verdict(order):
     }
 
 
-def graph():
-    """The canonical graph of the auth module before the change (SPEC.md worked example)."""
-    s = lambda t: {"$type": "builtin", "name": t}
-    login_prompt = "Email and password form in the shared auth card.\nOn success go to @{dashboard.home}.\n"
-    return {
-        "schema": "intentlang.graph/1",
-        "lock": d("lock:5f3a"),
-        "modules": [
-            {"path": "auth",
-             "header": {
-                 "summary": "Sign-in, sign-up and session handling",
-                 "prompt": {"$prose": AUTH_PROMPT},
-                 "skills": [{"$ref": "npm:better-auth::skills"}],
-             },
-             "imports": [{"alias": "nextjs", "source": "package:npm:@intentlang/nextjs"},
-                         {"alias": "dashboard", "source": "module:dashboard"}]},
+def generator_io():
+    """Generator input and output for tx-1: the database binding's migration generator."""
+    decls_b = {x["address"]: x for x in GRAPH_BEFORE["declarations"]}
+    decls_a = {x["address"]: x for x in GRAPH_AFTER["declarations"]}
+    dispatch = "p-2026-11-18-01/r1/tx-1/1"
+    inp = {
+        "protocol": "intentlang.generator/1",
+        "dispatch": dispatch,
+        "binding": {"order_hash": "", "plan_hash": d("plan:p-2026-11-18-01:r1"),
+                    "input_snapshot": d("snapshot:baseline"), "graph_hash": d("graph:77d0"),
+                    "lock_hash": d("lock:5f3a")},
+        "subjects": [
+            {"address": "core.Workspace", "before": decls_b["core.Workspace"], "after": decls_a["core.Workspace"]},
+            {"address": "database", "before": decls_b["database"], "after": decls_a["database"],
+             "aggregate": [decls_a["core.Workspace"]]},
         ],
-        "declarations": [
-            {
-                "address": "auth.login", "module": "auth", "kind": "npm:@intentlang/nextjs::page",
-                "sort": "managed", "exported": True,
-                "fields": {
-                    "route": "/login",
-                    "summary": "A page where you can sign in",
-                    "uses": [{"$ref": "npm:ui-sdk::Button"}, {"$ref": "npm:ui-sdk::Form"}, {"$ref": "npm:ui-sdk::Input"}],
-                    "calls": [{"$ref": "auth.sign_in"}],
-                    "prompt": {"$prose": login_prompt},
-                },
-                "members": {"expect": {
-                    "busy_button": {"text": {"$prose": "the submit button is disabled while the request is in flight"}},
-                    "generic_error": {"text": {"$prose": "invalid credentials show one generic error and keep the email filled in"}},
-                    "redirects": {"text": {"$prose": "valid credentials redirect to @{dashboard.home}"}},
-                }},
-                "edges": [
-                    {"relation": "calls", "target": "auth.sign_in", "via": "calls"},
-                    {"relation": "mentions", "target": "dashboard.home", "via": "expect.redirects.text"},
-                    {"relation": "mentions", "target": "dashboard.home", "via": "prompt"},
-                    {"relation": "uses", "target": "npm:ui-sdk::Button", "via": "uses"},
-                    {"relation": "uses", "target": "npm:ui-sdk::Form", "via": "uses"},
-                    {"relation": "uses", "target": "npm:ui-sdk::Input", "via": "uses"},
-                ],
-                "lifecycle": "managed",
-                "source": {"file": "spec/auth/login.spec", "line": 4},
-            },
-            {
-                "address": "auth.sign_in", "module": "auth", "kind": "core:action",
-                "sort": "managed", "exported": False,
-                "fields": {
-                    "input": {"$type": "record", "fields": {"email": s("email"), "password": s("string")}},
-                    "output": {"$type": "named", "name": "npm:better-auth::session"},
-                    "hint": {"$prose": "Use the library's email and password flow. Do not hand-roll hashing."},
-                },
-                "members": {"errors": {
-                    "invalid_credentials": {"summary": "Email or password is wrong", "code": "invalid_credentials"},
-                    "rate_limited": {"summary": "Too many attempts; try again later", "code": "rate_limited"},
-                }},
-                "edges": [{"relation": "types", "target": "npm:better-auth::session", "via": "output"}],
-                "lifecycle": "managed",
-                "source": {"file": "spec/auth/login.spec", "line": 20},
-            },
-        ],
-        "moves": [],
+        "envelope": {
+            "write": [
+                {"output": "core.Workspace#outputs.schema", "path": "src/db/schema/workspace.ts",
+                 "expected": d("bytes:schema/workspace.ts")},
+                {"output": "database#outputs.schema_index", "path": "src/db/schema/index.ts",
+                 "expected": d("bytes:schema/index.ts")},
+            ],
+            "retain": [{"root": "migrations", "path": "drizzle/", "existing": ["0000_init", "0001_workspace"]}],
+        },
+        "decisions": [],
+        "generation_id": "p-2026-11-18-01-tx-1",
+        "staging": ".spec/run/p-2026-11-18-01/r1/tx-1/1/staging/",
     }
+    inp["binding"]["order_hash"] = order_hash(inp)
+    out = {
+        "protocol": "intentlang.generator/1",
+        "dispatch": dispatch,
+        "order_hash": inp["binding"]["order_hash"],
+        "status": "written",
+        "files": [
+            {"target": "core.Workspace#outputs.schema", "relative_path": "src/db/schema/workspace.ts",
+             "digest": d("bytes:schema/workspace.ts:after")},
+            {"target": "retain:migrations", "relative_path": "drizzle/0002_workspace_archived_at.sql",
+             "digest": d("bytes:0002.sql")},
+        ],
+        "retained": [{"id": "0002_workspace_archived_at", "root": "migrations",
+                      "depends_on": ["0001_workspace"], "checksum": d("bytes:0002.sql")}],
+    }
+    return inp, out
+
+
+def hashes_fixture():
+    return {"before": canon.projections(GRAPH_BEFORE), "after": canon.projections(GRAPH_AFTER)}
 
 
 def main():
@@ -365,7 +366,12 @@ def main():
         "examples/result.json": result(wo),
         "examples/review-order.json": ro,
         "examples/review-verdict.json": review_verdict(ro),
-        "examples/graph.json": graph(),
+        "examples/graph.before.json": GRAPH_BEFORE,
+        "examples/graph.after.json": GRAPH_AFTER,
+        "examples/hashes.json": hashes_fixture(),
+        "examples/plan.json": plan_fixture(),
+        "examples/generator.input.json": generator_io()[0],
+        "examples/generator.output.json": generator_io()[1],
     }
     for path, obj in files.items():
         with open(os.path.join(ROOT, path), "w") as f:

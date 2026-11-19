@@ -1,0 +1,367 @@
+{
+  "protocol": "intentlang.generator/1",
+  "dispatch": "p-2026-11-18-01/r1/tx-1/1",
+  "binding": {
+    "order_hash": "sha256:a1e8bf186432447392b58b041e1f7e6b89cb67433b56a6ca945cd119fc4d72a4",
+    "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
+    "input_snapshot": "sha256:be3fb193e7176896f7536bfeb455bf36da72441e22dcbe147a85590b7f08f8d0",
+    "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
+    "lock_hash": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d"
+  },
+  "subjects": [
+    {
+      "address": "core.Workspace",
+      "before": {
+        "address": "core.Workspace",
+        "module": "core",
+        "kind": "core:entity",
+        "sort": "managed",
+        "exported": true,
+        "fields": {
+          "summary": "A team's shared space"
+        },
+        "members": {
+          "fields": {
+            "id": {
+              "type": {
+                "$type": "builtin",
+                "name": "uuid"
+              }
+            },
+            "name": {
+              "type": {
+                "$type": "builtin",
+                "name": "string"
+              }
+            },
+            "slug": {
+              "type": {
+                "$type": "builtin",
+                "name": "string"
+              }
+            },
+            "owner": {
+              "type": {
+                "$type": "ref",
+                "of": {
+                  "$type": "named",
+                  "name": "npm:better-auth::User"
+                }
+              }
+            },
+            "created_at": {
+              "type": {
+                "$type": "builtin",
+                "name": "timestamp"
+              },
+              "default": {
+                "$init": "now"
+              }
+            }
+          }
+        },
+        "lifecycle": "managed",
+        "edges": [
+          {
+            "relation": "types",
+            "target": "npm:better-auth::User",
+            "via": "fields.owner"
+          }
+        ],
+        "source": {
+          "file": "spec/core/workspace.spec",
+          "line": 1
+        },
+        "annotations": [
+          {
+            "name": "core:id",
+            "on": "fields.id",
+            "args": []
+          },
+          {
+            "name": "core:max_length",
+            "on": "fields.name",
+            "args": [
+              80
+            ]
+          },
+          {
+            "name": "core:unique",
+            "on": "fields.slug",
+            "args": []
+          }
+        ]
+      },
+      "after": {
+        "address": "core.Workspace",
+        "module": "core",
+        "kind": "core:entity",
+        "sort": "managed",
+        "exported": true,
+        "fields": {
+          "summary": "A team's shared space"
+        },
+        "members": {
+          "fields": {
+            "id": {
+              "type": {
+                "$type": "builtin",
+                "name": "uuid"
+              }
+            },
+            "name": {
+              "type": {
+                "$type": "builtin",
+                "name": "string"
+              }
+            },
+            "slug": {
+              "type": {
+                "$type": "builtin",
+                "name": "string"
+              }
+            },
+            "owner": {
+              "type": {
+                "$type": "ref",
+                "of": {
+                  "$type": "named",
+                  "name": "npm:better-auth::User"
+                }
+              }
+            },
+            "created_at": {
+              "type": {
+                "$type": "builtin",
+                "name": "timestamp"
+              },
+              "default": {
+                "$init": "now"
+              }
+            },
+            "archived_at": {
+              "type": {
+                "$type": "optional",
+                "of": {
+                  "$type": "builtin",
+                  "name": "timestamp"
+                }
+              }
+            }
+          }
+        },
+        "lifecycle": "managed",
+        "edges": [
+          {
+            "relation": "types",
+            "target": "npm:better-auth::User",
+            "via": "fields.owner"
+          }
+        ],
+        "source": {
+          "file": "spec/core/workspace.spec",
+          "line": 1
+        },
+        "annotations": [
+          {
+            "name": "core:id",
+            "on": "fields.id",
+            "args": []
+          },
+          {
+            "name": "core:max_length",
+            "on": "fields.name",
+            "args": [
+              80
+            ]
+          },
+          {
+            "name": "core:unique",
+            "on": "fields.slug",
+            "args": []
+          }
+        ]
+      }
+    },
+    {
+      "address": "database",
+      "before": {
+        "address": "database",
+        "module": "",
+        "kind": "core:use",
+        "sort": "managed",
+        "exported": false,
+        "fields": {
+          "package": "drizzle",
+          "capability": "database",
+          "options": {
+            "$record": {
+              "dialect": "postgres"
+            }
+          }
+        },
+        "members": {},
+        "lifecycle": "managed",
+        "edges": [
+          {
+            "relation": "collects",
+            "target": "core.Workspace",
+            "via": "collects"
+          }
+        ],
+        "source": {
+          "file": "spec/app.spec",
+          "line": 19
+        }
+      },
+      "after": {
+        "address": "database",
+        "module": "",
+        "kind": "core:use",
+        "sort": "managed",
+        "exported": false,
+        "fields": {
+          "package": "drizzle",
+          "capability": "database",
+          "options": {
+            "$record": {
+              "dialect": "postgres"
+            }
+          }
+        },
+        "members": {},
+        "lifecycle": "managed",
+        "edges": [
+          {
+            "relation": "collects",
+            "target": "core.Workspace",
+            "via": "collects"
+          }
+        ],
+        "source": {
+          "file": "spec/app.spec",
+          "line": 19
+        }
+      },
+      "aggregate": [
+        {
+          "address": "core.Workspace",
+          "module": "core",
+          "kind": "core:entity",
+          "sort": "managed",
+          "exported": true,
+          "fields": {
+            "summary": "A team's shared space"
+          },
+          "members": {
+            "fields": {
+              "id": {
+                "type": {
+                  "$type": "builtin",
+                  "name": "uuid"
+                }
+              },
+              "name": {
+                "type": {
+                  "$type": "builtin",
+                  "name": "string"
+                }
+              },
+              "slug": {
+                "type": {
+                  "$type": "builtin",
+                  "name": "string"
+                }
+              },
+              "owner": {
+                "type": {
+                  "$type": "ref",
+                  "of": {
+                    "$type": "named",
+                    "name": "npm:better-auth::User"
+                  }
+                }
+              },
+              "created_at": {
+                "type": {
+                  "$type": "builtin",
+                  "name": "timestamp"
+                },
+                "default": {
+                  "$init": "now"
+                }
+              },
+              "archived_at": {
+                "type": {
+                  "$type": "optional",
+                  "of": {
+                    "$type": "builtin",
+                    "name": "timestamp"
+                  }
+                }
+              }
+            }
+          },
+          "lifecycle": "managed",
+          "edges": [
+            {
+              "relation": "types",
+              "target": "npm:better-auth::User",
+              "via": "fields.owner"
+            }
+          ],
+          "source": {
+            "file": "spec/core/workspace.spec",
+            "line": 1
+          },
+          "annotations": [
+            {
+              "name": "core:id",
+              "on": "fields.id",
+              "args": []
+            },
+            {
+              "name": "core:max_length",
+              "on": "fields.name",
+              "args": [
+                80
+              ]
+            },
+            {
+              "name": "core:unique",
+              "on": "fields.slug",
+              "args": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "envelope": {
+    "write": [
+      {
+        "output": "core.Workspace#outputs.schema",
+        "path": "src/db/schema/workspace.ts",
+        "expected": "sha256:5b1dd19dd4dee898feb88bc8968388776b399a99ca8031f3ae147d8ea6e0f2d6"
+      },
+      {
+        "output": "database#outputs.schema_index",
+        "path": "src/db/schema/index.ts",
+        "expected": "sha256:0e5ff554d6097ffbe5bea8635e05363f21c3db7c758e59cae114dd0a02e5012b"
+      }
+    ],
+    "retain": [
+      {
+        "root": "migrations",
+        "path": "drizzle/",
+        "existing": [
+          "0000_init",
+          "0001_workspace"
+        ]
+      }
+    ]
+  },
+  "decisions": [],
+  "generation_id": "p-2026-11-18-01-tx-1",
+  "staging": ".spec/run/p-2026-11-18-01/r1/tx-1/1/staging/"
+}

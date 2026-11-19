@@ -20,6 +20,7 @@ Exportable    ::= LetDecl
                 | TypeDef
                 | KindDef
                 | AnnotationDef
+                | ImplementsDef
                 | NamedDecl
 
 Import        ::= 'import' ImportSource ( 'as' Ident )?
@@ -42,6 +43,8 @@ LetDecl       ::= 'let' Ident '=' Gap Expr
 TypeDef       ::= 'type' Ident '=' Gap Expr
 KindDef       ::= 'kind' Ident Block
 AnnotationDef ::= 'annotation' Ident Block
+ImplementsDef ::= 'implements' Word Block   (* package sources: how an adapter
+                                               materialises a core kind *)
 NamedDecl     ::= 'extern'? Path Ident Annotation* Block
 
 (* ======================= Bodies ======================= *)
@@ -120,7 +123,7 @@ Gap           ::= NL*
 Word          ::= [A-Za-z_] [A-Za-z0-9_]*
 Ident         ::= Word - Keyword
 Keyword       ::= 'import' | 'export' | 'extern' | 'use' | 'for' | 'as'
-                | 'moved' | 'let' | 'type' | 'kind' | 'annotation'
+                | 'moved' | 'let' | 'type' | 'kind' | 'annotation' | 'implements'
                 | 'project' | 'stack' | 'module'
                 | 'package' | 'ref' | 'self' | 'select' | 'where' | 'and'
                 | 'or' | 'not' | 'exists' | 'meta' | 'matches' | 'in'
@@ -141,7 +144,7 @@ ProseString   ::= '"""' ProsePart* '"""'
 LinePart      ::= Text | Escape | Mention | Interp | LiteralOpener
 ProsePart     ::= Text | ProseEscape | Mention | Interp | LiteralOpener
 Mention       ::= '@{' ( Path | 'self' ) '}'
-Interp        ::= '${' Word '}'
+Interp        ::= '${' Word ( '.' Word )? '}'
 LiteralOpener ::= '@@{' | '$${'          (* produce '@{' and '${' *)
 Escape        ::= '\' ( '"' | '\' | 'n' | 't' | 'u{' Hex+ '}' )
 ProseEscape   ::= '\"""'                 (* produces '"""' *)
@@ -160,8 +163,10 @@ ProseEscape   ::= '\"""'                 (* produces '"""' *)
    not contain a raw line break. \u{...} must be a Unicode scalar value.
 
    Interpolation '${name}' is legal only in fields whose schema type is
-   'template' (output paths in kind definitions); it names a field of the
-   kind being defined and resolves nothing else. Elsewhere it is an error.
+   'template' (output paths in kind definitions); it names a scalar field of
+   the kind being defined, or one of meta.name, meta.module (the declaration's
+   name and dotted module path) and resolves nothing else. Elsewhere it is an
+   error.
 
    Prose dedent. A ProseString whose opening '"""' is directly followed by
    NL is a block literal:

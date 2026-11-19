@@ -161,12 +161,21 @@ jointly merge (see Transactions).
 ### Projections and hashes
 
 Hashes are computed over canonical projections of the graph, never over source text. A
-frontend emits the graph as JSON (`schemas/graph.schema.json`, example `examples/graph.json`)
-with every name resolved, member short forms expanded and defaults filled. A projection's
-hash is the sha256 of its canonical JSON: sorted keys, no insignificant whitespace, UTF-8,
-NFC strings; reference-valued lists that are sets (`uses`, `calls`, `reads`) sorted; prose
-dedented, with LF line ends, trailing spaces removed and mentions rewritten to
-`@{<address>}`.
+frontend emits the graph as JSON (`schemas/graph.schema.json`) with every name resolved,
+member short forms expanded, defaults filled and matching rules listed per declaration
+(`applies`). A projection's hash is the sha256 of its canonical JSON: sorted keys, no
+insignificant whitespace, UTF-8, NFC strings; arrays that are sets (edges, `uses`, `calls`,
+`reads`, `applies`) sorted by the canonical JSON of their elements, other arrays in authored
+order; prose dedented, with LF line ends, trailing spaces removed and mentions rewritten to
+`@{<address>}`. Source locations are diagnostics and never hashed. An action's `input` and
+`output` are record-type field values; their keys are also the members `input.<key>` and
+`output.<key>`.
+
+The worked example below exists as complete graphs (`examples/graph.before.json`,
+`examples/graph.after.json`). `tools/canon.py` is a reference canonicaliser: it computes
+every declaration's projection hashes (`examples/hashes.json`) and derives the change set
+of the plan, and the checker confirms that `examples/plan.json` (schema
+`schemas/plan.schema.json`) agrees with it.
 
 | Projection | Covers | Invalidates |
 | --- | --- | --- |
@@ -174,6 +183,12 @@ dedented, with LF line ends, trailing spaces removed and mentions rewritten to
 | `behaviour` | Normative prose: `prompt`, `expect` and `errors` text, plus the normative context the declaration inherits | The declaration; dependents that observe it |
 | `body` | Everything else the declaration states except guidance: `uses`, non-interface kind fields | The declaration itself |
 | `guidance` | `hint` and `skills` | Nothing: guidance shapes future work only, so a change creates no obligation |
+
+Which fields are `@interface` comes from the kind: package kinds mark them, and core kinds
+fix them (`action`: `input`, `output` and error codes; `entity`: its `fields` members;
+`stack` and `use`: all their fields; `rule`: `applies_to`). The `behaviour` projection of a
+declaration includes the hashes of the normative context it inherits: the project prompt,
+its module header's prompt, and the prompts and expectations of every rule in `applies`.
 | `context` | Inherited prompts and hints, matching rules, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation |
 
 A type reference inside a public projection is replaced by the referenced type's address
@@ -264,7 +279,7 @@ export nextjs.page login {
 | `let <name> = <expr>` | `let max_name = 80` | Any module |
 | `moved <address> -> <address>` | `moved auth.login -> auth.sign_in` | Any module |
 | `environment <name> { }` | a deployment target to observe (see Runtime state) | Root module |
-| `kind`, `annotation`, `check`, `generator`, `binding` | definitions | Package sources only |
+| `kind`, `implements`, `annotation`, `check`, `generator`, `binding` | definitions | Package sources only |
 
 `export` may precede `type`, `let` and declarations. Bodies hold **fields** (`name: expr`)
 and **sections** (`name { ... }`); which fields and sections are legal is fixed by the
@@ -370,8 +385,12 @@ A path `a.b.c` resolves as follows:
 
 Mentions in strings use the same resolver. `self` names the enclosing declaration.
 `moved` takes canonical addresses, which are not resolved through bindings, so the old
-address may no longer exist. Forward references and reference cycles are legal;
-`let` and `type` cycles are errors.
+address may no longer exist. Forward references and reference cycles are legal. A `type`
+may refer to itself through a record field, a list element or a `ref` (structural
+recursion: `type Tree = { label: string, children: [Tree] }`); a cycle that passes through
+none of these is an alias cycle and an error (`type A = B` with `type B = A`, or
+`type Name = Name | string`). `let` cycles are always errors. Mutually recursive types are
+hashed together (see Projections and hashes).
 
 A capability bound to a library with no spec package exposes only its own name:
 `uses: [pdf]` grants imports of that library and nothing more.
@@ -432,8 +451,20 @@ from `and`, `or`, `not`, parentheses and tests. A test is `exists field` or
 A bare name is a field of the candidate; `meta.module`, `meta.name` and `meta.kind` are
 its metadata. `matches` is a full-string, case-sensitive glob in which `*` matches within
 one path segment and `**` matches zero or more whole segments, so `/app/**` matches `/app`.
-`contains` is collection membership, not substring search. A missing field makes a test
-false.
+`contains` is collection membership, not substring search.
+
+| Operator | Field type | Operand | A missing field |
+| --- | --- | --- | --- |
+| `==`, `!=` | any scalar, reference, or string-literal union | a literal or path of the same type; `null` | false for both |
+| `<`, `<=`, `>`, `>=` | number, integer, date, timestamp | a literal of the same type | false |
+| `matches` | string, `route_path` | a string glob | false |
+| `in` | any scalar or reference | a list of operands of that type | false |
+| `contains` | a list | one element of the list's element type | false |
+| `exists` | any | none | false (and `not exists` true) |
+
+A comparison whose operand type does not fit the field is a compile error. With several
+selected kinds, a field must have the same type in every kind that declares it; kinds that
+lack the field simply do not match a test on it.
 
 To keep attachment cheap and deterministic, a selector sees only the candidate's authored
 fields and schema defaults. It cannot follow references, read other rules, evidence,
@@ -445,9 +476,9 @@ a warning, since rules also cover declarations added later.
 
 | Sort | Names |
 | --- | --- |
-| Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `annotation` |
+| Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `implements`, `annotation` |
 | Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator`, `binding` |
-| Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret` |
+| Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret`, `catalog` (any catalog declaration, for reference-typed kind fields) |
 | Constants | `now` |
 | Annotations | see above |
 
@@ -666,6 +697,16 @@ URL-to-path conversion; a package that maps routes to paths must define that map
 explicitly and reject routes it does not support. Paths are repository-relative,
 normalised and checked for escapes, aliases and collisions.
 
+A package materialises a **core** kind with the package-only form `implements <kind> { }`,
+which takes the same `outputs`, `creates`, `exports`, `ambient`, `checks`, `generator` and
+`skills` sections, but no `fields`: the core owns the schema. This is how an adapter gives
+every `action` its server module and every project's `stack` its toolchain files. At most
+one locked package may implement a given core kind; two is a compile error naming both.
+The milestone adapter is written out in full in `examples/nextjs-adapter.spec` (kinds,
+`implements action`, `implements stack`, checks, generator, and its route-to-path rule),
+and `schemas/package-manifest.schema.json` defines the manifest, marking the fields a v0
+implementation may rely on.
+
 Two further sections and one further form exist for owners of shared and retained files.
 They are specified with the features that use them and are **not** needed by the first
 milestone:
@@ -857,7 +898,7 @@ Each affected declaration gets one plan entry with independent dimensions:
 
 | Change | Trigger | What runs | Published on success |
 | --- | --- | --- | --- |
-| `create` | New managed address | Generator or agent, then obligations | Outputs, baseline, applied hashes, evidence |
+| `create` | New managed address | Generator or agent, then obligations; strategy `acquire` for adopted existing files (no agent) | Outputs, baseline, applied hashes, evidence |
 | `update` | Own projection changed; incompatible consumed projection; confirmed nonconformance; a repair request; a kind change (strategy `replace`) | Scoped edit of existing code, which may conclude no edit is needed | New baseline and evidence; a repair keeps contract hashes and records its cause |
 | `delete` | Address gone and nothing in the new graph references it | Removal of enumerated owned outputs, owner cleanup of contributions, checks | State removed; history stays in git |
 | `detach` | Requested, or required to remove a `protected` declaration | State removed; files stay as unmanaged code | No further conformance claim |
@@ -887,9 +928,9 @@ Each relation declares what it **consumes** and what it **observes**:
   `verify` and `review`: tests catch what they cover, and the reviewer checks the caller's
   assumptions against the behaviour diff, which its work order receives. `calls`, `reads`
   and `writes` observe; `mentions`, `types` and `uses` do not.
-- **Implementation impact.** An `update` that changes code but no projection (a repair) still
-  changes runtime behaviour. Its transitive dependents over ordering relations get
-  `verify`. Checks are deduplicated by check definition and inputs, so a large closure costs
+- **Implementation impact.** Any published change to a declaration's outputs (an update for
+  any cause, an adoption, a regeneration) can change runtime behaviour even when no
+  projection changed. Its transitive dependents over ordering relations get `verify`. Checks are deduplicated by check definition and inputs, so a large closure costs
   test time, not agent time. A project can set `verify_scope: "all"` to run the whole suite
   instead.
 
@@ -1187,7 +1228,7 @@ reported but never blocks, since agents do not write there.
 | Resolution | Meaning | Effect |
 | --- | --- | --- |
 | `adopt` | The edit is fine and the spec still describes the code | Baseline renewed; affected evidence `stale` |
-| `absorb` | The edit changed behaviour the spec should capture | An agent proposes a spec patch, reviewed like any spec change |
+| `absorb` | The edit changed behaviour the spec should capture | An agent with no code write access returns a spec patch (a `spec_patch` blocker shape: base revision and a diff touching only `spec/`); a human reviews it; after it is applied, the plan must show the drifted declaration as conforming (adopt plus `review` of the changed text), otherwise the patch is rejected |
 | `overwrite` | The edit was a mistake | Planned as `update` back to the spec |
 | `repair` | The edit broke a requirement but contains useful work | See Repair; unrelated edits are preserved |
 
@@ -1211,6 +1252,38 @@ creates competing claims:
 - **`extern`** references the existing symbols and leaves the file unmanaged.
 - **Planned extraction** splits the file into separately owned outputs in one checked
   refactoring transaction.
+
+Accepting a mapping is a `create` with strategy `acquire`: no agent runs, the file's exact
+current bytes become the baseline, its owner is recorded, and its evidence starts
+`unverified`. Only after that is the file managed, so an agent may write it. A walk-through,
+for an existing `src/lib/auth.ts` that exports `signIn` and `requestReset`, used by two pages:
+
+```console
+$ spec import src/lib/auth.ts
+  src/lib/auth.ts  exports signIn, requestReset; imported by src/app/login/page.tsx, src/app/forgot-password/page.tsx
+  proposal: one integration owner (a file serving two would-be actions)
+    + acme.lib  auth.auth_lib   outputs.main = src/lib/auth.ts   strategy: acquire
+  accept with: spec import src/lib/auth.ts --accept  (writes spec/auth/auth_lib.spec and a plan)
+```
+
+```spec
+import package "./spec-packages/acme" as acme
+
+export acme.lib auth_lib {
+  path: "src/lib/auth.ts"
+  summary: "Sign-in and reset helpers kept from before adoption"
+}
+```
+
+Here `acme.lib` is a one-slot local kind (`outputs { main: "${path}" }`). Applying that plan
+publishes ownership and the baseline, and nothing else. Extraction is a later spec change:
+declare `action sign_in` and `action request_reset`, make both pages `calls` them, and remove
+the exports from `auth_lib`. Its plan has one transaction, because the pages' import grants
+change with it: `sign_in` and `request_reset` (`create`, slots from `implements action`),
+`auth_lib` (`update`, or `delete` once empty), and both pages (`update`: their imports move to
+the actions' `exports`). The envelope is exactly those declarations' outputs. If checks fail,
+the candidate is discarded and `src/lib/auth.ts` stays as it was, owned by `auth_lib` at its
+baseline.
 
 ## Verification
 
@@ -1264,6 +1337,41 @@ state is derived, in this order: `failed` if any required evidence failed or was
 nonconforming; `stale` if any is stale; `unverified` if any is missing; otherwise the policy
 is met and the label names it (`tested` if it includes tests, else `judged` if it includes
 review, else `accepted`).
+
+### Currency
+
+Every piece of evidence is bound to the inputs it depended on, and stays current exactly as
+long as those inputs are unchanged; tree identity plays no part. A test run of declaration
+`D` is bound to its **run input closure**: `D`'s owned outputs, the outputs of every
+declaration reachable from `D` over ordering relations (`calls`, `reads`, `writes`, `uses`,
+`types`), the `stack`'s outputs, the oracle closure of the test, the check definition and the
+execution profile. Under `verify_scope: "all"` the closure is the whole tree except state,
+evidence, journal and protocol files.
+
+| Input that changed | Test run | Coverage | Conformance review | Check result | Approval |
+| --- | --- | --- | --- | --- | --- |
+| `D`'s own output bytes (an update, an adoption, a regeneration) | stale | current | stale | stale | stale |
+| Outputs of a declaration in `D`'s run input closure | stale | current | current | stale | current |
+| Requirement text (contract hash) | current | stale | stale | current | stale |
+| Inherited normative context, or an observed behaviour projection | current | stale | stale | current | current |
+| Oracle closure (test body, helpers, fixtures, snapshots, runner config) | stale | stale | current | current | current |
+| Check definition or execution profile | stale | current | current | stale | current |
+| Guidance (`hint`, skills) | current | current | current | current | current |
+
+A stale run is rerun by the CLI; stale coverage or conformance needs a new review; stale
+approval needs a human. **Reuse after publication:** when a transaction publishes, evidence
+of every other declaration is still current if its bound input digests recompute to the
+same values, so unrelated work does not invalidate it. In the worked example, tx-1
+regenerates `core.Workspace`'s outputs; `dashboard.home` reads `Workspace`, so its runs go
+stale and its `verify` reruns them in tx-1. `auth.login`'s closure (`sign_in`, the `ui-sdk`
+catalog, `stack`) does not include `Workspace`, so its runs stay current through tx-1 and
+are refreshed in tx-4 because its own outputs change there.
+
+**Adoption** renews `D`'s baseline and makes stale every piece of evidence whose bound inputs
+include the adopted bytes: `D`'s runs, conformance reviews, check results and approvals, and
+the runs of every declaration whose closure includes `D` (the same set that gets `verify`
+under implementation impact). For a `frozen` declaration the evidence goes stale the same
+way, but no update is planned.
 
 ### Tests
 
@@ -1666,7 +1774,8 @@ The first milestone tests only that, and tests it against a control.
 
 1. A runner driven by hand-written graph JSON: state records with whole-file ownership,
    `plan` with create, update, delete and drift, serial transactions, the work-order and
-   result protocol for one existing coding agent, and one hard-coded `nextjs` adapter.
+   result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
+   in `examples/nextjs-adapter.spec`, hard-coded.
    Typecheck and build are the only package checks.
 2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
    with callers, a compatible input widening, a normative prose change to an action, a
@@ -1676,7 +1785,9 @@ The first milestone tests only that, and tests it against a control.
 3. A control arm: the same agent, the same baseline and the same edits phrased as plain
    instructions with no graph or state.
 4. Measure: intended behaviour achieved, existing behaviour retained, writes outside the
-   envelope, review corrections, and code-diff size relative to spec-diff size.
+   envelope, review corrections, and code-diff size relative to spec-diff size. Seed some
+   edits with deliberately weak tests (asserting only that a request succeeded) and measure
+   how often the coverage reviewer rejects them, since `tested` depends on that judgement.
 5. Only then: the parser and evaluator for `project`, `stack`, `use`, `module`,
    `nextjs.page` and `action`.
 

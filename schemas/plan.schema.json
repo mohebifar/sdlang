@@ -1,0 +1,357 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/plan.schema.json",
+  "title": "Plan",
+  "description": "The immutable output of `spec plan`, bound to its inputs. A new revision is written for every amendment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "plan",
+    "revision",
+    "binding",
+    "entries",
+    "blocked",
+    "transactions",
+    "reviews",
+    "rollout"
+  ],
+  "properties": {
+    "schema": {
+      "const": "intentlang.plan/1"
+    },
+    "plan": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_commit",
+        "graph_before",
+        "graph_after",
+        "lock_hash",
+        "state_digest",
+        "fingerprints"
+      ],
+      "properties": {
+        "baseline_commit": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "graph_before": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "graph_after": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "lock_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "state_digest": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "fingerprints": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "common.schema.json#/$defs/digest"
+          }
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "description": "Observation receipts bound into this revision."
+        },
+        "reconcile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parents",
+            "base"
+          ],
+          "properties": {
+            "parents": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "common.schema.json#/$defs/digest"
+              }
+            },
+            "base": {
+              "$ref": "common.schema.json#/$defs/digest"
+            }
+          }
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "address",
+          "identity",
+          "change",
+          "transaction"
+        ],
+        "properties": {
+          "address": {
+            "$ref": "common.schema.json#/$defs/address"
+          },
+          "identity": {
+            "enum": [
+              "new",
+              "same",
+              "moved",
+              "gone"
+            ]
+          },
+          "moved_from": {
+            "$ref": "common.schema.json#/$defs/address"
+          },
+          "lifecycle": {
+            "enum": [
+              "managed",
+              "frozen",
+              "protected"
+            ]
+          },
+          "change": {
+            "enum": [
+              "create",
+              "update",
+              "delete",
+              "detach",
+              "none"
+            ]
+          },
+          "causes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "new",
+                "own_projection",
+                "consumed_incompatible",
+                "observed",
+                "context",
+                "convention",
+                "provider",
+                "aggregate",
+                "repair",
+                "escalation"
+              ]
+            }
+          },
+          "strategy": {
+            "enum": [
+              "agent",
+              "generator",
+              "replace",
+              "acquire",
+              "none"
+            ]
+          },
+          "obligations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "because"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "verify",
+                    "review"
+                  ]
+                },
+                "because": {
+                  "type": "string",
+                  "description": "consumed:<target> | observed:<target> | context:<source> | impact:<address> | check:<id> | stale:<subject>"
+                },
+                "compatibility": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "transaction": {
+            "type": "string",
+            "pattern": "^tx-[0-9]+$"
+          }
+        }
+      }
+    },
+    "blocked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "address",
+          "reason"
+        ],
+        "properties": {
+          "address": {
+            "$ref": "common.schema.json#/$defs/address"
+          },
+          "reason": {
+            "enum": [
+              "drift",
+              "frozen",
+              "identity_conflict",
+              "ownership_conflict",
+              "destructive_unconfirmed"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "expected": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "actual": {
+            "$ref": "common.schema.json#/$defs/digest"
+          },
+          "resolutions": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "adopt",
+                "absorb",
+                "overwrite",
+                "repair"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "entries",
+          "after",
+          "obligations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^tx-[0-9]+$"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/address"
+            }
+          },
+          "after": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^tx-[0-9]+$"
+            }
+          },
+          "obligations": {
+            "type": "object",
+            "description": "Obligated declarations in this transaction, each with its contingent envelope.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kinds",
+                "contingent"
+              ],
+              "properties": {
+                "kinds": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "verify",
+                      "review"
+                    ]
+                  }
+                },
+                "contingent": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "reviews": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage"
+      ],
+      "properties": {
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/member"
+          }
+        },
+        "conformance": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prerequisites",
+        "readiness"
+      ],
+      "properties": {
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "before"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "readiness": {
+          "enum": [
+            "unknown",
+            "ready",
+            "not_ready"
+          ]
+        }
+      }
+    }
+  }
+}

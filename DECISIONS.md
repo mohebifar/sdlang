@@ -164,3 +164,20 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D9.10 [accept] Root-module addresses carry no filename (`app_requires_session`).
 - D9.11 [accept] Selector operand lists narrowed in the grammar to match the parser.
 - D9.12 [accept] Worked example shows the revised `login`, contingent escalation and full plan accounting; readability cuts applied.
+
+## Round 10: independent scoring
+
+- D10.1 Scores (editor / Codex): Architecture 8 / 7; Drift and brownfield 8 / 8; Verification 8.5 / 8; Grammar 9 / 8; Agent interop 8.5 / 8; Package ecosystem 7 / 7. Below the 9 bar; fixes taken into round 11.
+
+## Round 11: scoring fixes
+
+- D11.1 [accept] Graph schema tightened (discriminated types, `$select`, set ordering, no source in hashes, signature keys are members).
+- D11.2 [accept] Complete worked-example graphs, reference canonicaliser `tools/canon.py` with SCC hashing, computed `hashes.json`, `plan.schema.json` and `plan.json`; the checker derives the plan's change set and ordering from the graphs.
+- D11.3 [accept] Implementation impact covers every published output change, including adoption and regeneration.
+- D11.4 [accept] Evidence currency: run input closures, an invalidation table across inputs and evidence kinds, reuse after publication by recomputed digests, adoption's affected evidence.
+- D11.5 [accept] Brownfield `acquire` strategy and an import-to-extraction walkthrough; `absorb` output defined.
+- D11.6 [accept] Structural type recursion legal, alias cycles errors; selector operator/type matrix; `select []` rejected — REVIEW flaw 4 completed.
+- D11.7 [accept] Review orders carry inline normative context and references; regression evidence per repair subject; `not_automatable` reviews.
+- D11.8 [accept] Schemas for MCP tools and the generator protocol, with validated generator examples.
+- D11.9 [accept] `implements <core kind>` package form with a one-implementer rule; the milestone adapter written in the language (`examples/nextjs-adapter.spec`); package manifest schema.
+- D11.10 [accept] Milestone measures coverage-review quality with seeded weak tests.

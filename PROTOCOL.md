@@ -12,9 +12,12 @@ checks the cross-document rules a schema cannot express.
 | Result | `schemas/result.schema.json` | coding agent | `submitted` or `blocked`, created-output claims, proposed test bindings, repair regression |
 | Review order | `schemas/review-order.schema.json` | CLI | Per-subject conformance, coverage and regression assessments against a frozen candidate |
 | Review verdict | `schemas/review-verdict.schema.json` | reviewer agent | One verdict per subject and assessment |
+| Generator input and output | `schemas/generator.schema.json` | CLI, generator | One deterministic generator run (see Generator protocol) |
+| MCP tool calls | `schemas/mcp-tools.schema.json` | agent, CLI | Inputs and outputs of each tool |
 
 Shared definitions (digests, addresses, members, subjects, test locators, policies) are in
-`schemas/common.schema.json`.
+`schemas/common.schema.json`. Every document type has a generated example, including
+`examples/generator.input.json` and `examples/generator.output.json` for tx-1's migration.
 
 ## Binding
 
@@ -61,6 +64,10 @@ whole transaction's) is an explicit recovery action with a recorded reason, neve
 and abandoned candidates are kept as patches. Nothing from a failed transaction publishes.
 
 ## Blocked
+
+A result's `regression` has one entry per repair subject in the order, either automated
+(the tests that must fail on the pre-fix snapshot) or `not_automatable` (a reason and
+artifacts).
 
 `blocked` is a claim the CLI classifies, not an accepted fact. Each blocker kind names what
 would resolve it and the evidence the agent gathered:
@@ -109,11 +116,19 @@ every requested subject and assessment exactly once: conformance (`conforms`,
 each candidate test set (`sufficient`, `insufficient`, `cannot_determine`), and for repairs
 whether the regression test follows from the requirement and demonstrates the observation.
 Normative prompt text with no `expect` member is reviewed as a compiler-issued context
-subject, `<target>#context.h_<first 12 hex digits of the text's hash>`. Resource handles in a
+subject, `<target>#context.h_<first 12 hex digits of the text's hash>`. A review order
+carries the same inline context contract as a work order for what the reviewer must judge
+against: inherited normative text and the resolved projections the subjects reference,
+with previous text where it changed. For a repair, the regression assessment is either
+automated (pre-fix and candidate run receipts) or `not_automatable`, in which case the
+reviewer receives the agent's reason and its before and after artifacts and the evidence
+can only ever be review. Resource handles in a
 review order are bound to the frozen candidate, never reused from the work order, whose
 handles name the pre-edit bytes. Coverage candidates carry each test's oracle digest. A verdict never creates a passing run and never upgrades evidence to `tested`.
 
 ## MCP tools
+
+Inputs and outputs of every tool are defined in `schemas/mcp-tools.schema.json`.
 
 | Tool | Class | Does |
 | --- | --- | --- |
@@ -134,24 +149,13 @@ filesystem.
 ## Generator protocol
 
 A generator is run like a check (see SPEC.md, Packages → Checks and generators) with one
-JSON document on stdin and one on stdout. Version 1:
-
-| Input field | Meaning |
-| --- | --- |
-| `protocol` | `"intentlang.generator/1"` |
-| `dispatch`, `binding` | As for a work order; the reply echoes them |
-| `subjects` | Each declaration the generator produces: address, old and new canonical graph entries, and its consumed aggregate input (for an owner with contributions or `collects`) |
-| `envelope` | Writable output slots and retained roots, with expected digests |
-| `decisions` | Explicit answers the generator may need (for example `rename_field` pairs from `moved`) |
-| `generation_id` | A fixed value to use for any generated name or timestamp |
-| `staging` | The directory the generator writes into; the CLI copies validated files into the candidate |
-
-| Output field | Meaning |
-| --- | --- |
-| `status` | `"written"`, `"unsupported"` (the change is outside what this generator handles) or `"needs_decision"` (with the questions; the plan is amended) |
-| `files` | Each written file: output slot or retained root, relative path, digest |
-| `retained` | For retained roots: artifact id, dependencies and checksum (migrations, backfill manifests) |
-
-The CLI validates the output exactly like an agent's: envelope, ownership, digests, then
-checks. An `unsupported` result is never silently handed to an agent.
-
+JSON document on stdin and one on stdout, both defined in `schemas/generator.schema.json`.
+The input carries the dispatch and binding, the subjects (old and new canonical graph
+entries, plus the aggregate for owners with `collects` or contributions), the envelope of
+writable output slots and retained roots with their existing artifacts, explicit decisions
+(such as `rename_field` pairs from `moved`), a fixed `generation_id` for every generated
+name and timestamp, and a staging directory. The output echoes the binding and reports
+`written` (files and retained artifacts with checksums and dependencies), `unsupported`
+(with a reason; never silently handed to an agent) or `needs_decision` (with questions; the
+plan is amended). The CLI validates the output exactly like an agent's: envelope,
+ownership, digests, then checks.

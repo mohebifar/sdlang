@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/generator.schema.json",
+  "title": "Generator protocol",
+  "description": "One JSON document on the generator's stdin (input) and one on its stdout (output). Version 1.",
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "dispatch", "binding", "subjects", "envelope", "decisions", "generation_id", "staging"],
+      "properties": {
+        "protocol": { "const": "intentlang.generator/1" },
+        "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order_hash", "plan_hash", "input_snapshot", "graph_hash", "lock_hash"],
+          "properties": {
+            "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
+            "plan_hash": { "$ref": "common.schema.json#/$defs/digest" },
+            "input_snapshot": { "$ref": "common.schema.json#/$defs/digest" },
+            "graph_hash": { "$ref": "common.schema.json#/$defs/digest" },
+            "lock_hash": { "$ref": "common.schema.json#/$defs/digest" }
+          }
+        },
+        "subjects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address", "before", "after"],
+            "properties": {
+              "address": { "$ref": "common.schema.json#/$defs/address" },
+              "before": { "type": ["object", "null"], "description": "Canonical graph entry as applied (graph.schema.json declaration), null for create." },
+              "after": { "type": "object", "description": "Canonical graph entry as planned." },
+              "aggregate": { "type": "array", "items": { "type": "object" }, "description": "For owners with collects or accepts: the canonical entries or contribution payloads they aggregate." }
+            }
+          }
+        },
+        "envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["write", "retain"],
+          "properties": {
+            "write": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["output", "path", "expected"],
+                "properties": {
+                  "output": { "$ref": "common.schema.json#/$defs/member" },
+                  "path": { "type": "string" },
+                  "expected": { "oneOf": [ { "$ref": "common.schema.json#/$defs/digest" }, { "const": "absent" } ] }
+                }
+              }
+            },
+            "retain": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["root", "path", "existing"],
+                "properties": {
+                  "root": { "type": "string" },
+                  "path": { "type": "string" },
+                  "existing": { "type": "array", "items": { "type": "string" }, "description": "Ids of artifacts already retained under this root, in dependency order." }
+                }
+              }
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "from", "to"],
+            "properties": {
+              "kind": { "enum": ["rename_field", "rename_output"] },
+              "from": { "type": "string" },
+              "to": { "type": "string" }
+            }
+          }
+        },
+        "generation_id": { "type": "string", "description": "Use for every generated name and timestamp." },
+        "staging": { "type": "string" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "dispatch", "order_hash", "status"],
+      "properties": {
+        "protocol": { "const": "intentlang.generator/1" },
+        "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+        "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
+        "status": { "enum": ["written", "unsupported", "needs_decision"] },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target", "relative_path", "digest"],
+            "properties": {
+              "target": { "type": "string", "description": "An output member (decl#outputs.slot) or retain:<root>." },
+              "relative_path": { "type": "string" },
+              "digest": { "$ref": "common.schema.json#/$defs/digest" }
+            }
+          }
+        },
+        "retained": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "root", "depends_on", "checksum"],
+            "properties": {
+              "id": { "type": "string" },
+              "root": { "type": "string" },
+              "depends_on": { "type": "array", "items": { "type": "string" } },
+              "checksum": { "$ref": "common.schema.json#/$defs/digest" }
+            }
+          }
+        },
+        "questions": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "written" } } }, "then": { "required": ["files"] } },
+        { "if": { "properties": { "status": { "const": "needs_decision" } } }, "then": { "required": ["questions"] } },
+        { "if": { "properties": { "status": { "const": "unsupported" } } }, "then": { "required": ["reason"] } }
+      ]
+    }
+  }
+}

@@ -1,0 +1,527 @@
+{
+  "schema": "intentlang.graph/1",
+  "lock": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d",
+  "modules": [
+    {
+      "path": "",
+      "imports": [
+        {
+          "alias": "nextjs",
+          "source": "package:npm:@intentlang/nextjs"
+        },
+        {
+          "alias": "auth",
+          "source": "module:auth"
+        }
+      ]
+    },
+    {
+      "path": "core",
+      "imports": []
+    },
+    {
+      "path": "auth",
+      "header": {
+        "summary": "Sign-in, sign-up and session handling",
+        "prompt": {
+          "$prose": "All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
+        },
+        "skills": [
+          {
+            "$ref": "npm:better-auth::skills"
+          }
+        ]
+      },
+      "imports": [
+        {
+          "alias": "nextjs",
+          "source": "package:npm:@intentlang/nextjs"
+        },
+        {
+          "alias": "dashboard",
+          "source": "module:dashboard"
+        }
+      ]
+    },
+    {
+      "path": "dashboard",
+      "imports": [
+        {
+          "alias": "nextjs",
+          "source": "package:npm:@intentlang/nextjs"
+        },
+        {
+          "alias": "core",
+          "source": "module:core"
+        }
+      ]
+    }
+  ],
+  "declarations": [
+    {
+      "address": "acme_web",
+      "module": "",
+      "kind": "core:project",
+      "sort": "context",
+      "exported": false,
+      "fields": {
+        "summary": "Customer portal for Acme",
+        "verify": "tested",
+        "prompt": {
+          "$prose": "Server-render by default. All copy in plain English, sentence case.\n"
+        }
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 1
+      }
+    },
+    {
+      "address": "app_requires_session",
+      "module": "",
+      "kind": "core:rule",
+      "sort": "context",
+      "exported": false,
+      "fields": {
+        "applies_to": {
+          "$select": {
+            "kinds": [
+              "npm:@intentlang/nextjs::page"
+            ],
+            "where": "route matches \"/app/**\""
+          }
+        }
+      },
+      "members": {
+        "expect": {
+          "redirects": {
+            "text": {
+              "$prose": "unauthenticated visitors are redirected to @{auth.login}"
+            },
+            "verify": "tested"
+          }
+        }
+      },
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "mentions",
+          "target": "auth.login",
+          "via": "expect.redirects.text"
+        }
+      ],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 22
+      }
+    },
+    {
+      "address": "auth.login",
+      "module": "auth",
+      "kind": "npm:@intentlang/nextjs::page",
+      "sort": "managed",
+      "exported": true,
+      "fields": {
+        "route": "/login",
+        "summary": "A page where you can sign in",
+        "uses": [
+          {
+            "$ref": "npm:ui-sdk::Button"
+          },
+          {
+            "$ref": "npm:ui-sdk::Form"
+          },
+          {
+            "$ref": "npm:ui-sdk::Input"
+          }
+        ],
+        "calls": [
+          {
+            "$ref": "auth.sign_in"
+          }
+        ],
+        "prompt": {
+          "$prose": "Email and password form in the shared auth card.\nOn success go to @{dashboard.home}.\n"
+        }
+      },
+      "members": {
+        "expect": {
+          "redirects": {
+            "text": {
+              "$prose": "valid credentials redirect to @{dashboard.home}"
+            }
+          },
+          "generic_error": {
+            "text": {
+              "$prose": "invalid credentials show one generic error and keep the email filled in"
+            }
+          },
+          "busy_button": {
+            "text": {
+              "$prose": "the submit button is disabled while the request is in flight"
+            }
+          }
+        }
+      },
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "calls",
+          "target": "auth.sign_in",
+          "via": "calls"
+        },
+        {
+          "relation": "mentions",
+          "target": "dashboard.home",
+          "via": "expect.redirects.text"
+        },
+        {
+          "relation": "mentions",
+          "target": "dashboard.home",
+          "via": "prompt"
+        },
+        {
+          "relation": "uses",
+          "target": "npm:ui-sdk::Button",
+          "via": "uses"
+        },
+        {
+          "relation": "uses",
+          "target": "npm:ui-sdk::Form",
+          "via": "uses"
+        },
+        {
+          "relation": "uses",
+          "target": "npm:ui-sdk::Input",
+          "via": "uses"
+        }
+      ],
+      "source": {
+        "file": "spec/auth/login.spec",
+        "line": 4
+      }
+    },
+    {
+      "address": "auth.sign_in",
+      "module": "auth",
+      "kind": "core:action",
+      "sort": "managed",
+      "exported": false,
+      "fields": {
+        "input": {
+          "$type": "record",
+          "fields": {
+            "email": {
+              "$type": "builtin",
+              "name": "email"
+            },
+            "password": {
+              "$type": "builtin",
+              "name": "string"
+            }
+          }
+        },
+        "output": {
+          "$type": "named",
+          "name": "npm:better-auth::session"
+        },
+        "hint": {
+          "$prose": "Use the library's email and password flow. Do not hand-roll hashing."
+        }
+      },
+      "members": {
+        "errors": {
+          "invalid_credentials": {
+            "summary": "Email or password is wrong",
+            "code": "invalid_credentials"
+          },
+          "rate_limited": {
+            "summary": "Too many attempts; try again later",
+            "code": "rate_limited"
+          }
+        }
+      },
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "types",
+          "target": "npm:better-auth::session",
+          "via": "output"
+        }
+      ],
+      "source": {
+        "file": "spec/auth/login.spec",
+        "line": 20
+      }
+    },
+    {
+      "address": "auth.signup",
+      "module": "auth",
+      "kind": "npm:@intentlang/nextjs::page",
+      "sort": "managed",
+      "exported": true,
+      "fields": {
+        "route": "/signup",
+        "summary": "Create an account"
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [],
+      "source": {
+        "file": "spec/auth/signup.spec",
+        "line": 1
+      }
+    },
+    {
+      "address": "authentication",
+      "module": "",
+      "kind": "core:use",
+      "sort": "context",
+      "exported": false,
+      "fields": {
+        "package": "better-auth",
+        "capability": "authentication"
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 18
+      }
+    },
+    {
+      "address": "core.Workspace",
+      "module": "core",
+      "kind": "core:entity",
+      "sort": "managed",
+      "exported": true,
+      "fields": {
+        "summary": "A team's shared space"
+      },
+      "members": {
+        "fields": {
+          "id": {
+            "type": {
+              "$type": "builtin",
+              "name": "uuid"
+            }
+          },
+          "name": {
+            "type": {
+              "$type": "builtin",
+              "name": "string"
+            }
+          },
+          "slug": {
+            "type": {
+              "$type": "builtin",
+              "name": "string"
+            }
+          },
+          "owner": {
+            "type": {
+              "$type": "ref",
+              "of": {
+                "$type": "named",
+                "name": "npm:better-auth::User"
+              }
+            }
+          },
+          "created_at": {
+            "type": {
+              "$type": "builtin",
+              "name": "timestamp"
+            },
+            "default": {
+              "$init": "now"
+            }
+          }
+        }
+      },
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "types",
+          "target": "npm:better-auth::User",
+          "via": "fields.owner"
+        }
+      ],
+      "source": {
+        "file": "spec/core/workspace.spec",
+        "line": 1
+      },
+      "annotations": [
+        {
+          "name": "core:id",
+          "on": "fields.id",
+          "args": []
+        },
+        {
+          "name": "core:max_length",
+          "on": "fields.name",
+          "args": [
+            80
+          ]
+        },
+        {
+          "name": "core:unique",
+          "on": "fields.slug",
+          "args": []
+        }
+      ]
+    },
+    {
+      "address": "dashboard.home",
+      "module": "dashboard",
+      "kind": "npm:@intentlang/nextjs::page",
+      "sort": "managed",
+      "exported": true,
+      "fields": {
+        "route": "/app",
+        "summary": "Lists the signed-in user's workspaces",
+        "requires": [
+          {
+            "$ref": "npm:better-auth::session"
+          }
+        ],
+        "reads": [
+          {
+            "$ref": "core.Workspace"
+          }
+        ],
+        "uses": [
+          {
+            "$ref": "npm:ui-sdk::Button"
+          },
+          {
+            "$ref": "npm:ui-sdk::Card"
+          }
+        ],
+        "prompt": {
+          "$prose": "One card per workspace, newest first.\nThe empty state offers \"Create workspace\".\n"
+        }
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "reads",
+          "target": "core.Workspace",
+          "via": "reads"
+        },
+        {
+          "relation": "requires",
+          "target": "npm:better-auth::session",
+          "via": "requires"
+        },
+        {
+          "relation": "uses",
+          "target": "npm:ui-sdk::Button",
+          "via": "uses"
+        },
+        {
+          "relation": "uses",
+          "target": "npm:ui-sdk::Card",
+          "via": "uses"
+        }
+      ],
+      "source": {
+        "file": "spec/dashboard/home.spec",
+        "line": 4
+      },
+      "applies": [
+        "app_requires_session"
+      ]
+    },
+    {
+      "address": "database",
+      "module": "",
+      "kind": "core:use",
+      "sort": "managed",
+      "exported": false,
+      "fields": {
+        "package": "drizzle",
+        "capability": "database",
+        "options": {
+          "$record": {
+            "dialect": "postgres"
+          }
+        }
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [
+        {
+          "relation": "collects",
+          "target": "core.Workspace",
+          "via": "collects"
+        }
+      ],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 19
+      }
+    },
+    {
+      "address": "stack",
+      "module": "",
+      "kind": "core:stack",
+      "sort": "managed",
+      "exported": false,
+      "fields": {
+        "language": {
+          "$record": {
+            "name": "typescript"
+          }
+        },
+        "runtime": {
+          "$record": {
+            "name": "nodejs",
+            "version": "22"
+          }
+        },
+        "framework": {
+          "$record": {
+            "name": "nextjs",
+            "version": "^15.0.0"
+          }
+        },
+        "package_manager": {
+          "$record": {
+            "name": "pnpm"
+          }
+        }
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 11
+      }
+    },
+    {
+      "address": "ui",
+      "module": "",
+      "kind": "core:use",
+      "sort": "context",
+      "exported": false,
+      "fields": {
+        "package": "ui-sdk",
+        "capability": "ui"
+      },
+      "members": {},
+      "lifecycle": "managed",
+      "edges": [],
+      "source": {
+        "file": "spec/app.spec",
+        "line": 20
+      }
+    }
+  ],
+  "moves": []
+}

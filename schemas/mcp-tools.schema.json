@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/mcp-tools.schema.json",
+  "title": "MCP tool surface",
+  "description": "Input and output schemas of the tools `spec mcp --dispatch <id>` serves. Every tool is scoped to one dispatch and its bound snapshot. Only run_self_check executes code.",
+  "$defs": {
+    "get_task.input": { "type": "object", "additionalProperties": false, "properties": {} },
+    "get_task.output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dispatch", "subjects"],
+      "properties": {
+        "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address", "obligations", "outputs", "exports"],
+            "properties": {
+              "address": { "$ref": "common.schema.json#/$defs/address" },
+              "obligations": { "type": "array", "items": { "enum": ["verify", "review"] } },
+              "outputs": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/member" } },
+              "exports": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "get_declaration.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "projection"],
+      "properties": {
+        "address": { "type": "string" },
+        "projection": { "enum": ["public", "behaviour", "catalog"] }
+      }
+    },
+    "get_declaration.output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "projection", "hash", "text"],
+          "properties": {
+            "address": { "type": "string" },
+            "projection": { "enum": ["public", "behaviour", "catalog"] },
+            "hash": { "$ref": "common.schema.json#/$defs/digest" },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["error"],
+          "properties": { "error": { "enum": ["not_found", "not_visible"] } }
+        }
+      ]
+    },
+    "read_context.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource"],
+      "properties": {
+        "resource": { "$ref": "common.schema.json#/$defs/resource" },
+        "cursor": { "type": ["string", "null"] }
+      }
+    },
+    "read_context.output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "digest", "content", "next"],
+      "properties": {
+        "resource": { "$ref": "common.schema.json#/$defs/resource" },
+        "digest": { "$ref": "common.schema.json#/$defs/digest" },
+        "content": { "type": "string" },
+        "next": { "type": ["string", "null"] }
+      }
+    },
+    "get_diagnostic.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt"],
+      "properties": { "receipt": { "type": "string" }, "cursor": { "type": ["string", "null"] } }
+    },
+    "get_diagnostic.output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt", "content", "next"],
+      "properties": { "receipt": { "type": "string" }, "content": { "type": "string" }, "next": { "type": ["string", "null"] } }
+    },
+    "run_self_check.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check"],
+      "properties": { "check": { "type": "string", "description": "An id from the order's checks with self_check: true." } }
+    },
+    "run_self_check.output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt", "snapshot", "result", "excerpt", "advisory"],
+      "properties": {
+        "receipt": { "type": "string" },
+        "snapshot": { "$ref": "common.schema.json#/$defs/digest" },
+        "result": { "enum": ["passed", "failed", "error"] },
+        "excerpt": { "type": "string", "maxLength": 4000 },
+        "advisory": { "const": true, "description": "Self-check receipts never count as evidence." }
+      }
+    },
+    "validate_result.input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["draft"],
+      "properties": { "draft": { "type": "object", "description": "A draft result document." } }
+    },
+    "validate_result.output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot", "valid", "problems"],
+      "properties": {
+        "snapshot": { "$ref": "common.schema.json#/$defs/digest" },
+        "valid": { "type": "boolean" },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stage", "message"],
+            "properties": {
+              "stage": { "enum": ["schema", "binding", "envelope", "ownership", "imports"] },
+              "path": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

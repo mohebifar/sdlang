@@ -2,7 +2,7 @@
   "schema": "intentlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:a265f9525465b6a54f340efc7771b15244f21d623e96159cb4fc6bae2ce17d79",
+    "order_hash": "sha256:c95442ab000f8b906aeb75f4e77597f6eac4d9a27308ee258de3b49cc9877111",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -102,7 +102,7 @@
           {
             "module": "src/server/auth/sign_in.ts",
             "exports": [
-              "signIn"
+              "default"
             ],
             "mode": "runtime",
             "via": "calls:auth.sign_in"

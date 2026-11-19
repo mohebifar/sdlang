@@ -1,0 +1,12 @@
+{
+  "name": "@intentlang/nextjs",
+  "version": "0.1.0",
+  "files": ["spec/", "skills/", "checks/", "gen/"],
+  "intentlang": {
+    "format": 1,
+    "name": "nextjs",
+    "entry": "./spec/index.spec",
+    "skills": { "app_router": "./skills/app-router" },
+    "migrations": "./spec/migrations.json"
+  }
+}

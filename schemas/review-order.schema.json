@@ -154,24 +154,59 @@
             }
           },
           "regression": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "observed",
-              "pre_fix_receipt",
-              "candidate_receipt"
-            ],
-            "properties": {
-              "observed": {
-                "type": "string"
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "observed",
+                  "pre_fix_receipt",
+                  "candidate_receipt"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "automated"
+                  },
+                  "observed": {
+                    "type": "string"
+                  },
+                  "pre_fix_receipt": {
+                    "type": "string"
+                  },
+                  "candidate_receipt": {
+                    "type": "string"
+                  }
+                }
               },
-              "pre_fix_receipt": {
-                "type": "string"
-              },
-              "candidate_receipt": {
-                "type": "string"
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "observed",
+                  "reason",
+                  "artifacts"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "not_automatable"
+                  },
+                  "observed": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "artifacts": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "common.schema.json#/$defs/resource"
+                    }
+                  }
+                }
               }
-            }
+            ]
           }
         },
         "allOf": [
@@ -214,15 +249,109 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "inherited",
+        "references",
         "manifest"
       ],
       "properties": {
         "manifest": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "common.schema.json#/$defs/resource"
           },
-          "description": "Resources available through read_context, including snapshot-bound code and test files."
+          "description": "Candidate-bound resources (code, tests, artifacts) served by read_context."
+        },
+        "inherited": {
+          "description": "Project, then ancestor modules outermost first, then matching rules by address.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "normative",
+              "hash",
+              "text"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "pattern": "^(project|module:[A-Za-z0-9_.]+|rule:[A-Za-z0-9_.]+)$"
+              },
+              "normative": {
+                "type": "boolean",
+                "description": "true for prompt and rule expectations, false for hint."
+              },
+              "hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "text": {
+                "type": "string"
+              },
+              "previous_text": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Present when this input changed and caused work."
+              }
+            }
+          }
+        },
+        "references": {
+          "description": "Consumed and observed projections of everything the subjects reference, changed or not. Always inline: part of the mandatory context, never truncated or fetched.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "target",
+              "relation",
+              "projection",
+              "viewpoint",
+              "hash",
+              "text"
+            ],
+            "properties": {
+              "from": {
+                "$ref": "common.schema.json#/$defs/address"
+              },
+              "target": {
+                "type": "string",
+                "description": "An address, or a canonical catalog symbol such as npm:ui-sdk::Link."
+              },
+              "relation": {
+                "type": "string"
+              },
+              "projection": {
+                "enum": [
+                  "public",
+                  "behaviour",
+                  "catalog"
+                ]
+              },
+              "viewpoint": {
+                "enum": [
+                  "applied",
+                  "desired"
+                ],
+                "description": "Ordering relations read the applied graph; mentions may read a pending declaration's desired projection."
+              },
+              "hash": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "text": {
+                "type": "string"
+              },
+              "previous_text": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
         }
       }
     },

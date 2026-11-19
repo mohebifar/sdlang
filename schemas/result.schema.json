@@ -5,32 +5,82 @@
   "description": "Written by the agent at the order's result_path, atomically (write then rename). A claim, not a verdict: the CLI re-derives the diff from the frozen candidate and reruns every check. Missing or malformed results are protocol failures, not agent verdicts.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "dispatch", "order_hash", "status", "summary"],
+  "required": [
+    "schema",
+    "dispatch",
+    "order_hash",
+    "status",
+    "summary"
+  ],
   "properties": {
-    "schema": { "const": "intentlang.result/1" },
-    "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
-    "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
+    "schema": {
+      "const": "intentlang.result/1"
+    },
+    "dispatch": {
+      "$ref": "common.schema.json#/$defs/dispatch"
+    },
+    "order_hash": {
+      "$ref": "common.schema.json#/$defs/digest"
+    },
     "status": {
       "description": "submitted: the work is ready for verification. blocked: the agent claims it cannot proceed; see blocked.",
-      "enum": ["submitted", "blocked"]
+      "enum": [
+        "submitted",
+        "blocked"
+      ]
     },
-    "summary": { "$ref": "common.schema.json#/$defs/untrusted_text" },
+    "summary": {
+      "$ref": "common.schema.json#/$defs/untrusted_text"
+    },
     "outputs": {
       "description": "Ownership claims for created outputs. The CLI checks each against the envelope and the actual diff.",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["op", "owner", "key"],
+        "required": [
+          "op",
+          "owner",
+          "key"
+        ],
         "properties": {
-          "op": { "enum": ["create", "relocate", "remove"] },
-          "owner": { "$ref": "common.schema.json#/$defs/address" },
-          "key": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
-          "root": { "type": "string" },
-          "relative_path": { "type": "string" }
+          "op": {
+            "enum": [
+              "create",
+              "relocate",
+              "remove"
+            ]
+          },
+          "owner": {
+            "$ref": "common.schema.json#/$defs/address"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "root": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          }
         },
-        "if": { "properties": { "op": { "enum": ["create", "relocate"] } } },
-        "then": { "required": ["root", "relative_path"] }
+        "if": {
+          "properties": {
+            "op": {
+              "enum": [
+                "create",
+                "relocate"
+              ]
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "root",
+            "relative_path"
+          ]
+        }
       }
     },
     "tests": {
@@ -39,35 +89,85 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["subject", "tests"],
+        "required": [
+          "subject",
+          "tests"
+        ],
         "properties": {
-          "subject": { "$ref": "common.schema.json#/$defs/subject" },
-          "tests": { "type": "array", "minItems": 1, "items": { "$ref": "common.schema.json#/$defs/test" } }
+          "subject": {
+            "$ref": "common.schema.json#/$defs/subject"
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "common.schema.json#/$defs/test"
+            }
+          }
         }
       }
     },
     "regression": {
-      "description": "Required when the order has a repair subject.",
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "tests"],
-          "properties": {
-            "kind": { "const": "automated" },
-            "tests": { "type": "array", "minItems": 1, "items": { "$ref": "common.schema.json#/$defs/test" } }
+      "description": "Required when the order has repair subjects: one entry per repair subject.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subject",
+              "kind",
+              "tests"
+            ],
+            "properties": {
+              "subject": {
+                "$ref": "common.schema.json#/$defs/subject"
+              },
+              "kind": {
+                "const": "automated"
+              },
+              "tests": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "common.schema.json#/$defs/test"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subject",
+              "kind",
+              "reason",
+              "artifacts"
+            ],
+            "properties": {
+              "subject": {
+                "$ref": "common.schema.json#/$defs/subject"
+              },
+              "kind": {
+                "const": "not_automatable"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Candidate paths of before/after evidence the agent produced (screenshots, traces), registered under a creation root."
+              }
+            }
           }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "reason"],
-          "properties": {
-            "kind": { "const": "not_automatable" },
-            "reason": { "type": "string", "minLength": 1 }
-          }
-        }
-      ]
+        ]
+      }
     },
     "blocked": {
       "description": "A blocker claim. The CLI classifies it; an unsupported claim is a failed attempt.",
@@ -75,96 +175,227 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "question", "subjects", "evidence"],
+          "required": [
+            "kind",
+            "question",
+            "subjects",
+            "evidence"
+          ],
           "properties": {
-            "kind": { "const": "spec_question" },
-            "question": { "$ref": "common.schema.json#/$defs/untrusted_text" },
-            "subjects": { "type": "array", "minItems": 1, "items": { "$ref": "common.schema.json#/$defs/subject" } },
-            "evidence": { "$ref": "#/$defs/evidence" },
-            "patch": { "$ref": "#/$defs/spec_patch" }
+            "kind": {
+              "const": "spec_question"
+            },
+            "question": {
+              "$ref": "common.schema.json#/$defs/untrusted_text"
+            },
+            "subjects": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "common.schema.json#/$defs/subject"
+              }
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            },
+            "patch": {
+              "$ref": "#/$defs/spec_patch"
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "request", "evidence"],
+          "required": [
+            "kind",
+            "request",
+            "evidence"
+          ],
           "properties": {
-            "kind": { "const": "authority_request" },
+            "kind": {
+              "const": "authority_request"
+            },
             "request": {
               "oneOf": [
                 {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["type", "package", "version", "capability"],
+                  "required": [
+                    "type",
+                    "package",
+                    "version",
+                    "capability"
+                  ],
                   "properties": {
-                    "type": { "const": "dependency" },
-                    "package": { "type": "string" },
-                    "version": { "type": "string" },
-                    "capability": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-                    "dev": { "type": "boolean" }
+                    "type": {
+                      "const": "dependency"
+                    },
+                    "package": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "capability": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                    },
+                    "dev": {
+                      "type": "boolean"
+                    }
                   }
                 },
                 {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["type", "paths", "reason"],
+                  "required": [
+                    "type",
+                    "paths",
+                    "reason"
+                  ],
                   "properties": {
-                    "type": { "const": "write" },
-                    "paths": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-                    "reason": { "type": "string" }
+                    "type": {
+                      "const": "write"
+                    },
+                    "paths": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
                   }
                 },
                 {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["type", "module", "exports", "reason"],
+                  "required": [
+                    "type",
+                    "module",
+                    "exports",
+                    "reason"
+                  ],
                   "properties": {
-                    "type": { "const": "import" },
-                    "module": { "type": "string" },
-                    "exports": { "type": "array", "items": { "type": "string" } },
-                    "reason": { "type": "string" }
+                    "type": {
+                      "const": "import"
+                    },
+                    "module": {
+                      "type": "string"
+                    },
+                    "exports": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
                   }
                 }
               ]
             },
-            "evidence": { "$ref": "#/$defs/evidence" }
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "problem", "evidence"],
+          "required": [
+            "kind",
+            "problem",
+            "evidence"
+          ],
           "properties": {
-            "kind": { "const": "environment" },
-            "problem": { "$ref": "common.schema.json#/$defs/untrusted_text" },
-            "evidence": { "$ref": "#/$defs/evidence" }
+            "kind": {
+              "const": "environment"
+            },
+            "problem": {
+              "$ref": "common.schema.json#/$defs/untrusted_text"
+            },
+            "evidence": {
+              "$ref": "#/$defs/evidence"
+            }
           }
         }
       ]
     },
-    "notes": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 500 } }
+    "notes": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    }
   },
   "allOf": [
-    { "if": { "properties": { "status": { "const": "blocked" } } }, "then": { "required": ["blocked"] }, "else": { "not": { "required": ["blocked"] } } }
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "blocked"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "blocked"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "blocked"
+          ]
+        }
+      }
+    }
   ],
   "$defs": {
     "evidence": {
       "description": "What the agent looked at and tried: context resources, files, self-check receipts.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["references", "attempted"],
+      "required": [
+        "references",
+        "attempted"
+      ],
       "properties": {
-        "references": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "attempted": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "attempted": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
       }
     },
     "spec_patch": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["base", "diff"],
+      "required": [
+        "base",
+        "diff"
+      ],
       "properties": {
-        "base": { "$ref": "common.schema.json#/$defs/digest" },
-        "diff": { "type": "string", "description": "Unified diff touching only spec/ files." }
+        "base": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "diff": {
+          "type": "string",
+          "description": "Unified diff touching only spec/ files."
+        }
       }
     }
   }
