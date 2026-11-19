@@ -572,53 +572,181 @@ history and cannot satisfy the rule again without a fresh run.
 
 ## Packages
 
-A package gives `nextjs.page` or `ui.input` a meaning. It ships:
+A package gives `nextjs.page` or `ui.button` a meaning. Packages distribute data and
+executables; they never get authority the core does not grant. Importing a package reads
+data only: no package code runs while parsing or planning, and importing never creates a
+project declaration or claims a file.
 
-| Component | Example | Used for |
-| --- | --- | --- |
-| Kinds: field schemas and relations | `nextjs.page` with `route`, `calls` | Compile-time checking, edges |
-| Catalog declarations | `ui.input`, `authentication.User` | Referencing ready-made things |
-| Skills: instruction folders | `authentication.skills` | Mounted into work orders |
-| Output conventions | route `/login` → `src/app/login/page.tsx` | Ownership and drift detection |
-| Checks and generators | typecheck, build, `drizzle-kit generate` | Verification and deterministic steps |
+### Contents
 
-Each component is hashed separately into the `context` projection of declarations that
-use the package, so the plan can say *why* an upgrade affects a node (new skill text
-versus a changed output convention versus a new check).
+A package is an npm package whose `package.json` has a static `intentlang` entry:
+
+```json
+{
+  "name": "@intentlang/nextjs",
+  "intentlang": {
+    "format": 1,
+    "entry": "./spec/index.spec",
+    "skills": { "app_router": "./skills/app-router" },
+    "provides": {
+      "nextjs": { "page": "page", "typecheck": "typecheck", "build": "build" }
+    },
+    "migrations": "./spec/migrations.json"
+  }
+}
+```
+
+Its spec sources may contain `kind`, `annotation`, `check` and `generator` definitions
+(package-only forms) and exported catalog declarations: types, constants, and `extern`
+declarations describing the package's runtime exports (`ui.button` describes `ui-sdk`'s `Button`). Packages cannot export
+managed instances in v0. `provides` maps a capability's export names to the package's
+declarations; it is a namespace, not a behavioural contract, and two providers of one
+capability are never assumed interchangeable (D1.7). Each component (kind schemas,
+conventions, skills, checks, generators) is hashed separately, so a plan can say *why* an
+upgrade affects a declaration.
+
+Relations are fixed by the core in v0. A package kind uses them through `@relation`, and
+cannot define new ones or replace a core field such as `uses`.
+
+### Kind definitions
+
+A kind definition is a closed vocabulary. Unknown sections or fields are errors, and every
+package kind is managed.
 
 ```spec
-import package "ui-sdk" as ui
-
 export kind page {
   fields {
     route: route_path @interface
-    rendering: "static" | "server" | "client" = "server"
-    layout: ref layout?
-    uses: [ref ui.component] @relation("uses")
     calls: [ref action] @relation("calls")
   }
   outputs {
     page: "src/app/${route}/page.tsx"
+    tests: "tests/app/${route}/page.test.ts"
   }
-  checks: [typecheck, build]
+  creates {
+    parts: "src/app/${route}/_parts/"
+  }
+  exports {
+    page {
+      output: "page"
+      symbol: "default"
+      mode: "value"
+    }
+  }
+  ambient {
+    imports: ["next/link", "next/navigation", "react"]
+  }
+  checks: [typecheck, build, conformance]
 }
 ```
 
-`fields` is the schema; `outputs` and `checks` are metadata. `@interface` marks the fields
-that join the public projection, and `@relation` names the relation of their edges.
+| Section | Type | Meaning |
+| --- | --- | --- |
+| `fields { }` | field name → value schema | The only schema: the kind's authored fields, with defaults and annotations. `@interface` puts a field's value in the public projection; a reference-valued field needs `@relation`. Core declaration fields (`summary`, `prompt`, `hint`, `uses`, `skills`, `expect`, `lifecycle`) cannot be redeclared. |
+| `outputs { }` | slot key → template | Required whole-file slots; keys are identities, paths are locators. At least one in v0. |
+| `creates { }` | root key → template | Creation roots for registered outputs; no authority over existing files. |
+| `exports { }` | entry key → `{ output, symbol, mode }` | The public entry points an edge may grant (`calls` grants these, nothing else the declaration owns). A grant takes effect only once the symbol is found in the candidate. |
+| `ambient { imports }` | list of exact module specifiers | Imports allowed with no edge, resolved through the pinned dependency tree. An import policy, not a sandbox. |
+| `checks` | list of check references | Required checks, added to project and core checks; a declaration cannot remove them. |
+| `generator` | generator reference, optional | The exclusive producer of the declaration's outputs; without one, outputs are agent work. |
+| `skills` | list of skill references | Guidance mounted into work orders; guidance-only propagation. |
 
-**Capabilities** are names a package declares it provides: `better-auth` provides
-`authentication` by exporting `User`, `session` and `skills`. v0 makes no claim that two
-providers of one capability are interchangeable.
+Templates interpolate supported scalar fields only, with no functions and no implicit
+URL-to-path conversion; a package that maps routes to paths must define that mapping
+explicitly and reject routes it does not support. Paths are repository-relative,
+normalised and checked for escapes, aliases and collisions.
 
-**Generators.** A package may register a deterministic generator for a class of change,
-for example Drizzle turning an entity diff into schema and migration files. The planner
-prefers a generator over an agent whenever one matches.
+Deferred until an adapter needs them: custom relations, `accepts` and `collects` (with
+contributions), retained-artifact metadata (with migrations), kind inheritance, hooks.
 
-**Distribution.** A package is an npm package holding `.spec` files and skill folders.
-`spec.lock` pins each version and content hash. v0 ships one hand-written `nextjs`
-package and treats every other library as a free-text `use` with its documentation
-fetched as a skill.
+### Compatibility
+
+Compatibility decides whether a consumed change gives dependents `verify` or `update`. It is
+computed without package code:
+
+- **Core action signatures** use variance. Input accepting more values, output guaranteeing
+  more specific values, or fewer possible errors is compatible; the reverse is not. Record
+  types are open for width (an added optional output field is compatible); making a
+  required output field optional is not.
+- **Package `@interface` fields are invariant**: any change to the value (a route from
+  `/login` to `/sign-in`) is incompatible for consumers.
+- **Entities** have separate read, write and storage compatibility (see Runtime state).
+- Anything the compiler cannot compare is incompatible.
+
+Compatible never means unchecked: dependents still get `verify`, and behaviour changes get
+`review` whatever their types say.
+
+### Checks and generators
+
+```spec
+export check typecheck {
+  purpose: "build"
+  scope: "project"
+  run: ["pnpm", "exec", "tsc", "--noEmit"]
+}
+
+export generator registry {
+  run: ["node", "./gen/registry.js"]
+}
+```
+
+A check has a `purpose` (`build` or `conformance`, which selects its result protocol), a
+`scope` (`declaration` or `project`) and a `run` argv executed without a shell. A generator
+has only `run`; its inputs, outputs and result format come from a versioned core protocol,
+and it writes only inside the envelope the CLI issues. "Deterministic" is operational: the
+runner supplies the whole input closure (generator and dependency digests, runtime image,
+old and new canonical graph, baseline artifacts, candidate input files, explicit decisions
+such as renames, a fixed generation id for names and timestamps) and blocks every other
+input. A tool that prompts interactively must take its answers from explicit decisions or
+return `blocked`. A generator that cannot meet this is not used.
+
+| Operation | Execution policy |
+| --- | --- |
+| Parse, import, plan | No package code. Static files and declarative migration maps only. |
+| Check | Isolated candidate inputs, disposable scratch and cache, no publication rights, no credentials, no undeclared network. |
+| Generator | As a check, plus a staging area; only validated, authorised output operations publish. |
+| Dependency installation | A toolchain operation of `stack`, with its own network and install-script policy; lifecycle scripts off by default. |
+
+### Lock and upgrades
+
+`spec.lock` pins, for each package: canonical identity and exact resolution, artifact
+integrity, the resolved transitive dependency instances (by binding the package manager's
+own lockfile digest rather than resolving twice), the package format and executor
+protocol, and a separate digest per component. A local package is pinned by a snapshot of
+its content, never by its path.
+
+An upgrade compares two interpretations: the baseline under its old lock, and the
+proposed project under the new one. Invalid authored declarations are diagnosed before any
+work is planned; existing state and ownership stay until a transaction publishes; an
+invalid declaration is never inferred to be deleted, and a removed output slot never
+authorises deleting its file. A package may ship a declarative migration map
+(`{ "kind": "page", "rename_fields": { "route": "pathname" }, "rename_outputs": { "page": "entry" } }`),
+which must be injective and preserves identity only; it certifies nothing about behaviour.
+Removed fields that carried values need an explicit resolution. If the old interpretation
+cannot be recovered, the upgrade stops rather than inventing a baseline.
+
+### Bootstrapping
+
+Nobody has written packages yet, so v0 depends on as few as possible:
+
+- **The core is not a package.** `entity`, `action` and `rule` semantics live in the
+  compiler, so an npm upgrade cannot change them.
+- **One adapter.** `@intentlang/nextjs` supports one App Router layout, static routes and
+  one exact Next.js, React, TypeScript and package-manager combination, and rejects
+  anything else explicitly. It is validated by the milestone trial and by installing its
+  packed artifact in a clean project, which catches missing spec files and skills.
+- **Local kinds are cheap.** A team writes kinds for itself in a local package outside
+  `spec/` (for example `spec-packages/acme/`), imported with
+  `import package "./spec-packages/acme" as acme`. `spec package init` scaffolds one. Local
+  packages use the same manifest, validation and pinning as published ones. There is no
+  generic catch-all kind: a shallow local kind is honest about having no conformance check,
+  and reports show which guarantees each declaration actually has.
+- **Libraries without a package.** `use "pdf-lib" for pdf` binds a bare capability: its
+  name, its resolved library identity, and an import grant for that library only, with no
+  options allowed. `spec skill add pdf --from <docs>` stores documentation as a project skill,
+  which is guidance and never changes obligations.
+
+The general package API is extracted from the working adapter, not designed ahead of it.
 
 ## State, plan and apply
 
@@ -726,8 +854,8 @@ skipped. `moved` combines with any change and shows as `moved + update`.
 Each relation declares what it **consumes** and what it **observes**:
 
 - A change to a *consumed* projection (the target's `public` projection) gives the
-  dependent `update` if the target's kind classifies it as incompatible and `verify` if
-  compatible. Unclassified changes are incompatible.
+  dependent `update` if incompatible and `verify` if compatible, as decided under
+  Packages → Compatibility. Anything the compiler cannot compare is incompatible.
 - A change to an *observed* projection (the target's `behaviour` projection: its `prompt`,
   `expect` and `errors` text plus the normative context it inherits) gives the dependent
   `verify` and `review`: tests catch what they cover, and the reviewer checks the caller's

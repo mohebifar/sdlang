@@ -111,3 +111,18 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D6.11 [accept] Review protocol: per-subject exact-once verdicts, three-valued conformance and coverage, regression assessment, compiler-issued context subjects.
 - D6.12 [accept] MCP surface: `get_task`, `get_declaration`, `read_context`, `get_diagnostic`, `run_self_check` (execution class), `validate_result`; confidentiality and final-tree limits stated.
 - D6.13 [accept] Project-level `verify` default; core default policy `judged`.
+
+## Round 7: packages
+
+- D7.1 [accept] Packages carry a static `intentlang` manifest; importing runs no code and creates no declarations; catalog exports are types, constants and `extern`s.
+- D7.2 [accept] Closed kind vocabulary: `fields` (schema), `outputs`, `creates`, `exports`, `ambient`, `checks`, `generator`, `skills`; unknown sections are errors; core fields cannot be redeclared — REVIEW flaw 5 (semantics half).
+- D7.3 [accept] Compatibility without package code: variance for core action signatures, invariance for package `@interface` fields, entity dimensions in round 8, unknown = incompatible.
+- D7.4 [accept] Relations fixed by core in v0; no custom relations.
+- D7.5 [accept] Generators are exclusive producers attached to a kind; writes come only from the CLI envelope; determinism defined as a runner-supplied input closure.
+- D7.6 [accept] `check` has `purpose`, `scope`, `run` (argv, no shell).
+- D7.7 [accept] Execution policy: no package code during planning; checks and generators isolated without credentials or undeclared network; dependency installation is a `stack` operation.
+- D7.8 [accept] `provides` alias map replaces a `capability` statement; no interchangeability.
+- D7.9 [accept] `spec.lock` pins the executable closure and per-component digests; local packages pinned by snapshot.
+- D7.10 [accept] Upgrades compare old and new interpretations; declarative migration maps preserve identity only; no inferred deletion.
+- D7.11 [reject] Editor's generic `unit` kind (withdrawn) — it would hide missing conformance; cheap local kinds outside `spec/` replace it.
+- D7.12 [accept] Bootstrapping: core semantics in the compiler, one narrow `nextjs` adapter validated by the milestone and a clean-project install, local kinds, bare capabilities with explicit grants — REVIEW package-ecosystem risk.
