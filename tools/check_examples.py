@@ -17,7 +17,7 @@ import sys
 
 KEYWORDS = {
     "import", "export", "extern", "use", "for", "as", "moved", "let", "type",
-    "kind", "annotation", "template", "expand", "project", "stack", "module",
+    "kind", "annotation", "project", "stack", "module",
     "package", "ref", "self", "select", "where", "and", "or", "not", "exists",
     "meta", "matches", "in", "contains", "true", "false", "null",
 }
@@ -263,7 +263,10 @@ class Parser:
             if self.atp("{"):
                 self.record()
         elif self.atkw("moved"):
-            self.take(); self.address(); self.expectp("->"); self.address()
+            self.take()
+            if self.atkw("module"):
+                self.take()
+            self.address(); self.expectp("->"); self.address()
         elif self.atkw("project"):
             self.take(); self.ident(); self.block()
         elif self.atkw("stack"):
@@ -280,7 +283,9 @@ class Parser:
         while self.atp("."):
             self.take(); self.word()
         if self.atp("#"):
-            self.take(); self.word()
+            self.take(); self.word(); self.expectp("."); self.word()
+            while self.atp("."):
+                self.take(); self.word()
 
     def exportable(self, in_template=False):
         if self.atkw("let"):
@@ -291,11 +296,6 @@ class Parser:
             self.take(); self.ident(); self.block()
         elif not in_template and self.atkw("annotation"):
             self.take(); self.ident(); self.block()
-        elif not in_template and self.atkw("template"):
-            self.template_def()
-        elif not in_template and self.atkw("expand"):
-            self.take(); self.path(); self.ident()
-            self.seq("(", ")", self.arg)
         else:
             self.named_decl()
 
@@ -482,6 +482,8 @@ NEGATIVE = {
     "tab indentation in prose": 'action a {\n  prompt: """\n\ttext\n  """\n}\n',
     "raw newline in line string": 'action a {\n  summary: "a\nb"\n}\n',
     "repeated export": "export export action a {\n}\n",
+    "member address without collection": "moved a.b#redirects -> a.b#expect.x\n",
+    "template is not v0": "template crud(e: entity) {\n}\n",
     "meta with unknown field": "rule r {\n  applies_to: select * where meta.path == \"x\"\n}\n",
 }
 

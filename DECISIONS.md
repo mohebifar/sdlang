@@ -44,3 +44,22 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D2.14 [accept] `errors` are string codes; free-text `use` roles cut; a capability without a spec package exposes only its name. `use ... { options }` is checked against the provider's options schema — REVIEW flaw 4 (`use` options).
 - D2.15 [defer] Declaration templates — round 3.
 - D2.16 [accept] Kind definitions split into `fields` (schema) and `outputs` / `checks` (metadata) sections — REVIEW flaw 5, syntax half; semantics in round 7.
+
+## Round 3: identity
+
+- D3.1 [accept] Member addresses `decl#collection.key` over schema-declared addressable collections; never positional — REVIEW flaw 1.
+- D3.2 [accept] `expect` is a section of named members with a short (`key: "text"`) and long (`key { text, verify, test }`) form; both canonicalise identically — REVIEW flaw 1.
+- D3.3 [accept] `errors` is a named collection; wire code defaults to the key and can be pinned.
+- D3.4 [accept] Evidence = coverage (reviewer judgement on a requirement revision) + run (pass on a tree); text edits invalidate coverage — an unchanged test could falsely claim a changed requirement.
+- D3.5 [accept] `moved` at declaration, module (`moved module`) and member level, resolved as one injective mapping with the composition table in SPEC.md "Moves".
+- D3.6 [accept] Entity field moves lower to `rename_field`; no silent drop-and-add.
+- D3.7 [accept] `moved` statements are kept indefinitely and reserve their source addresses; no "safe to remove" claim.
+- D3.8 [reject] Package and capability addresses in `moved` — export continuity belongs to package migration data; Codex conceded.
+- D3.9 [accept] Rules carry named `expect` members; each application is an evidence subject `(target, requirement)`.
+- D3.10 [accept] Live templates removed from v0; `spec scaffold` writes ordinary declarations instead — overrides and detachment would cost more than they save.
+- D3.11 [accept] Output identity is the slot (`#outputs.page`); the path is a locator, so route edits move files.
+- D3.12 [accept] Catalog symbols have canonical package identity independent of import alias; `extern` address is stable while its source locator changes.
+- D3.13 [accept] `consumed` is a list of (relation, target, projection, hash).
+- D3.14 [reject] Shared graph manifest for context declarations; instead `provenance.commit` locates the applied spec revision for change classification, with conservative fallback.
+- D3.15 [accept] Verification policies with an explicit satisfaction table; `accepted` is not a test.
+- D3.16 [defer] Identity epochs for pruning `moved` history; constraint and index naming (round 8).

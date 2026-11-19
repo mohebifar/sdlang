@@ -20,9 +20,7 @@ Exportable    ::= LetDecl
                 | TypeDef
                 | KindDef
                 | AnnotationDef
-                | TemplateDef
                 | NamedDecl
-                | Expansion
 
 Import        ::= 'import' ImportSource ( 'as' Ident )?
 ImportSource  ::= Path
@@ -30,9 +28,12 @@ ImportSource  ::= Path
                 | 'package' LineString
 Use           ::= 'use' LineString 'for' Ident Record?
 Moved         ::= 'moved' Address '->' Address
-Address       ::= Word ( '.' Word )* ( '#' Word )?
-                  (* a canonical address, never resolved through bindings;
-                     '#' names an expect item, see "Identity" in SPEC.md *)
+                | 'moved' 'module' Address '->' Address
+Address       ::= Word ( '.' Word )* ( '#' Word '.' Word ( '.' Word )* )?
+                  (* a canonical address, never resolved through bindings.
+                     After '#' comes a member path: an addressable collection
+                     declared by the kind's schema, then a key. See "Identity"
+                     and "Moves" in SPEC.md. *)
 
 ProjectDecl   ::= 'project' Ident Block
 StackDecl     ::= 'stack' Block
@@ -42,15 +43,6 @@ TypeDef       ::= 'type' Ident '=' Gap Expr
 KindDef       ::= 'kind' Ident Block
 AnnotationDef ::= 'annotation' Ident Block
 NamedDecl     ::= 'extern'? Path Ident Annotation* Block
-
-TemplateDef   ::= 'template' Ident '(' Gap Params? Gap ')' TemplateBody
-Params        ::= Param ( ',' Gap Param )* ','?
-Param         ::= Ident ':' Gap Expr
-TemplateBody  ::= '{' Gap ( TemplateStmt ( NL+ TemplateStmt )* )? Gap '}'
-TemplateStmt  ::= 'export'? ( NamedDecl | LetDecl )
-Expansion     ::= 'expand' Path Ident '(' Gap Args? Gap ')'
-Args          ::= Arg ( Sep Arg )* Sep?
-Arg           ::= Word ':' Gap Expr
 
 (* ======================= Bodies ======================= *)
 
@@ -127,7 +119,7 @@ Word          ::= [A-Za-z_] [A-Za-z0-9_]*
 Ident         ::= Word - Keyword
 Keyword       ::= 'import' | 'export' | 'extern' | 'use' | 'for' | 'as'
                 | 'moved' | 'let' | 'type' | 'kind' | 'annotation'
-                | 'template' | 'expand' | 'project' | 'stack' | 'module'
+                | 'project' | 'stack' | 'module'
                 | 'package' | 'ref' | 'self' | 'select' | 'where' | 'and'
                 | 'or' | 'not' | 'exists' | 'meta' | 'matches' | 'in'
                 | 'contains' | 'true' | 'false' | 'null'

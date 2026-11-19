@@ -51,8 +51,9 @@ A project evaluates to a graph of declarations. There are two sorts:
 - **Managed declarations** own outputs (files) and have a state record: pages, actions,
   entities, components, endpoints.
 - **Context declarations** own nothing and have no state record: `project`, `stack`,
-  `use`, `module`, `rule`, `type`, `enum`, `extern`. They feed the context or public
-  projections of the declarations that reference or inherit them.
+  `use`, `module`, `rule`, `type`, `extern`. They feed the context or public projections
+  of the declarations that reference or inherit them. They still have addresses, and
+  their effects are recorded in the state of each managed declaration they reach.
 
 Every declaration has four layers. The rule is to move information up the table.
 
@@ -61,15 +62,75 @@ Every declaration has four layers. The rule is to move information up the table.
 | Structure: typed fields defined by the kind | `route: "/login"`, entity fields | By the compiler |
 | References: typed edges | `calls: [sign_in]`, `@{dashboard.home}` in prose | By the compiler; dangling is an error |
 | Intent: prose | `prompt: """..."""` | Read by the agent |
-| Acceptance: named `expect` items | `redirects: "valid credentials redirect to ..."` | After apply, by checks |
+| Acceptance: named `expect` members | `redirects: "valid credentials redirect to ..."` | After apply, by checks |
 
 ### Identity
 
 A declaration's **address** is its module path plus its name: `auth.login`,
 `core.Workspace`. The kind is not part of the address, so names are unique within a
 module across all kinds, and a kind change keeps the address (and plans as `replace`).
-State records, evidence and plan entries are keyed by address. A `moved` statement
-carries an address across a rename.
+
+**Members.** Anything inside a declaration that state, evidence or a migration tracks has
+a member address `decl#collection.key`. Each kind's schema declares its *addressable
+collections*; members are always keyed by name, never by position or text hash:
+
+| Collection | Example address | Declared by |
+| --- | --- | --- |
+| `expect` | `auth.login#expect.redirects` | core, every declaration |
+| `errors` | `auth.sign_in#errors.invalid_credentials` | core, `action` |
+| `input`, `output` | `auth.sign_in#input.email` | core, `action` |
+| `fields` | `core.Workspace#fields.name` | core, `entity` |
+| `outputs` | `auth.login#outputs.page` | the kind's package |
+| `contributes` | `auth.login#contributes.nav` | the kind's package |
+
+Keys are unique within a collection; `#fields.name` and `#expect.name` are distinct.
+
+**Other identities.** A package catalog symbol is identified by its canonical package and
+export path (`npm:ui-sdk::input`), never by the alias it was imported under, and appears
+only in graph JSON and state. A capability is identified by its name; its provider and
+options are inputs. An output is identified by its slot (`#outputs.page`); its file path
+is a locator that may change, so a route edit moves a file rather than deleting one.
+`extern` keeps its address while its `source` locator changes.
+
+### Moves
+
+`moved` asserts that two addresses denote one continuing thing:
+
+```spec
+moved auth.login -> auth.sign_in
+moved module billing -> payments
+moved auth.sign_in#expect.redirects -> auth.sign_in#expect.valid_redirect
+moved core.Workspace#fields.name -> core.Workspace#fields.title
+```
+
+Moves are resolved into one mapping before the diff. The most specific source wins at
+each step, chains are followed to their end, and the mapping must be one-to-one:
+
+| Case | Result |
+| --- | --- |
+| Rename without `moved` | Delete plus create. The plan may *suggest* a `moved` when bodies are near-identical. |
+| `a -> b`, later `b -> c` | Both `a` and `b` resolve to `c`. |
+| `a -> b` and `b -> a` | Compile error. |
+| Two baseline objects reach one target | Compile error: moves cannot merge. |
+| Source and target both have state | Collision error; target state is never overwritten. |
+| Source absent from this baseline | No-op here, reported as such. |
+| Source and target in different collections | Compile error: an expectation cannot become a field. |
+| A new declaration reuses a moved-away source address | Compile error while the `moved` statement exists. |
+
+A move preserves history; it does not make the change free. Renaming an entity field is a
+semantic `rename_field`, which the database package lowers to a column rename (or to
+nothing, if the column name is pinned). If it cannot preserve data, the plan fails rather
+than falling back to drop-and-add. Moving an expectation to another declaration carries
+its test binding but requires its coverage to be reassessed, and both declarations join one
+transaction. Splitting or merging members needs an explicit change, not several moves.
+
+`moved` statements stay in the spec indefinitely. A local planner cannot know which
+branches still hold old state, so it never reports a move as safe to delete.
+
+**Branch merges.** After a merge, `spec plan` reconciles identity three-way against the
+merge base: it applies one branch's edits through the other branch's moves, reports two
+different destinations for one source as an identity conflict, and reports two state
+records claiming one output as an ownership conflict.
 
 ### Edges and relations
 
@@ -114,16 +175,22 @@ consumed changed.
 ### Evidence
 
 The **baseline** is the set of output hashes a human or a passing transaction accepted.
-**Evidence** is the result of a check, and records what it ran on:
+**Evidence** for a requirement has two parts, kept separately:
 
-```json
-{ "expect": "auth.login#redirects", "status": "tested",
-  "by": "tests/auth/login.test.ts#redirects",
-  "tree": "<git tree id>", "check": "<check definition hash>" }
-```
+- **Coverage**: a judgement that a given test covers a given revision of the
+  requirement's text. It is made by a reviewer that did not write the code (a human or a
+  separate agent) and records the requirement's contract hash and the test's definition
+  hash.
+- **Run**: the test passed, on a recorded git tree, under a recorded check definition.
 
-Changing any input of a piece of evidence (an output it covers, its test, the check
-definition) marks it `stale`. Adopting a hand edit renews the baseline, not the evidence.
+A requirement is `tested` only when both are current. Editing an expectation's text keeps
+its test binding but invalidates coverage, because an unchanged test that still passes
+may no longer test the new sentence. Changing an output the test covers, the test itself
+or the check definition invalidates the run. Either makes the evidence `stale`. Adopting a
+hand edit renews the baseline, not the evidence.
+
+The evidence subject is a pair, so rule requirements fit the same model:
+`{ "target": "dashboard.home", "requirement": "app.app_requires_session#expect.redirects" }`.
 
 ## Surface syntax
 
@@ -158,7 +225,7 @@ export nextjs.page login {
   prompt: """
     Email and password form. On success go to @{dashboard.home}.
   """
-  expect: {
+  expect {
     redirects: "valid credentials redirect to @{dashboard.home}"
     generic_error: "invalid credentials show one generic error"
   }
@@ -203,6 +270,33 @@ break is a block, dedented by the indentation of its least-indented line, with i
 **Keywords** are reserved only where a name is being bound or a path starts. Any word,
 `type` included, can be a field name, section name, record key or path segment after a dot.
 
+**Named members.** Addressable collections (`expect`, `errors`, entity `fields`) are
+sections whose keys are identities. Each member takes a short form, a string for the
+collection's primary text field, or a long form with more fields:
+
+```spec
+action create_workspace {
+  errors {
+    name_taken: "The workspace name is already in use"
+    limit_reached {
+      summary: "Free plans allow one workspace"
+      code: "PLAN_LIMIT"
+    }
+  }
+  expect {
+    slug_unique: "two workspaces never share a slug"
+    free_limit {
+      text: "a free user's second workspace fails with limit_reached"
+      verify: "tested"
+    }
+  }
+}
+```
+
+Both forms lower to the same canonical member, so switching between them changes no hash.
+An error's wire `code` defaults to its key; renaming the key with `moved` changes the
+public contract unless the destination pins `code` to the old value.
+
 ### Values and types
 
 There is one expression grammar. The field's schema says whether an expression is read
@@ -224,7 +318,7 @@ as a value or as a type:
 Defaults (`= expr`) and annotations are legal only where a record describes a schema:
 entity `fields`, `input`, `output`, kind `fields`. Defaults apply when a field is omitted,
 not when it is `null`. `now` is a symbolic initializer meaning "at creation time"; the
-compiler never reads the clock. Enum-like values are string literals (`check: "tested"`,
+compiler never reads the clock. Enum-like values are string literals (`verify: "tested"`,
 `lifecycle: "frozen"`), and enumerations are unions: `type Plan = "free" | "team"`.
 
 ### Scoping and resolution
@@ -300,8 +394,12 @@ Rules select the declarations they apply to:
 ```spec
 rule app_requires_session {
   applies_to: select nextjs.page where route matches "/app/**"
-  require: "unauthenticated visitors are redirected to @{auth.login}"
-  check: "tested"
+  expect {
+    redirects {
+      text: "unauthenticated visitors are redirected to @{auth.login}"
+      verify: "tested"
+    }
+  }
 }
 ```
 
@@ -333,7 +431,11 @@ a warning, since rules also cover declarations added later.
 Everything else (`nextjs.page`, `ui.button`, `authentication.User`, checks such as
 `typecheck`) comes from a package or a capability and must be bound by an import or `use`.
 
-**Deliberately absent.** Loops, conditionals, functions, I/O and environment access.
+**Deliberately absent.** Loops, conditionals, functions, I/O, environment access and
+live templates. Repetition such as CRUD pages per entity is handled by
+`spec scaffold crud --entity core.Workspace --module workspace_pages`, which writes
+ordinary declarations that are then edited like any others. Live templates would need
+override and detachment rules that cost more than they save in v0.
 
 ## Projects, files and modules
 
@@ -422,7 +524,10 @@ export entity Workspace {
 action create_workspace {
   input: { name: string }
   output: Workspace
-  errors: ["NameTaken", "LimitReached"]
+  errors {
+    name_taken: "The workspace name is already in use"
+    limit_reached: "Free plans allow one workspace"
+  }
   requires: [authentication.session]
   writes: [Workspace]
   prompt: """
@@ -432,8 +537,12 @@ action create_workspace {
 
 rule app_requires_session {
   applies_to: select nextjs.page where route matches "/app/**"
-  require: "unauthenticated visitors are redirected to @{auth.login}"
-  check: "tested"
+  expect {
+    redirects {
+      text: "unauthenticated visitors are redirected to @{auth.login}"
+      verify: "tested"
+    }
+  }
 }
 
 extern ui.component LegacyChart {
@@ -450,9 +559,11 @@ every caller through `calls` edges.
 **Entities imply migrations.** The planner classifies each field change as additive,
 destructive or needing a backfill. Destructive changes require an explicit flag on apply.
 
-**Rules attach by selector.** A rule adds its context to every declaration its
-`applies_to` matches, including declarations added later. `check` sets the minimum
-verification level for the requirement.
+**Rules attach by selector.** A rule adds its prompt to the context, and its `expect`
+members to the requirements, of every managed declaration its `applies_to` matches,
+including declarations added later. Each application is a separate evidence subject
+`(target, requirement)`. When a target stops matching, its evidence for that rule becomes
+history and cannot satisfy the rule again without a fresh run.
 
 ## Packages
 
@@ -532,21 +643,36 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
 {
   "address": "auth.login",
   "kind": "nextjs.page",
-  "hashes": { "public": "9c1e...", "body": "41af...", "context": "d07b..." },
-  "context_parts": { "module:auth": "a1...", "nextjs:skills": "b2...", "nextjs:conventions": "c3..." },
-  "consumed": { "auth.sign_in": "77e2...", "dashboard.home": "51c0..." },
-  "applied_spec": "<canonical text of the declaration as last applied>",
-  "outputs": [
-    { "path": "src/app/login/page.tsx", "hash": "be90..." },
-    { "path": "tests/auth/login.test.ts", "hash": "13c4..." }
+  "hashes": { "public": "9c1e", "body": "41af", "context": "d07b" },
+  "context_parts": { "module:auth": "a1c3", "rule:app.app_requires_session": "0d4e", "pkg:nextjs:skills": "b2f0" },
+  "consumed": [
+    { "relation": "calls", "target": "auth.sign_in", "projection": "public", "hash": "77e2" },
+    { "relation": "mentions", "target": "dashboard.home", "projection": "public", "hash": "51c0" }
   ],
+  "members": { "expect.redirects": "c19a", "expect.generic_error": "8e02", "expect.busy_button": "f4d1" },
+  "outputs": {
+    "page": { "path": "src/app/login/page.tsx", "hash": "be90" },
+    "tests": { "path": "tests/auth/login.test.ts", "hash": "13c4" }
+  },
   "evidence": [
-    { "expect": "redirects", "status": "tested",
-      "by": "tests/auth/login.test.ts#redirects", "tree": "4b1d...", "check": "e0f2..." }
+    {
+      "subject": { "target": "auth.login", "requirement": "auth.login#expect.redirects" },
+      "coverage": { "contract": "c19a", "test": "tests:valid_credentials", "test_hash": "6a2b", "by": "reviewer-agent" },
+      "run": { "tree": "4b1d", "check": "e0f2", "result": "passed" },
+      "status": "tested"
+    }
   ],
-  "provenance": { "transaction": "tx-2026-11-18-003", "model": "...", "lock": "5f3a..." }
+  "provenance": { "transaction": "tx-2026-11-18-003", "commit": "a41c", "lock": "5f3a", "model": "..." }
 }
 ```
+
+`members` holds each member's contract hash. `consumed` has one entry per relation and
+target, since one target can supply different projections to different edges. `status` is
+derived from `coverage` and `run`. `provenance.commit` locates the exact spec revision this
+record was applied from: the planner reads old canonical projections from it when it must
+classify a change (an optional field added versus a required one removed) or show an old
+versus new diff. If that commit is unreachable, the planner falls back to treating every
+changed projection as incompatible.
 
 State is committed with the spec and code it describes, so each branch carries a
 consistent triple and git history is the audit log.
@@ -652,7 +778,7 @@ re-rolled.
   "may_create_under": ["tests/auth/login/"],
   "read_context": ["auth (module, full)", "dashboard.home (public)", "ui.link (catalog)"],
   "skills": ["authentication.skills"],
-  "must_pass": ["typecheck", "build", "expect:redirects", "expect:forgot_link"]
+  "must_pass": ["typecheck", "build", "auth.login#expect.redirects", "auth.login#expect.forgot_link"]
 }
 ```
 
@@ -735,10 +861,12 @@ nextjs.page login {
 no right to import billing code; a page that `calls` an action may import that action's
 public entry point and nothing else it owns.
 
-**Statuses.** Each `expect` item ends as `tested`, `checked`, `judged`, `accepted` (a human
-signed off), `unverified`, or `stale` (its inputs changed since it ran). A rule or project
-setting can set a floor: `check: tested` fails the transaction if a requirement only
-reached `judged`.
+**Statuses.** Each requirement ends as `tested`, `checked`, `judged`, `accepted` (a human
+signed off), `unverified`, or `stale` (its inputs changed since it ran). A member's
+`verify` field, a rule, or the project sets the required policy; the effective policy is
+the strongest one, and nothing can weaken it. `tested` is satisfied only by `tested`;
+`checked` by `checked` or `tested`; `judged` by any of the three. `accepted` is a human
+sign-off and satisfies only an `accepted` policy, because a human approval is not a test.
 
 **Behaviour tests are the weak point.** If one agent writes both the code and its test, the
 test can pass trivially. Mitigations: a separate agent writes the test from the `expect`
@@ -775,8 +903,12 @@ use "ui-sdk" for ui
 
 rule app_requires_session {
   applies_to: select nextjs.page where route matches "/app/**"
-  require: "unauthenticated visitors are redirected to @{auth.login}"
-  check: "tested"
+  expect {
+    redirects {
+      text: "unauthenticated visitors are redirected to @{auth.login}"
+      verify: "tested"
+    }
+  }
 }
 ```
 
@@ -810,7 +942,7 @@ export nextjs.page login {
     Email and password form in the shared auth card.
     On success go to @{dashboard.home}.
   """
-  expect: {
+  expect {
     redirects: "valid credentials redirect to @{dashboard.home}"
     generic_error: "invalid credentials show one generic error and keep the email filled in"
     busy_button: "the submit button is disabled while the request is in flight"
@@ -820,7 +952,10 @@ export nextjs.page login {
 action sign_in {
   input: { email: email, password: string }
   output: authentication.session
-  errors: ["InvalidCredentials", "RateLimited"]
+  errors {
+    invalid_credentials: "Email or password is wrong"
+    rate_limited: "Too many attempts; try again later"
+  }
   hint: "Use the library's email and password flow. Do not hand-roll hashing."
 }
 ```
@@ -858,7 +993,7 @@ export nextjs.page forgot_password {
   summary: "Request a password reset email"
   uses: [ui.form, ui.input, ui.button]
   calls: [request_reset]
-  expect: {
+  expect {
     same_message: "submitting any email shows the same confirmation message"
   }
 }
@@ -866,7 +1001,9 @@ export nextjs.page forgot_password {
 action request_reset {
   input: { email: email }
   output: { sent: boolean }
-  errors: ["RateLimited"]
+  errors {
+    rate_limited: "Too many requests; try again later"
+  }
   uses: [authentication.password_reset]
   hint: "Use the library's reset flow. Never reveal whether the email exists."
 }
