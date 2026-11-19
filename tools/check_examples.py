@@ -584,6 +584,21 @@ def check_graphs(before, after, plan):
     expected = json.load(open("examples/hashes.json"))
     if expected != {"before": canon.projections(before), "after": canon.projections(after)}:
         failures.append("examples/hashes.json does not match tools/canon.py over the graphs")
+    vectors = json.load(open("examples/hash-vectors.json"))["vectors"]
+    for v in vectors:
+        if canon.canonical(v["value"]) != v["canonical"] or canon.sha(v["value"]) != v["sha256"]:
+            failures.append(f"hash vector mismatch: {v['name']}")
+    if vectors[1]["sha256"] != vectors[2]["sha256"]:
+        failures.append("hash vectors: NFC-equivalent strings must hash equally")
+    # Inherited normative context changes are review obligations, never updates.
+    import copy
+    variant = copy.deepcopy(before)
+    for m in variant["modules"]:
+        if m["path"] == "auth":
+            m["header"]["prompt"] = {"$prose": "All auth screens use a split layout.\n"}
+    dv = canon.diff_graphs(before, variant)
+    if dv["update"] or dv["create"] or sorted(dv["obligations"]) != ["auth.login", "auth.sign_in", "auth.signup"]:
+        failures.append(f"module-prompt-only change derived {dv}, expected review obligations only")
     derived = canon.diff_graphs(before, after)
     by_change = {}
     for e in plan["entries"]:
@@ -658,6 +673,24 @@ def check_schemas():
         failures.append(f"review-order: reuses pre-edit resource handles {sorted(stale)}")
     failures += check_graphs(docs["examples/graph.before.json"], docs["examples/graph.after.json"],
                              docs["plan"])
+    # Hashes in the work order must name the same canonical objects as the graph fixtures.
+    import sys as _sys
+    _sys.path.insert(0, "tools")
+    import canon
+    hb = canon.projections(docs["examples/graph.before.json"])
+    ha = canon.projections(docs["examples/graph.after.json"])
+    after_decls = {x["address"]: x for x in docs["examples/graph.after.json"]["declarations"]}
+    for ref in wo["context"]["references"]:
+        table = ha if ref["viewpoint"] == "desired" else hb
+        if ref["target"] in table and table[ref["target"]][ref["projection"]] != ref["hash"]:
+            failures.append(f"work-order: {ref['target']} {ref['projection']} hash differs from hashes.json")
+    for s in wo["subjects"]:
+        for r in s["requirements"]:
+            target, member = r["subject"]["requirement"].split("#")
+            coll, key = member.split(".", 1)
+            want = canon.sha(after_decls[target]["members"][coll][key])
+            if r["contract_hash"] != want:
+                failures.append(f"work-order: contract hash of {r['subject']['requirement']} differs from the graph member")
     if [s["id"] for s in rv["subjects"]] != [s["id"] for s in ro["subjects"]]:
         failures.append("review-verdict: subjects must match the review order exactly")
     if wo["attempt"]["number"] > wo["attempt"]["max"]:

@@ -164,7 +164,9 @@ Hashes are computed over canonical projections of the graph, never over source t
 frontend emits the graph as JSON (`schemas/graph.schema.json`) with every name resolved,
 member short forms expanded, defaults filled and matching rules listed per declaration
 (`applies`). A projection's hash is the sha256 of its canonical JSON: sorted keys, no
-insignificant whitespace, UTF-8, NFC strings; arrays that are sets (edges, `uses`, `calls`,
+insignificant whitespace, UTF-8, every string and key NFC-normalised, integers without
+exponent, an integral float written as an integer, other numbers in shortest round-trip
+form, non-finite numbers rejected; arrays that are sets (edges, `uses`, `calls`,
 `reads`, `applies`) sorted by the canonical JSON of their elements, other arrays in authored
 order; prose dedented, with LF line ends, trailing spaces removed and mentions rewritten to
 `@{<address>}`. Source locations are diagnostics and never hashed. An action's `input` and
@@ -173,23 +175,25 @@ order; prose dedented, with LF line ends, trailing spaces removed and mentions r
 
 The worked example below exists as complete graphs (`examples/graph.before.json`,
 `examples/graph.after.json`). `tools/canon.py` is a reference canonicaliser: it computes
-every declaration's projection hashes (`examples/hashes.json`) and derives the change set
+every declaration's projection hashes (`examples/hashes.json`), passes the canonical-JSON
+test vectors in `examples/hash-vectors.json` (including NFC-equivalent strings), and
+derives the change set
 of the plan, and the checker confirms that `examples/plan.json` (schema
 `schemas/plan.schema.json`) agrees with it.
 
 | Projection | Covers | Invalidates |
 | --- | --- | --- |
 | `public` | `summary` plus `@interface` fields (a route, an action signature, entity fields), with type references resolved to their own public projections | Dependents that consume it |
-| `behaviour` | Normative prose: `prompt`, `expect` and `errors` text, plus the normative context the declaration inherits | The declaration; dependents that observe it |
+| `behaviour` | The declaration's own normative prose: `prompt`, `expect` and `errors` text | The declaration; dependents that observe it |
 | `body` | Everything else the declaration states except guidance: `uses`, non-interface kind fields | The declaration itself |
 | `guidance` | `hint` and `skills` | Nothing: guidance shapes future work only, so a change creates no obligation |
 
 Which fields are `@interface` comes from the kind: package kinds mark them, and core kinds
 fix them (`action`: `input`, `output` and error codes; `entity`: its `fields` members;
-`stack` and `use`: all their fields; `rule`: `applies_to`). The `behaviour` projection of a
-declaration includes the hashes of the normative context it inherits: the project prompt,
-its module header's prompt, and the prompts and expectations of every rule in `applies`.
-| `context` | Inherited prompts and hints, matching rules, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation |
+`stack` and `use`: all their fields; `rule`: `applies_to`). Inherited normative context is
+kept out of `behaviour` on purpose: an edit the author made to this declaration and an edit
+made to a module above it have different consequences (see Propagation).
+| `context` | Inherited normative context (project prompt, module prompt, matching rules' prompts and expectations), inherited hints, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation; dependents that observe it |
 
 A type reference inside a public projection is replaced by the referenced type's address
 and public hash, so changing a shared `type` changes the public projection of every action
@@ -279,7 +283,7 @@ export nextjs.page login {
 | `let <name> = <expr>` | `let max_name = 80` | Any module |
 | `moved <address> -> <address>` | `moved auth.login -> auth.sign_in` | Any module |
 | `environment <name> { }` | a deployment target to observe (see Runtime state) | Root module |
-| `kind`, `implements`, `annotation`, `check`, `generator`, `binding` | definitions | Package sources only |
+| `kind`, `implements`, `annotation`, `check`, `generator`, `observer`, `binding` | definitions | Package sources only |
 
 `export` may precede `type`, `let` and declarations. Bodies hold **fields** (`name: expr`)
 and **sections** (`name { ... }`); which fields and sections are legal is fixed by the
@@ -477,7 +481,7 @@ a warning, since rules also cover declarations added later.
 | Sort | Names |
 | --- | --- |
 | Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `implements`, `annotation` |
-| Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator`, `binding` |
+| Core kinds | `entity`, `action`, `rule`, `environment`; in package sources only: `check`, `generator`, `observer`, `binding` |
 | Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret`, `catalog` (any catalog declaration, for reference-typed kind fields) |
 | Constants | `now` |
 | Annotations | see above |
@@ -688,13 +692,17 @@ export kind page {
 | `creates { }` | root key → template | Creation roots for registered outputs; no authority over existing files. |
 | `exports { }` | entry key → `{ output, symbol, mode }` | The public entry points an edge may grant (`calls` grants these, nothing else the declaration owns). A grant takes effect only once the symbol is found in the candidate. |
 | `ambient { imports }` | list of exact module specifiers | Imports allowed with no edge, resolved through the pinned dependency tree. An import policy, not a sandbox. |
+| `inputs` | list of repository paths or globs | Implicit framework inputs (a root layout, middleware, framework config) that affect every declaration of this kind; they join its run input closure whether or not anyone owns them. |
 | `checks` | list of check references | Required checks, added to project and core checks; a declaration cannot remove them. |
 | `generator` | generator reference, optional | The exclusive producer of the declaration's outputs; without one, outputs are agent work. |
 | `skills` | list of skill references | Guidance mounted into work orders; guidance-only propagation. |
 
-Templates interpolate supported scalar fields only, with no functions and no implicit
-URL-to-path conversion; a package that maps routes to paths must define that mapping
-explicitly and reject routes it does not support. Paths are repository-relative,
+Templates interpolate scalar fields and `meta.name` / `meta.module`, with no functions.
+Substitution is fixed by the core: a string is inserted as is; a `route_path` (in v0, `/`
+followed by `/`-separated static segments of `[a-z0-9._-]`, or `/` alone; dynamic segments,
+groups and parallel routes are not `route_path` values) is inserted without its leading
+`/`, so `/` becomes empty and `/app` becomes `app`. The result is then normalised: empty
+segments collapse and a trailing `/` is dropped, except for creation roots, which keep it. Paths are repository-relative,
 normalised and checked for escapes, aliases and collisions.
 
 A package materialises a **core** kind with the package-only form `implements <kind> { }`,
@@ -715,7 +723,17 @@ milestone:
 | --- | --- | --- |
 | `accepts { }` | The contribution schema an owner kind takes, with `order` and `exclusive` keys | Contributions |
 | `collects: select ...` | Implicit membership by selector, with rule-selector restrictions | Contributions |
-| `binding <capability> { }` | Package-only form defining what a `use` binding owns: `outputs`, `creates`, `retains` (retained-artifact roots, each with a producer: `generator` or `agent`), `collects`, `generator`, `observer`, `options` | Toolchain and retained artifacts; Runtime state |
+| `binding <capability> { }` | Package-only form defining what a `use` binding owns | Below; Toolchain and retained artifacts; Runtime state |
+
+A `binding` takes `options` (the type `use` options must satisfy), `outputs`, `creates`,
+`collects`, `retains`, `generator`, `observer`, `checks` and `skills`. `retains` maps a root
+key to `{ path, producer }`, where `producer` is `"generator"` (the binding's generator
+writes each artifact, as with migrations) or `"agent"` (an agent dispatch writes exactly one
+new file under the root, as with backfills); retained artifacts are immutable once
+published. `observer` names an `observer` definition (package-only, like `generator`, with a
+`run` argv) that reads an environment for `spec observe`. `examples/drizzle-binding.spec`
+writes the worked example's database provider out in full: its `binding database`,
+`implements entity`, annotations, check, generator and observer.
 
 Still deferred: custom relations, kind inheritance, hooks.
 
@@ -923,9 +941,8 @@ Each relation declares what it **consumes** and what it **observes**:
 - A change to a *consumed* projection (the target's `public` projection) gives the
   dependent `update` if incompatible and `verify` if compatible, as decided under
   Packages → Compatibility. Anything the compiler cannot compare is incompatible.
-- A change to an *observed* projection (the target's `behaviour` projection: its `prompt`,
-  `expect` and `errors` text plus the normative context it inherits) gives the dependent
-  `verify` and `review`: tests catch what they cover, and the reviewer checks the caller's
+- A change to an *observed* projection (the target's `behaviour`, or the normative part of
+  its `context`) gives the dependent `verify` and `review`: tests catch what they cover, and the reviewer checks the caller's
   assumptions against the behaviour diff, which its work order receives. `calls`, `reads`
   and `writes` observe; `mentions`, `types` and `uses` do not.
 - **Implementation impact.** Any published change to a declaration's outputs (an update for
@@ -933,6 +950,23 @@ Each relation declares what it **consumes** and what it **observes**:
   projection changed. Its transitive dependents over ordering relations get `verify`. Checks are deduplicated by check definition and inputs, so a large closure costs
   test time, not agent time. A project can set `verify_scope: "all"` to run the whole suite
   instead.
+
+**Precedence.** What a declaration gets depends on where the change was made:
+
+| Change | Gives the declaration |
+| --- | --- |
+| An authored change to its own `public`, `behaviour` or `body` | `update` |
+| A change to the members an owner `collects` or accepts | `update` (usually generator work) |
+| An incompatible change to a projection it consumes | `update` |
+| A compatible change to a projection it consumes | `verify` |
+| A change to the `behaviour` or normative `context` of a target it observes | `verify` + `review` |
+| A change to its own inherited normative context | `review` + `verify`; `update` only if review finds nonconformance |
+| A change to its `guidance` or inherited hints | nothing |
+
+When several apply, the strongest wins (`update` over obligations), and obligations
+accumulate. The checker confirms on the worked graphs that editing only the `auth` module's
+prompt plans review obligations for `auth.login`, `auth.sign_in` and `auth.signup` and no
+updates.
 
 Context changes are classified by what changed, not by where it was declared:
 
@@ -1031,7 +1065,10 @@ destructive migration and requires an explicit flag.
 }
 ```
 
-`spec apply` refuses to start if any input differs. Each published transaction appends a
+`fingerprints` are the bytes observed on disk when planning, not the accepted baseline
+(which lives in state): a drifted file's fingerprint is its drifted bytes, so the drift
+blocks only its own declaration. `spec apply` refuses to start if any input differs from
+what the plan observed. Each published transaction appends a
 receipt to `.spec/journal/<plan>.jsonl` naming its input commit and its result commit.
 Resuming checks that chain, skips published transactions and starts the next one from a
 fresh candidate; any unexpected edit requires a new plan. A crash after publishing but
@@ -1255,7 +1292,11 @@ creates competing claims:
 
 Accepting a mapping is a `create` with strategy `acquire`: no agent runs, the file's exact
 current bytes become the baseline, its owner is recorded, and its evidence starts
-`unverified`. Only after that is the file managed, so an agent may write it. A walk-through,
+`unverified`. Only after that is the file managed, so an agent may write it. `acquire` is
+the one exception to "every policy is met before publishing": it publishes after compile,
+ownership and build checks only, because it changes no code and claims no conformance. Its
+requirements are reported `unverified`, and the next `spec plan` schedules them as `verify`
+and `review` obligations (`none` changes), which discharge them like any other. A walk-through,
 for an existing `src/lib/auth.ts` that exports `signIn` and `requestReset`, used by two pages:
 
 ```console
@@ -1345,8 +1386,11 @@ long as those inputs are unchanged; tree identity plays no part. A test run of d
 `D` is bound to its **run input closure**: `D`'s owned outputs, the outputs of every
 declaration reachable from `D` over ordering relations (`calls`, `reads`, `writes`, `uses`,
 `types`), the `stack`'s outputs, the oracle closure of the test, the check definition and the
-execution profile. Under `verify_scope: "all"` the closure is the whole tree except state,
-evidence, journal and protocol files.
+execution profile. The closure also contains the `inputs` its kind declares (implicit framework files such as
+a root layout or middleware, owned or not). Under `verify_scope: "all"`, and for every
+project-scope check, the closure is the whole tree except state, evidence, journal and
+protocol files, so an edit to an unmanaged file stales project-scope check results and the
+next plan carries a `verify` obligation rooted at those checks.
 
 | Input that changed | Test run | Coverage | Conformance review | Check result | Approval |
 | --- | --- | --- | --- | --- | --- |
@@ -1439,7 +1483,11 @@ evidence system.
 
 A conformance check reports explicit rules per subject: `satisfied`, `violated`,
 `unsupported` or `error`, with the checker's digest and the inputs it read. Silence is
-never satisfaction. Packages may *suggest* that a rule bears on a requirement; a suggestion
+never satisfaction. Every rule a check reports is required unless the check's definition
+lists it as advisory. A required rule that is `violated` fails the obligation and escalates
+to `update`; `unsupported` leaves any policy or transaction obligation that needs that check
+unsatisfied, so the transaction cannot publish; `error` is an infrastructure failure, rerun
+and then failed. Advisory results are reported and never block. Packages may *suggest* that a rule bears on a requirement; a suggestion
 does not make the rule entail it. v0 asks package authors for narrow rules only: output
 ownership, the allowed-import rule below, and concrete schema comparisons. Broad behavioural
 analysis is not required of anyone.
@@ -1775,8 +1823,9 @@ The first milestone tests only that, and tests it against a control.
 1. A runner driven by hand-written graph JSON: state records with whole-file ownership,
    `plan` with create, update, delete and drift, serial transactions, the work-order and
    result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
-   in `examples/nextjs-adapter.spec`, hard-coded.
-   Typecheck and build are the only package checks.
+   in `examples/nextjs-adapter.spec`, hard-coded. Its four checks run: typecheck, build,
+   test (the independent acceptance tests and agent-written tests, through the per-case
+   protocol) and conformance limited to ownership and the import rule.
 2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
    with callers, a compatible input widening, a normative prose change to an action, a
    route move with created parts, an adopted hand edit, and an edit that tempts the agent to

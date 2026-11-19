@@ -2,7 +2,7 @@
   "schema": "intentlang.review-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
   "binding": {
-    "order_hash": "sha256:c2192ec2d54286c61f5c7a9775c363c37c8cc9f553d16107a2aa8af7e1ddbed0",
+    "order_hash": "sha256:98c1cc62806deb71bd2013915202d71a81670e329ad092f940a5254140cb002f",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -17,8 +17,8 @@
       },
       "text": "the forgot-password link goes to @{forgot_password}",
       "previous_text": null,
-      "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
-      "context_hash": "sha256:13c427611fdde318040d30c838596659b3c2a8ea348d60e956ffbf9d3404d2d6",
+      "contract_hash": "sha256:cb470e8d0811817671109395ff6dc82f4bc38201d47dad584c0609d079ab9b93",
+      "context_hash": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1",
       "policy": {
         "tests": true,
         "review": true,
@@ -57,13 +57,13 @@
       {
         "source": "project",
         "normative": true,
-        "hash": "sha256:ffb3a7aa1af34ba228ded8853863cac58ed0cbf9ce003ec64fdfa568b2e744c9",
+        "hash": "sha256:bbd60ed653173d57ed5828cb814fe145b441e869e828662196d3d677c6423f87",
         "text": "Server-render by default. All copy in plain English, sentence case.\n"
       },
       {
         "source": "module:auth",
         "normative": true,
-        "hash": "sha256:3f78a14946eb1fd6d6e8c26d501f064d57f6dfb02a78f6a64e65e07e38b8da9f",
+        "hash": "sha256:cec4f74840d303479450fda4a66ba7c3b5cbe00b233fa697bde64b9384dae75f",
         "text": "All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
       }
     ],
@@ -74,7 +74,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "desired",
-        "hash": "sha256:29b4eeadb09376a64cc0be0b4542fa5ad60acd074b2f5a5cb09ae5028ff8706e",
+        "hash": "sha256:b7bf348cb343689c0372d8157af73e4818e7690eac2a481af932ce41db79f4ed",
         "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
       }
     ],

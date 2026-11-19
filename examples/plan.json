@@ -10,7 +10,7 @@
     "state_digest": "sha256:8ce96e2abc4982ed8cf1b6fe5d48e4fbc34dbc3e45aa27fb36f7d89c66dfb3b0",
     "fingerprints": {
       "src/app/login/page.tsx": "sha256:30c7e7792c51443312d946858c97a6ea4fe70843e84f5ec5467b8cedd4c1e61f",
-      "src/app/signup/page.tsx": "sha256:3a5b7c703512c1c4910bf336e23754d2e07e44fd94c2805efd327b0329d0e87d"
+      "src/app/signup/page.tsx": "sha256:dc6db90b68eab7a4a239c20b762c405ebdf5c64dc159440591e4af17abe27641"
     }
   },
   "entries": [

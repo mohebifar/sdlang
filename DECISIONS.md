@@ -181,3 +181,21 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D11.8 [accept] Schemas for MCP tools and the generator protocol, with validated generator examples.
 - D11.9 [accept] `implements <core kind>` package form with a one-implementer rule; the milestone adapter written in the language (`examples/nextjs-adapter.spec`); package manifest schema.
 - D11.10 [accept] Milestone measures coverage-review quality with seeded weak tests.
+
+## Round 11 rescore
+
+- D11.11 Scores (editor / Codex): Architecture 9 / 8; Drift 9 / 8; Verification 9 / 8; Grammar 9 / 9; Agent interop 9 / 8; Package ecosystem 8.5 / 8. Codex found defects the editor missed; fixes taken into round 12.
+
+## Round 12: rescoring fixes (last allowed round)
+
+- D12.1 [accept] `behaviour` holds own normative prose only; inherited normative context lives in `context`; precedence table; reference planner and checker confirm an inherited-prompt edit yields review obligations, not updates — REVIEW flaw 8 completed.
+- D12.2 [accept] Canonical byte contract (NFC, number forms) with checked hash vectors.
+- D12.3 [accept] Plan fingerprints are observed bytes; drift blocks only its own declaration.
+- D12.4 [accept] `acquire` publishes after compile, ownership and build checks; its requirements become obligations in the next plan.
+- D12.5 [accept] Kind `inputs` for implicit framework files; project-scope checks bind to the whole tree.
+- D12.6 [accept] Conformance rules required unless advisory; consequences of `violated`, `unsupported`, `error` defined.
+- D12.7 [accept] Protocol example hashes derived from the canonicaliser and cross-checked; ambient grants match the adapter; cross-document rules table.
+- D12.8 [accept] Milestone runs all four adapter checks.
+- D12.9 [accept] Generator protocol covers deletion and relocation.
+- D12.10 [accept] Core `route_path` substitution rule; v0 routes are static only.
+- D12.11 [accept] `binding` vocabulary specified, `observer` definitions, `examples/drizzle-binding.spec`.

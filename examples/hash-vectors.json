@@ -1,0 +1,58 @@
+{
+  "description": "Canonical JSON test vectors for tools/canon.py and any other implementation. Values are given as JSON; implementations must produce exactly `canonical` and `sha256`.",
+  "vectors": [
+    {
+      "name": "key order and whitespace do not matter",
+      "value": {
+        "b": 1,
+        "a": [
+          true,
+          null,
+          "x"
+        ]
+      },
+      "canonical": "{\"a\":[true,null,\"x\"],\"b\":1}",
+      "sha256": "sha256:54a65415ad370228851a1da4b31b6fd42dc58b19a50d35cae759325f7388ce64"
+    },
+    {
+      "name": "NFC: decomposed e + combining acute",
+      "value": {
+        "s": "é"
+      },
+      "canonical": "{\"s\":\"é\"}",
+      "sha256": "sha256:86028b41ba792eaf82aa26a45b218f6734f7f1096a86f1746c8296e088a0ccb4"
+    },
+    {
+      "name": "NFC: precomposed e-acute (same hash as above)",
+      "value": {
+        "s": "é"
+      },
+      "canonical": "{\"s\":\"é\"}",
+      "sha256": "sha256:86028b41ba792eaf82aa26a45b218f6734f7f1096a86f1746c8296e088a0ccb4"
+    },
+    {
+      "name": "integral float is written as integer",
+      "value": {
+        "n": 2.0
+      },
+      "canonical": "{\"n\":2}",
+      "sha256": "sha256:363379742f80b51bdb9206579af7754911543079b9399cb3fc315fb199f476e8"
+    },
+    {
+      "name": "non-integral number keeps its shortest form",
+      "value": {
+        "n": 1.5
+      },
+      "canonical": "{\"n\":1.5}",
+      "sha256": "sha256:cb14d55cfe562fd6592d919f5dfacfa8708687b746a1d110c6dd5529c410e772"
+    },
+    {
+      "name": "prose value",
+      "value": {
+        "$prose": "Line one.\nLine two with @{auth.login}.\n"
+      },
+      "canonical": "{\"$prose\":\"Line one.\\nLine two with @{auth.login}.\\n\"}",
+      "sha256": "sha256:aaa265ea04e5cc7274e349202959157613d76d0aa66f8d5817ea04515ac03730"
+    }
+  ]
+}

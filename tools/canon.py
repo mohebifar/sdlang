@@ -11,6 +11,8 @@ compares with examples/plan.json.
 """
 import hashlib
 import json
+import math
+import unicodedata
 
 # Fields that form the public projection, per kind. Everything else that is not
 # summary, behaviour or guidance is body.
@@ -30,8 +32,30 @@ CONSUMING = {"calls", "reads", "writes", "uses", "types", "requires"}
 OBSERVING = {"calls", "reads", "writes"}
 
 
+def _normalise(obj):
+    """NFC every string (keys too); integers stay integers; finite floats only, and a
+    float with an integral value is written as an integer."""
+    if isinstance(obj, str):
+        return unicodedata.normalize("NFC", obj)
+    if isinstance(obj, bool) or obj is None:
+        return obj
+    if isinstance(obj, int):
+        return obj
+    if isinstance(obj, float):
+        if not math.isfinite(obj):
+            raise ValueError("non-finite number in canonical JSON")
+        return int(obj) if obj == int(obj) else obj
+    if isinstance(obj, list):
+        return [_normalise(v) for v in obj]
+    if isinstance(obj, dict):
+        return {_normalise(k): _normalise(v) for k, v in obj.items()}
+    raise TypeError(type(obj))
+
+
 def canonical(obj):
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    """Canonical JSON: NFC strings, sorted keys, no insignificant whitespace, UTF-8,
+    integers without exponent, floats in shortest round-trip form."""
+    return json.dumps(_normalise(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def sha(obj):
@@ -149,8 +173,8 @@ def projections(graph):
             "prompt": fields.get("prompt"),
             "expect": {k: v.get("text") for k, v in members.get("expect", {}).items()},
             "errors": {k: v.get("summary") for k, v in members.get("errors", {}).items()},
-            "inherited": inherited,
         }
+        context = {"normative": inherited}
         iface = set(KIND_INTERFACE.get(d["kind"], []))
         body = {
             "fields": {f: (_sorted_set(v) if f in SET_FIELDS else v) for f, v in fields.items()
@@ -161,14 +185,19 @@ def projections(graph):
         }
         guidance = {f: (_sorted_set(fields[f]) if f in SET_FIELDS else fields[f])
                     for f in GUIDANCE_FIELDS if f in fields}
-        out[a] = {"public": pub[a], "behaviour": sha(behaviour), "body": sha(body), "guidance": sha(guidance)}
+        out[a] = {"public": pub[a], "behaviour": sha(behaviour), "body": sha(body),
+                  "guidance": sha(guidance), "context": sha(context)}
     return out
 
 
 def diff_graphs(before, after):
-    """Derive the plan's change set: creates, updates (own projection changed or an
-    aggregate owner whose collected members changed), deletes, and dependents whose
-    consumed or observed projection changed. Guidance-only changes create nothing."""
+    """Derive the plan's change set, following SPEC.md's precedence: an authored change
+    to a declaration's own public, behaviour or body projection is an update; so is a
+    change to an aggregate owner's collected members. A change to inherited normative
+    context only is a review (plus verify) obligation, never an update. Dependents whose
+    consumed projection changed get an obligation (compatibility decides verify or
+    update; not computed here), and observers of a target whose behaviour or normative
+    context changed get verify and review. Guidance-only changes create nothing."""
     hb, ha = projections(before), projections(after)
     dafter = {d["address"]: d for d in after["declarations"]}
     managed = {a for a, d in dafter.items() if d["sort"] == "managed"}
@@ -176,7 +205,9 @@ def diff_graphs(before, after):
     deletes = sorted(a for a in hb if a not in ha)
     own = {a for a in ha if a in hb and any(ha[a][p] != hb[a][p] for p in ("public", "behaviour", "body"))}
     public_changed = {a for a in ha if a in hb and ha[a]["public"] != hb[a]["public"]}
-    behaviour_changed = {a for a in ha if a in hb and ha[a]["behaviour"] != hb[a]["behaviour"]}
+    behaviour_changed = {a for a in ha if a in hb and (ha[a]["behaviour"] != hb[a]["behaviour"]
+                                                       or ha[a]["context"] != hb[a]["context"])}
+    context_changed = {a for a in ha if a in hb and ha[a]["context"] != hb[a]["context"]}
     aggregate = set()
     consumers = {}
     for a, d in dafter.items():
@@ -188,6 +219,8 @@ def diff_graphs(before, after):
                 consumers.setdefault(a, set()).add(("consumed", t))
             if e["relation"] in OBSERVING and t in behaviour_changed:
                 consumers.setdefault(a, set()).add(("observed", t))
+    for a in context_changed:
+        consumers.setdefault(a, set()).add(("context", a))
     updates = sorted((own | aggregate) & managed)
     obligations = {a: sorted(v) for a, v in consumers.items()
                    if a in managed and a not in updates and a not in creates}

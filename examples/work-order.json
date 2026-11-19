@@ -2,7 +2,7 @@
   "schema": "intentlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:c95442ab000f8b906aeb75f4e77597f6eac4d9a27308ee258de3b49cc9877111",
+    "order_hash": "sha256:1fc3087e767afc97267916976602b13de904f00301680ea727f074e1b5d8971e",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -73,7 +73,15 @@
         "delete": [],
         "allowed_imports": [
           {
-            "module": "next",
+            "module": "next/link",
+            "exports": [
+              "*"
+            ],
+            "mode": "runtime",
+            "via": "ambient:nextjs.page"
+          },
+          {
+            "module": "next/navigation",
             "exports": [
               "*"
             ],
@@ -82,6 +90,14 @@
           },
           {
             "module": "react",
+            "exports": [
+              "*"
+            ],
+            "mode": "runtime",
+            "via": "ambient:nextjs.page"
+          },
+          {
+            "module": "react/jsx-runtime",
             "exports": [
               "*"
             ],
@@ -124,7 +140,7 @@
             "requirement": "auth.login#expect.redirects"
           },
           "text": "valid credentials redirect to @{dashboard.home}",
-          "contract_hash": "sha256:5b65bd5fbf00c1822fa12e9f3a7a1d991ee67b70f37f56512ffcd3ae3ad75e20",
+          "contract_hash": "sha256:fd9099324bedb5b050f198b7d55a2198910e872fca3dc729caebc21ca01f0660",
           "policy": {
             "tests": true,
             "review": true,
@@ -146,7 +162,7 @@
             "requirement": "auth.login#expect.generic_error"
           },
           "text": "invalid credentials show one generic error and keep the email filled in",
-          "contract_hash": "sha256:df5a3e6df5073b5b825f1ac89b62f19cb1b10f1dcd86861f8c61d0733e4c310e",
+          "contract_hash": "sha256:98961008aa6488ae4a8298a0ced2f11f58afd82e9d07c9c71fb87b9c899896a9",
           "policy": {
             "tests": true,
             "review": true,
@@ -168,7 +184,7 @@
             "requirement": "auth.login#expect.busy_button"
           },
           "text": "the submit button is disabled while the request is in flight",
-          "contract_hash": "sha256:0c989e196f8989b687a4c1d6aad74b8f63746aa002e1df8f4643503a1a151065",
+          "contract_hash": "sha256:44339240227a1126dedf52f1d966964e5d6b2388322cae91ef41765ee5d5cf4d",
           "policy": {
             "tests": true,
             "review": true,
@@ -190,7 +206,7 @@
             "requirement": "auth.login#expect.forgot_link"
           },
           "text": "the forgot-password link goes to @{forgot_password}",
-          "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
+          "contract_hash": "sha256:cb470e8d0811817671109395ff6dc82f4bc38201d47dad584c0609d079ab9b93",
           "policy": {
             "tests": true,
             "review": true,
@@ -209,13 +225,13 @@
       {
         "source": "project",
         "normative": true,
-        "hash": "sha256:ffb3a7aa1af34ba228ded8853863cac58ed0cbf9ce003ec64fdfa568b2e744c9",
+        "hash": "sha256:bbd60ed653173d57ed5828cb814fe145b441e869e828662196d3d677c6423f87",
         "text": "Server-render by default. All copy in plain English, sentence case.\n"
       },
       {
         "source": "module:auth",
         "normative": true,
-        "hash": "sha256:3f78a14946eb1fd6d6e8c26d501f064d57f6dfb02a78f6a64e65e07e38b8da9f",
+        "hash": "sha256:cec4f74840d303479450fda4a66ba7c3b5cbe00b233fa697bde64b9384dae75f",
         "text": "All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
       }
     ],
@@ -226,7 +242,7 @@
         "relation": "calls",
         "projection": "public",
         "viewpoint": "applied",
-        "hash": "sha256:243c73b4bfa005d3560bae141ab389c48fbc1ffea583bb22081911581e0dceec",
+        "hash": "sha256:cd8fa156df0fc1646a7f421c82a394ed6c4c22a9fec451ef221ba03b4112a600",
         "text": "action sign_in {\n  summary: \"\"\n  input: { email: email, password: string }\n  output: authentication.session\n  errors { invalid_credentials, rate_limited }\n}\n"
       },
       {
@@ -235,7 +251,7 @@
         "relation": "calls",
         "projection": "behaviour",
         "viewpoint": "applied",
-        "hash": "sha256:02f06cb7f706c0ce7e28ffa0a7457c66e37d15f22fec1bed60a83de9552480ed",
+        "hash": "sha256:f3639f525c1d73e81efc4ce109e11573c80c72e6fb2d1bcf5278dec0f03d9ae5",
         "text": "errors:\n  invalid_credentials: Email or password is wrong\n  rate_limited: Too many attempts; try again later\ninherited normative context:\n  project: Server-render by default. All copy in plain English, sentence case.\n  module auth: All auth screens use one centered card layout. Never reveal whether an email address is registered. \n"
       },
       {
@@ -244,7 +260,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "applied",
-        "hash": "sha256:6b657c409592910600ea2fb0f436aea454f6b704b65e028eac754d8c089fe5e9",
+        "hash": "sha256:f283601b0666b0cb5f7c1149acf3cd046b390670f74c39e0193ee7df43b37b93",
         "text": "nextjs.page home { route: \"/app\" summary: \"Lists the signed-in user's workspaces\" }\n"
       },
       {
@@ -253,7 +269,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "desired",
-        "hash": "sha256:29b4eeadb09376a64cc0be0b4542fa5ad60acd074b2f5a5cb09ae5028ff8706e",
+        "hash": "sha256:b7bf348cb343689c0372d8157af73e4818e7690eac2a481af932ce41db79f4ed",
         "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
       },
       {

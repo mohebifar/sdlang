@@ -1,8 +1,7 @@
 // @intentlang/nextjs, spec/index.spec: the first milestone's only adapter.
-// Supported: one App Router layout, static routes only, the exact toolchain pinned by
-// the package's own lock. Route mapping for path templates: the leading "/" is dropped,
-// "/" maps to the empty path, empty segments collapse, and any route containing "[",
-// "(" or "@" (dynamic segments, groups, parallel routes) is rejected by conformance.
+// Supported: one App Router layout, static routes only (route_path admits nothing else in
+// v0), and the exact toolchain pinned by the package's own lock. Path templates use the
+// core substitution rule for route_path (SPEC.md, Packages -> Kind definitions).
 
 export kind page {
   fields {
@@ -28,6 +27,7 @@ export kind page {
   ambient {
     imports: ["next/link", "next/navigation", "react", "react/jsx-runtime"]
   }
+  inputs: ["src/app/layout.tsx", "src/middleware.ts", "next.config.ts"]
   checks: [typecheck, build, test, conformance]
   skills: [app_router]
 }

@@ -19,6 +19,26 @@ Shared definitions (digests, addresses, members, subjects, test locators, polici
 `schemas/common.schema.json`. Every document type has a generated example, including
 `examples/generator.input.json` and `examples/generator.output.json` for tx-1's migration.
 
+## Cross-document rules
+
+The schemas check each document alone. The CLI also enforces these relational rules;
+`tools/check_examples.py` checks the ones marked ✓ on the examples.
+
+| Rule | Between | Failure |
+| --- | --- | --- |
+| `order_hash` recomputes from the order's canonical JSON ✓ | order | protocol failure, order not dispatched |
+| A reply echoes the outstanding `dispatch` and `order_hash` ✓ | order, reply | reply discarded |
+| `attempt.number` ≤ `attempt.max` ✓ | work order | protocol failure |
+| Every `tests[].subject` in a result is a requirement subject of the order ✓ | work order, result | result invalid |
+| `regression` has exactly one entry per repair subject, and none without one | work order, result | result invalid |
+| Every `outputs` claim names an order subject as owner, a creation root of that subject, and a path that did not exist before | work order, result, candidate | ownership violation |
+| Reference and contract hashes equal the bound graph's projections and members ✓ | work order, graph | order not dispatched |
+| Review-order resource handles are bound to the frozen candidate, never reused from the work order ✓ | work order, review order | order not dispatched |
+| A verdict answers exactly the requested subjects ✓, each requested assessment once, nothing unsolicited | review order, verdict | verdict invalid |
+| Each coverage verdict names a coverage candidate of that subject | review order, verdict | verdict invalid |
+| A regression assessment exists exactly when the subject's `assess` includes `regression`, in the same mode (automated or not automatable) as the result's entry | result, review order, verdict | verdict invalid |
+| A generator output echoes its input binding ✓ and writes only listed slots and retained roots | generator input, output | generator failure |
+
 ## Binding
 
 Every order carries a `dispatch` id unique across plans, revisions and attempts, and a

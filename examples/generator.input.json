@@ -2,7 +2,7 @@
   "protocol": "intentlang.generator/1",
   "dispatch": "p-2026-11-18-01/r1/tx-1/1",
   "binding": {
-    "order_hash": "sha256:a1e8bf186432447392b58b041e1f7e6b89cb67433b56a6ca945cd119fc4d72a4",
+    "order_hash": "sha256:39b89378136d45a5fc9d70aa3b616fa610f33741c7d7cfecda47e2700c3e0afe",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "input_snapshot": "sha256:be3fb193e7176896f7536bfeb455bf36da72441e22dcbe147a85590b7f08f8d0",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -341,8 +341,8 @@
     "write": [
       {
         "output": "core.Workspace#outputs.schema",
-        "path": "src/db/schema/workspace.ts",
-        "expected": "sha256:5b1dd19dd4dee898feb88bc8968388776b399a99ca8031f3ae147d8ea6e0f2d6"
+        "path": "src/db/schema/Workspace.ts",
+        "expected": "sha256:37584db0e67faf874a7e26640b5b86f6f1a48d5aec143c97fa9ca4cba5fe3e82"
       },
       {
         "output": "database#outputs.schema_index",
@@ -350,6 +350,8 @@
         "expected": "sha256:0e5ff554d6097ffbe5bea8635e05363f21c3db7c758e59cae114dd0a02e5012b"
       }
     ],
+    "delete": [],
+    "move": [],
     "retain": [
       {
         "root": "migrations",

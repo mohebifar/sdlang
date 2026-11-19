@@ -86,12 +86,23 @@ def requirement(key, text, baseline, cases):
     return {
         "subject": {"target": "auth.login", "requirement": f"auth.login#expect.{key}"},
         "text": text,
-        "contract_hash": d(f"contract:auth.login#expect.{key}:{text}"),
+        "contract_hash": contract(text.replace("@{forgot_password}", "@{auth.forgot_password}")),
         "policy": {"tests": True, "review": True, "checks": [], "approval": False},
         "policy_source": "project",
         "baseline": baseline,
         "tests": [{"output": TESTS, "case": c} for c in cases],
     }
+
+
+HB = canon.projections(GRAPH_BEFORE)
+HA = canon.projections(GRAPH_AFTER)
+PROJECT_HASH = canon.sha({"$prose": PROJECT_PROMPT})
+AUTH_HASH = canon.sha({"$prose": AUTH_PROMPT})
+
+
+def contract(text):
+    """A requirement's contract hash: the canonical member, as in the graph."""
+    return canon.sha({"text": {"$prose": text}})
 
 
 def work_order():
@@ -100,19 +111,19 @@ def work_order():
     catalog = [("ui.form", "Form"), ("ui.input", "Input"), ("ui.button", "Button"), ("ui.link", "Link")]
     refs = [
         {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "public",
-         "viewpoint": "applied", "hash": d("public:auth.sign_in"),
+         "viewpoint": "applied", "hash": HB["auth.sign_in"]["public"],
          "text": 'action sign_in {\n  summary: ""\n  input: { email: email, password: string }\n'
                  '  output: authentication.session\n  errors { invalid_credentials, rate_limited }\n}\n'},
         {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "behaviour",
-         "viewpoint": "applied", "hash": d("behaviour:auth.sign_in"),
+         "viewpoint": "applied", "hash": HB["auth.sign_in"]["behaviour"],
          "text": "errors:\n  invalid_credentials: Email or password is wrong\n"
                  "  rate_limited: Too many attempts; try again later\ninherited normative context:\n"
                  "  project: " + PROJECT_PROMPT + "  module auth: " + AUTH_PROMPT.replace("\n", " ") + "\n"},
         {"from": "auth.login", "target": "dashboard.home", "relation": "mentions", "projection": "public",
-         "viewpoint": "applied", "hash": d("public:dashboard.home"),
+         "viewpoint": "applied", "hash": HB["dashboard.home"]["public"],
          "text": 'nextjs.page home { route: "/app" summary: "Lists the signed-in user\'s workspaces" }\n'},
         {"from": "auth.login", "target": "auth.forgot_password", "relation": "mentions", "projection": "public",
-         "viewpoint": "desired", "hash": d("public:auth.forgot_password"),
+         "viewpoint": "desired", "hash": HA["auth.forgot_password"]["public"],
          "text": 'nextjs.page forgot_password { route: "/forgot-password" summary: "Request a password reset email" }\n'},
     ]
     for alias, export in catalog:
@@ -178,8 +189,10 @@ def work_order():
                 "create_under": [{"root": "parts", "path": "src/app/login/_parts/"}],
                 "delete": [],
                 "allowed_imports": [
-                    {"module": "next", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
+                    {"module": "next/link", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
+                    {"module": "next/navigation", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
                     {"module": "react", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
+                    {"module": "react/jsx-runtime", "exports": ["*"], "mode": "runtime", "via": "ambient:nextjs.page"},
                     {"module": "ui-sdk", "exports": ["Form", "Input", "Button", "Link"], "mode": "runtime",
                      "via": "uses:ui.form,ui.input,ui.button,ui.link"},
                     {"module": "src/server/auth/sign_in.ts", "exports": ["default"], "mode": "runtime",
@@ -200,8 +213,8 @@ def work_order():
         }],
         "context": {
             "inherited": [
-                {"source": "project", "normative": True, "hash": d("ctx:project"), "text": PROJECT_PROMPT},
-                {"source": "module:auth", "normative": True, "hash": d("ctx:module:auth"), "text": AUTH_PROMPT},
+                {"source": "project", "normative": True, "hash": PROJECT_HASH, "text": PROJECT_PROMPT},
+                {"source": "module:auth", "normative": True, "hash": AUTH_HASH, "text": AUTH_PROMPT},
             ],
             "references": refs,
             "manifest": manifest,
@@ -258,8 +271,8 @@ def review_order():
             "subject": {"target": "auth.login", "requirement": "auth.login#expect.forgot_link"},
             "text": "the forgot-password link goes to @{forgot_password}",
             "previous_text": None,
-            "contract_hash": d("contract:auth.login#expect.forgot_link:the forgot-password link goes to @{forgot_password}"),
-            "context_hash": d("ctx:auth.login:tx-4"),
+            "contract_hash": contract("the forgot-password link goes to @{auth.forgot_password}"),
+            "context_hash": HA["auth.login"]["context"],
             "policy": {"tests": True, "review": True, "checks": [], "approval": False},
             "assess": ["conformance", "coverage"],
             "code": ["src/app/login/_parts/LoginForm.tsx", "tests/app/login/page.test.ts"],
@@ -272,12 +285,12 @@ def review_order():
         }],
         "context": {
             "inherited": [
-                {"source": "project", "normative": True, "hash": d("ctx:project"), "text": PROJECT_PROMPT},
-                {"source": "module:auth", "normative": True, "hash": d("ctx:module:auth"), "text": AUTH_PROMPT},
+                {"source": "project", "normative": True, "hash": PROJECT_HASH, "text": PROJECT_PROMPT},
+                {"source": "module:auth", "normative": True, "hash": AUTH_HASH, "text": AUTH_PROMPT},
             ],
             "references": [
                 {"from": "auth.login", "target": "auth.forgot_password", "relation": "mentions",
-                 "projection": "public", "viewpoint": "desired", "hash": d("public:auth.forgot_password"),
+                 "projection": "public", "viewpoint": "desired", "hash": HA["auth.forgot_password"]["public"],
                  "text": 'nextjs.page forgot_password { route: "/forgot-password" summary: "Request a password reset email" }\n'},
             ],
             "manifest": [res("code", "candidate:tx-4:1:src/app/login/_parts/LoginForm.tsx"),
@@ -325,11 +338,13 @@ def generator_io():
         ],
         "envelope": {
             "write": [
-                {"output": "core.Workspace#outputs.schema", "path": "src/db/schema/workspace.ts",
-                 "expected": d("bytes:schema/workspace.ts")},
+                {"output": "core.Workspace#outputs.schema", "path": "src/db/schema/Workspace.ts",
+                 "expected": d("bytes:schema/Workspace.ts")},
                 {"output": "database#outputs.schema_index", "path": "src/db/schema/index.ts",
                  "expected": d("bytes:schema/index.ts")},
             ],
+            "delete": [],
+            "move": [],
             "retain": [{"root": "migrations", "path": "drizzle/", "existing": ["0000_init", "0001_workspace"]}],
         },
         "decisions": [],
@@ -343,9 +358,9 @@ def generator_io():
         "order_hash": inp["binding"]["order_hash"],
         "status": "written",
         "files": [
-            {"target": "core.Workspace#outputs.schema", "relative_path": "src/db/schema/workspace.ts",
-             "digest": d("bytes:schema/workspace.ts:after")},
-            {"target": "retain:migrations", "relative_path": "drizzle/0002_workspace_archived_at.sql",
+            {"op": "update", "target": "core.Workspace#outputs.schema", "relative_path": "src/db/schema/Workspace.ts",
+             "digest": d("bytes:schema/Workspace.ts:after")},
+            {"op": "create", "target": "retain:migrations", "relative_path": "drizzle/0002_workspace_archived_at.sql",
              "digest": d("bytes:0002.sql")},
         ],
         "retained": [{"id": "0002_workspace_archived_at", "root": "migrations",

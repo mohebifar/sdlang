@@ -191,7 +191,7 @@ def plan_fixture():
             "lock_hash": d("lock:5f3a"),
             "state_digest": d("state:c9e1"),
             "fingerprints": {"src/app/login/page.tsx": d("bytes:page.tsx"),
-                             "src/app/signup/page.tsx": d("bytes:signup.tsx:baseline")},
+                             "src/app/signup/page.tsx": d("bytes:signup.tsx:hand-edited")},
         },
         "entries": [
             {"address": "core.Workspace", "identity": "same", "change": "update", "causes": ["own_projection"],
