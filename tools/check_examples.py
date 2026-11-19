@@ -557,11 +557,13 @@ BAD_RESULTS = {
 
 
 def _canonical_hash(obj, field):
-    import hashlib
+    """order_hash: the same canonical JSON as graph projections (tools/canon.py), NFC included."""
+    import sys as _sys
+    _sys.path.insert(0, "tools")
+    import canon
     clone = json.loads(json.dumps(obj))
     del clone[field]["order_hash"]
-    blob = json.dumps(clone, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-    return "sha256:" + hashlib.sha256(blob).hexdigest()
+    return canon.sha(clone)
 
 
 def check_graphs(before, after, plan):
@@ -599,6 +601,18 @@ def check_graphs(before, after, plan):
     dv = canon.diff_graphs(before, variant)
     if dv["update"] or dv["create"] or sorted(dv["obligations"]) != ["auth.login", "auth.sign_in", "auth.signup"]:
         failures.append(f"module-prompt-only change derived {dv}, expected review obligations only")
+    nested = copy.deepcopy(before)
+    nested["modules"].append({"path": "auth.child", "imports": []})
+    nested["declarations"].append({"address": "auth.child.page", "module": "auth.child",
+        "kind": "npm:@intentlang/nextjs::page", "sort": "managed", "exported": False,
+        "fields": {"route": "/child"}, "members": {}, "edges": [], "lifecycle": "managed",
+        "source": {"file": "spec/auth/child/page.spec", "line": 1}})
+    nested_variant = copy.deepcopy(nested)
+    for m in nested_variant["modules"]:
+        if m["path"] == "auth":
+            m["header"]["prompt"] = {"$prose": "All auth screens use a split layout.\n"}
+    if "auth.child.page" not in canon.diff_graphs(nested, nested_variant)["obligations"]:
+        failures.append("an ancestor module's prompt change must reach declarations in child modules")
     derived = canon.diff_graphs(before, after)
     by_change = {}
     for e in plan["entries"]:

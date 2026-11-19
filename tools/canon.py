@@ -160,9 +160,12 @@ def projections(graph):
         inherited = []
         if project is not None and a != project["address"] and "prompt" in project["fields"]:
             inherited.append({"source": "project", "hash": sha(project["fields"]["prompt"])})
-        header = modules.get(d["module"], {}).get("header", {})
-        if "prompt" in header:
-            inherited.append({"source": "module:" + d["module"], "hash": sha(header["prompt"])})
+        parts = d["module"].split(".") if d["module"] else []
+        for i in range(1, len(parts) + 1):  # ancestor modules, outermost first
+            path = ".".join(parts[:i])
+            header = modules.get(path, {}).get("header", {})
+            if "prompt" in header:
+                inherited.append({"source": "module:" + path, "hash": sha(header["prompt"])})
         for r in d.get("applies", []):
             rule = decls[r]
             inherited.append({"source": "rule:" + r,

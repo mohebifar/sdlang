@@ -31,7 +31,7 @@ The schemas check each document alone. The CLI also enforces these relational ru
 | `attempt.number` ≤ `attempt.max` ✓ | work order | protocol failure |
 | Every `tests[].subject` in a result is a requirement subject of the order ✓ | work order, result | result invalid |
 | `regression` has exactly one entry per repair subject, and none without one | work order, result | result invalid |
-| Every `outputs` claim names an order subject as owner, a creation root of that subject, and a path that did not exist before | work order, result, candidate | ownership violation |
+| Every `outputs` claim names an order subject as owner. `create`: a new key, a creation root of that subject, a path that did not exist before. `relocate`: an existing created output of that subject, a destination under one of its roots that did not exist before. `remove`: an existing created output of that subject, absent from the candidate | work order, result, candidate | ownership violation |
 | Reference and contract hashes equal the bound graph's projections and members ✓ | work order, graph | order not dispatched |
 | Review-order resource handles are bound to the frozen candidate, never reused from the work order ✓ | work order, review order | order not dispatched |
 | A verdict answers exactly the requested subjects ✓, each requested assessment once, nothing unsolicited | review order, verdict | verdict invalid |

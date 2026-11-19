@@ -37,7 +37,7 @@ def canonical(obj):
 def order_hash(order, field="binding"):
     clone = json.loads(json.dumps(order))
     del clone[field]["order_hash"]
-    return "sha256:" + hashlib.sha256(canonical(clone)).hexdigest()
+    return canon.sha(clone)
 
 
 PREVIOUS = '''export nextjs.page login {
@@ -117,8 +117,10 @@ def work_order():
         {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "behaviour",
          "viewpoint": "applied", "hash": HB["auth.sign_in"]["behaviour"],
          "text": "errors:\n  invalid_credentials: Email or password is wrong\n"
-                 "  rate_limited: Too many attempts; try again later\ninherited normative context:\n"
-                 "  project: " + PROJECT_PROMPT + "  module auth: " + AUTH_PROMPT.replace("\n", " ") + "\n"},
+                 "  rate_limited: Too many attempts; try again later\n"},
+        {"from": "auth.login", "target": "auth.sign_in", "relation": "calls", "projection": "context",
+         "viewpoint": "applied", "hash": HB["auth.sign_in"]["context"],
+         "text": "inherited normative context:\n  project: " + PROJECT_PROMPT + "  module auth: " + AUTH_PROMPT},
         {"from": "auth.login", "target": "dashboard.home", "relation": "mentions", "projection": "public",
          "viewpoint": "applied", "hash": HB["dashboard.home"]["public"],
          "text": 'nextjs.page home { route: "/app" summary: "Lists the signed-in user\'s workspaces" }\n'},

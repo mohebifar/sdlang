@@ -199,3 +199,52 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D12.9 [accept] Generator protocol covers deletion and relocation.
 - D12.10 [accept] Core `route_path` substitution rule; v0 routes are static only.
 - D12.11 [accept] `binding` vocabulary specified, `observer` definitions, `examples/drizzle-binding.spec`.
+
+## Final scores (round 12) and stop
+
+The loop stopped at its 12-round limit. Final independent scores, editor / Codex:
+
+| Area | v0 | Editor | Codex |
+| --- | --- | --- | --- |
+| Architecture | 7 | 9 | 8 |
+| Drift and brownfield | 6 | 9 | 9 |
+| Verification | 6 | 9 | 8 |
+| Grammar and syntax | 5 | 9 | 9 |
+| Agent interop | 5 | 9 | 8 |
+| Package ecosystem | 4 | 9 | 8 |
+
+Not every area reached 9 from both reviewers. Codex's remaining asks, carried forward as
+open items for the next design round (none is applied):
+
+- O.1 A check ABI: schemas for check input (subject, output selection, snapshot, profile, working directory, package-relative resolution) and check result (inventory, per-rule results, failures), plus a declared rule inventory per conformance check so omitted rules are detectable and advisory rules have syntax.
+- O.2 Obligation placement for compatible fan-in (two changed actions with one caller): merge or verify per transaction, represented in the plan schema.
+- O.3 A complete evidence-transition example (implementation edit, oracle edit, unrelated publication) showing which evidence is reused or replaced.
+- O.4 A cross-module caller/callee protocol example where only the callee's inherited prompt changes.
+- O.5 Declarative toolchain constraints for an adapter (how planning rejects an unsupported combination without running package code) and a compact `spec.lock` example.
+- O.6 Cross-language numeric vectors for the canonical byte contract.
+
+## Post-final corrections (not rescored)
+
+Three defects Codex found in the reference artifacts during the final scoring were plain
+bugs, so they were corrected after the last round. The scores above were given before
+these corrections and were not revised.
+
+- P.1 [fix] The checker's `order_hash` used a different canonical form from graph hashing (no NFC); both now use `canon.sha`.
+- P.2 [fix] The reference canonicaliser read only a declaration's own module header; it now includes every ancestor module's prompt, and the checker tests a nested module.
+- P.3 [fix] The work-order example rendered inherited context inside a `behaviour` reference; references now have a `context` projection (also in review orders and `get_declaration`), and the example carries `sign_in`'s inherited context separately with its own hash.
+- P.4 [fix] The cross-document output-claim rule is split by operation (`create`, `relocate`, `remove`).
+
+## REVIEW.md flaws: final disposition
+
+| Flaw | Status | Where |
+| --- | --- | --- |
+| 1. Positional `expect` ids | Fixed | SPEC.md Identity, Moves, Named members (D3.1–D3.2) |
+| 2. No bug-fix flow | Fixed | SPEC.md Repair (D4.1) |
+| 3. Prose changes slip past propagation | Fixed | Projections (`behaviour`, `context`), Propagation precedence (D4.3, D12.1) |
+| 4. Constructs used but undefined | Fixed | GRAMMAR.ebnf; SPEC.md Surface syntax, Annotations, Selectors, Packages (D2.x, D9.5–D9.6, D11.6) |
+| 5. Kind definitions mix schema and metadata | Fixed | Packages → Kind definitions (D2.16, D7.2) |
+| 6. Runtime state not modelled | Fixed (design); execution by external runners | Runtime state (D8.9–D8.10) |
+| 7. Scope collisions | Fixed | Scoping and resolution (D2.7) |
+| 8. `verify` fuzzy and costly | Fixed | Plan entries, Propagation, Verification, PROTOCOL.md Reviews (D4.5–D4.7, D12.1) |
+| 9. `delete` cleanup hand-waved | Fixed | Delete (D4.8) |
+| 10. Multi-file nodes unspecified | Fixed (whole-file ownership; symbol ownership deferred, D5.5) | Ownership and drift (D5.1–D5.2) |

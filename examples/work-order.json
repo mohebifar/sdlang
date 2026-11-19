@@ -2,7 +2,7 @@
   "schema": "intentlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:1fc3087e767afc97267916976602b13de904f00301680ea727f074e1b5d8971e",
+    "order_hash": "sha256:2a428a905e0df70fca4ff1ee76d8f7f5d278fd13d8bfedd8b018cd6126264c87",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -252,7 +252,16 @@
         "projection": "behaviour",
         "viewpoint": "applied",
         "hash": "sha256:f3639f525c1d73e81efc4ce109e11573c80c72e6fb2d1bcf5278dec0f03d9ae5",
-        "text": "errors:\n  invalid_credentials: Email or password is wrong\n  rate_limited: Too many attempts; try again later\ninherited normative context:\n  project: Server-render by default. All copy in plain English, sentence case.\n  module auth: All auth screens use one centered card layout. Never reveal whether an email address is registered. \n"
+        "text": "errors:\n  invalid_credentials: Email or password is wrong\n  rate_limited: Too many attempts; try again later\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "auth.sign_in",
+        "relation": "calls",
+        "projection": "context",
+        "viewpoint": "applied",
+        "hash": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1",
+        "text": "inherited normative context:\n  project: Server-render by default. All copy in plain English, sentence case.\n  module auth: All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
       },
       {
         "from": "auth.login",

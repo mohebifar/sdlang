@@ -328,8 +328,10 @@
                 "enum": [
                   "public",
                   "behaviour",
+                  "context",
                   "catalog"
-                ]
+                ],
+                "description": "context: the target's inherited normative context, carried when the target is observed."
               },
               "viewpoint": {
                 "enum": [
