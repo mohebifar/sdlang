@@ -1,0 +1,69 @@
+{
+  "schema": "intentlang.review-order/1",
+  "dispatch": "p-2026-11-18-01/r1/tx-4/2",
+  "binding": {
+    "order_hash": "sha256:74ffd67e6f420363a223683baa54e34baa8d383c37412a319515c0a0d37e34d0",
+    "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
+    "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
+    "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
+    "lock_hash": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d"
+  },
+  "subjects": [
+    {
+      "id": "s1",
+      "subject": {
+        "target": "auth.login",
+        "requirement": "auth.login#expect.forgot_link"
+      },
+      "text": "the forgot-password link goes to @{forgot_password}",
+      "previous_text": null,
+      "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
+      "context_hash": "sha256:13c427611fdde318040d30c838596659b3c2a8ea348d60e956ffbf9d3404d2d6",
+      "policy": "tested",
+      "assess": [
+        "conformance",
+        "coverage"
+      ],
+      "code": [
+        "src/app/login/_parts/LoginForm.tsx",
+        "tests/app/login/page.test.ts"
+      ],
+      "coverage_candidates": [
+        {
+          "id": "c1",
+          "tests": [
+            {
+              "test": {
+                "output": "auth.login#outputs.tests",
+                "case": "forgot_link"
+              },
+              "definition_hash": "sha256:3e81208d16966e80ce4493b79aa9e1d6979c7dea28dab48b74cc8fe3492dec47"
+            }
+          ],
+          "run_receipts": [
+            "run:tx-4:1:tests:auth.login"
+          ]
+        }
+      ]
+    }
+  ],
+  "context": {
+    "manifest": [
+      "ctx:code:3b42c43ea5ff",
+      "ctx:code:a9314433231f"
+    ]
+  },
+  "verdict_path": ".spec/run/p-2026-11-18-01/r1/tx-4/2/verdict.json",
+  "tools": {
+    "mcp": {
+      "transport": "stdio",
+      "command": [
+        "spec",
+        "mcp",
+        "--dispatch",
+        "p-2026-11-18-01/r1/tx-4/2"
+      ],
+      "protocol": "2025-06-18"
+    }
+  }
+}

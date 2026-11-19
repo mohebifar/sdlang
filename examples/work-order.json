@@ -1,0 +1,380 @@
+{
+  "schema": "intentlang.work-order/1",
+  "dispatch": "p-2026-11-18-01/r1/tx-4/1",
+  "binding": {
+    "order_hash": "sha256:2ea9bd6e708021610b83de15addb4da13cbb755f72a9cd8c162568b05c59c4ef",
+    "plan": "p-2026-11-18-01",
+    "plan_revision": 1,
+    "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
+    "transaction": "tx-4",
+    "base_commit": "git:8d8847ec671df66bb7e2c65450660d8872cab6b1",
+    "input_snapshot": "sha256:aa46f76ad4aca1d48a16de935547bb5550beaa6a7e76d135b033285e0723e016",
+    "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
+    "lock_hash": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d"
+  },
+  "attempt": {
+    "number": 1,
+    "max": 3,
+    "workspace": "new",
+    "previous": []
+  },
+  "subjects": [
+    {
+      "address": "auth.login",
+      "kind": "nextjs.page",
+      "change": "update",
+      "strategy": "edit",
+      "causes": [
+        {
+          "kind": "own_projection",
+          "via": "body,behaviour"
+        }
+      ],
+      "spec": {
+        "rendering": "source/1",
+        "current": "export nextjs.page login {\n  route: \"/login\"\n  summary: \"A page where you can sign in\"\n  uses: [ui.form, ui.input, ui.button, ui.link]\n  calls: [sign_in]\n  prompt: \"\"\"\n    Email and password form in the shared auth card.\n    On success go to @{dashboard.home}.\n    Link to @{forgot_password} under the password field.\n  \"\"\"\n  expect {\n    redirects: \"valid credentials redirect to @{dashboard.home}\"\n    generic_error: \"invalid credentials show one generic error and keep the email filled in\"\n    busy_button: \"the submit button is disabled while the request is in flight\"\n    forgot_link: \"the forgot-password link goes to @{forgot_password}\"\n  }\n}\n",
+        "previous": "export nextjs.page login {\n  route: \"/login\"\n  summary: \"A page where you can sign in\"\n  uses: [ui.form, ui.input, ui.button]\n  calls: [sign_in]\n  prompt: \"\"\"\n    Email and password form in the shared auth card.\n    On success go to @{dashboard.home}.\n  \"\"\"\n  expect {\n    redirects: \"valid credentials redirect to @{dashboard.home}\"\n    generic_error: \"invalid credentials show one generic error and keep the email filled in\"\n    busy_button: \"the submit button is disabled while the request is in flight\"\n  }\n}\n",
+        "diff": "--- a/auth.login\n+++ b/auth.login\n@@ -1,15 +1,17 @@\n export nextjs.page login {\n   route: \"/login\"\n   summary: \"A page where you can sign in\"\n-  uses: [ui.form, ui.input, ui.button]\n+  uses: [ui.form, ui.input, ui.button, ui.link]\n   calls: [sign_in]\n   prompt: \"\"\"\n     Email and password form in the shared auth card.\n     On success go to @{dashboard.home}.\n+    Link to @{forgot_password} under the password field.\n   \"\"\"\n   expect {\n     redirects: \"valid credentials redirect to @{dashboard.home}\"\n     generic_error: \"invalid credentials show one generic error and keep the email filled in\"\n     busy_button: \"the submit button is disabled while the request is in flight\"\n+    forgot_link: \"the forgot-password link goes to @{forgot_password}\"\n   }\n }\n",
+        "resolution": {
+          "nextjs.page": "npm:@intentlang/nextjs::page",
+          "ui.form": "npm:ui-sdk::Form",
+          "ui.input": "npm:ui-sdk::Input",
+          "ui.button": "npm:ui-sdk::Button",
+          "ui.link": "npm:ui-sdk::Link",
+          "sign_in": "auth.sign_in",
+          "dashboard.home": "dashboard.home",
+          "forgot_password": "auth.forgot_password"
+        }
+      },
+      "envelope": {
+        "write": [
+          {
+            "output": "auth.login#outputs.page",
+            "path": "src/app/login/page.tsx",
+            "expected": "sha256:30c7e7792c51443312d946858c97a6ea4fe70843e84f5ec5467b8cedd4c1e61f"
+          },
+          {
+            "output": "auth.login#outputs.tests",
+            "path": "tests/app/login/page.test.ts",
+            "expected": "sha256:ddbb297a7988af147efb95efb957cde5a8cc7338240b3302ac72df76ff85570b"
+          },
+          {
+            "output": "auth.login#outputs.login_form",
+            "path": "src/app/login/_parts/LoginForm.tsx",
+            "expected": "sha256:6b03a959c1382909d7bc3934f96a90ccfb0a469f21b206dd201e831a2ffe6779"
+          }
+        ],
+        "create_under": [
+          {
+            "root": "parts",
+            "path": "src/app/login/_parts/"
+          }
+        ],
+        "delete": [],
+        "allowed_imports": [
+          {
+            "module": "next",
+            "exports": [
+              "*"
+            ],
+            "mode": "runtime",
+            "via": "ambient:nextjs.page"
+          },
+          {
+            "module": "react",
+            "exports": [
+              "*"
+            ],
+            "mode": "runtime",
+            "via": "ambient:nextjs.page"
+          },
+          {
+            "module": "ui-sdk",
+            "exports": [
+              "Form",
+              "Input",
+              "Button",
+              "Link"
+            ],
+            "mode": "runtime",
+            "via": "uses:ui.form,ui.input,ui.button,ui.link"
+          },
+          {
+            "module": "src/server/auth/sign_in.ts",
+            "exports": [
+              "signIn"
+            ],
+            "mode": "runtime",
+            "via": "calls:auth.sign_in"
+          },
+          {
+            "module": "src/app/login/_parts/*",
+            "exports": [
+              "*"
+            ],
+            "mode": "runtime",
+            "via": "own outputs"
+          }
+        ]
+      },
+      "requirements": [
+        {
+          "subject": {
+            "target": "auth.login",
+            "requirement": "auth.login#expect.redirects"
+          },
+          "text": "valid credentials redirect to @{dashboard.home}",
+          "contract_hash": "sha256:5b65bd5fbf00c1822fa12e9f3a7a1d991ee67b70f37f56512ffcd3ae3ad75e20",
+          "policy": "tested",
+          "policy_source": "project",
+          "baseline": "tested",
+          "tests": [
+            {
+              "output": "auth.login#outputs.tests",
+              "case": "valid_credentials"
+            }
+          ]
+        },
+        {
+          "subject": {
+            "target": "auth.login",
+            "requirement": "auth.login#expect.generic_error"
+          },
+          "text": "invalid credentials show one generic error and keep the email filled in",
+          "contract_hash": "sha256:df5a3e6df5073b5b825f1ac89b62f19cb1b10f1dcd86861f8c61d0733e4c310e",
+          "policy": "tested",
+          "policy_source": "project",
+          "baseline": "tested",
+          "tests": [
+            {
+              "output": "auth.login#outputs.tests",
+              "case": "invalid_credentials"
+            }
+          ]
+        },
+        {
+          "subject": {
+            "target": "auth.login",
+            "requirement": "auth.login#expect.busy_button"
+          },
+          "text": "the submit button is disabled while the request is in flight",
+          "contract_hash": "sha256:0c989e196f8989b687a4c1d6aad74b8f63746aa002e1df8f4643503a1a151065",
+          "policy": "tested",
+          "policy_source": "project",
+          "baseline": "tested",
+          "tests": [
+            {
+              "output": "auth.login#outputs.tests",
+              "case": "busy_button"
+            }
+          ]
+        },
+        {
+          "subject": {
+            "target": "auth.login",
+            "requirement": "auth.login#expect.forgot_link"
+          },
+          "text": "the forgot-password link goes to @{forgot_password}",
+          "contract_hash": "sha256:b16e2db1dab42d0acc9c8b7bc8f4981ae022fa01c5f228ce5798086f2ee96f40",
+          "policy": "tested",
+          "policy_source": "project",
+          "baseline": "none",
+          "tests": []
+        }
+      ]
+    }
+  ],
+  "context": {
+    "inherited": [
+      {
+        "source": "project",
+        "normative": true,
+        "hash": "sha256:ffb3a7aa1af34ba228ded8853863cac58ed0cbf9ce003ec64fdfa568b2e744c9",
+        "text": "Server-render by default. All copy in plain English, sentence case.\n"
+      },
+      {
+        "source": "module:auth",
+        "normative": true,
+        "hash": "sha256:3f78a14946eb1fd6d6e8c26d501f064d57f6dfb02a78f6a64e65e07e38b8da9f",
+        "text": "All auth screens use one centered card layout.\nNever reveal whether an email address is registered.\n"
+      }
+    ],
+    "references": [
+      {
+        "from": "auth.login",
+        "target": "auth.sign_in",
+        "relation": "calls",
+        "projection": "public",
+        "viewpoint": "applied",
+        "hash": "sha256:243c73b4bfa005d3560bae141ab389c48fbc1ffea583bb22081911581e0dceec",
+        "inline": true,
+        "text": "action sign_in {\n  summary: \"\"\n  input: { email: email, password: string }\n  output: authentication.session\n  errors { invalid_credentials, rate_limited }\n}\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "auth.sign_in",
+        "relation": "calls",
+        "projection": "behaviour",
+        "viewpoint": "applied",
+        "hash": "sha256:02f06cb7f706c0ce7e28ffa0a7457c66e37d15f22fec1bed60a83de9552480ed",
+        "inline": true,
+        "text": "errors:\n  invalid_credentials: Email or password is wrong\n  rate_limited: Too many attempts; try again later\ninherited normative context:\n  project: Server-render by default. All copy in plain English, sentence case.\n  module auth: All auth screens use one centered card layout. Never reveal whether an email address is registered. \n"
+      },
+      {
+        "from": "auth.login",
+        "target": "dashboard.home",
+        "relation": "mentions",
+        "projection": "public",
+        "viewpoint": "applied",
+        "hash": "sha256:6b657c409592910600ea2fb0f436aea454f6b704b65e028eac754d8c089fe5e9",
+        "inline": true,
+        "text": "nextjs.page home { route: \"/app\" summary: \"Lists the signed-in user's workspaces\" }\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "auth.forgot_password",
+        "relation": "mentions",
+        "projection": "public",
+        "viewpoint": "desired",
+        "hash": "sha256:29b4eeadb09376a64cc0be0b4542fa5ad60acd074b2f5a5cb09ae5028ff8706e",
+        "inline": true,
+        "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "npm:ui-sdk::Form",
+        "relation": "uses",
+        "projection": "catalog",
+        "viewpoint": "applied",
+        "hash": "sha256:f97c9d75fdf69b7cf33b05266cce4bd3131caf5e6d30a62c872d949143eb49be",
+        "inline": true,
+        "text": "Form: component contract from ui-sdk (ui.form)\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "npm:ui-sdk::Input",
+        "relation": "uses",
+        "projection": "catalog",
+        "viewpoint": "applied",
+        "hash": "sha256:d807f8480ca04ecce441e0848d9fc4d01c73f07cc2de03ec84d742fefd099a3c",
+        "inline": true,
+        "text": "Input: component contract from ui-sdk (ui.input)\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "npm:ui-sdk::Button",
+        "relation": "uses",
+        "projection": "catalog",
+        "viewpoint": "applied",
+        "hash": "sha256:eaf0aa8008432cf226aa6bc1dfdd0f66e02e931a411676efda37c2eb4e3683d9",
+        "inline": true,
+        "text": "Button: component contract from ui-sdk (ui.button)\n"
+      },
+      {
+        "from": "auth.login",
+        "target": "npm:ui-sdk::Link",
+        "relation": "uses",
+        "projection": "catalog",
+        "viewpoint": "applied",
+        "hash": "sha256:a1e8cd9d0e310dd63c5d73ad477e60a9e05422e331d21a1fed5726e1105fc4e9",
+        "inline": true,
+        "text": "Link: component contract from ui-sdk (ui.link)\n"
+      }
+    ],
+    "manifest": [
+      {
+        "id": "skill:authentication.skills",
+        "class": "skill",
+        "required": false,
+        "included": false,
+        "resource": "ctx:skill:bbf91d4eab6e",
+        "hash": "sha256:bc2941471c76be2dbb988204abe5d972d464f6269ec2cfb109f010d118d6c098",
+        "tokens": 6200
+      },
+      {
+        "id": "catalog_docs:ui-sdk",
+        "class": "catalog_docs",
+        "required": false,
+        "included": false,
+        "resource": "ctx:docs:d126777d7cc4",
+        "hash": "sha256:8da8c647214bf89e2da6f9f8beaf9a204b71d239fe1db99a6f06151947eea4ac",
+        "tokens": 9400
+      },
+      {
+        "id": "code:auth.login#outputs.page",
+        "class": "code",
+        "required": true,
+        "included": false,
+        "resource": "ctx:code:31585754d24e",
+        "hash": "sha256:30c7e7792c51443312d946858c97a6ea4fe70843e84f5ec5467b8cedd4c1e61f",
+        "tokens": 1300
+      },
+      {
+        "id": "code:auth.login#outputs.login_form",
+        "class": "code",
+        "required": true,
+        "included": false,
+        "resource": "ctx:code:3b42c43ea5ff",
+        "hash": "sha256:6b03a959c1382909d7bc3934f96a90ccfb0a469f21b206dd201e831a2ffe6779",
+        "tokens": 2100
+      },
+      {
+        "id": "code:auth.login#outputs.tests",
+        "class": "code",
+        "required": true,
+        "included": false,
+        "resource": "ctx:code:a9314433231f",
+        "hash": "sha256:ddbb297a7988af147efb95efb957cde5a8cc7338240b3302ac72df76ff85570b",
+        "tokens": 1800
+      }
+    ],
+    "budget": {
+      "policy": "context-pack/1",
+      "renderer": "work-order-markdown/1",
+      "tokenizer": "o200k_base",
+      "input_limit": 60000,
+      "reserved_output": 8000,
+      "reserved_feedback": 4000,
+      "used_input": 3870
+    }
+  },
+  "checks": [
+    {
+      "id": "nextjs.typecheck",
+      "definition_hash": "sha256:55ddd199a9c01f34b18c19906bf957633b4a72a5cb9e31972242738eeb4e7afd",
+      "self_check": true
+    },
+    {
+      "id": "nextjs.build",
+      "definition_hash": "sha256:e56beb79e1bb9867ea5b943629f3ecd801ece14d2298edb435fc8808b61a0fe7",
+      "self_check": true
+    },
+    {
+      "id": "nextjs.conformance",
+      "definition_hash": "sha256:27f3d66bab0962b731ace6dd4381ea9c9271f77bb75bbfbde035cda65a2917a9",
+      "self_check": true
+    },
+    {
+      "id": "tests:auth.login#outputs.tests",
+      "definition_hash": "sha256:ff77e1673df6a1475243243a32305764d22951a17b0ce0f27cdf608628700bf6",
+      "self_check": true
+    }
+  ],
+  "result_path": ".spec/run/p-2026-11-18-01/r1/tx-4/1/result.json",
+  "tools": {
+    "mcp": {
+      "transport": "stdio",
+      "command": [
+        "spec",
+        "mcp",
+        "--dispatch",
+        "p-2026-11-18-01/r1/tx-4/1"
+      ],
+      "protocol": "2025-06-18"
+    }
+  },
+  "limits": {
+    "timeout_seconds": 1800,
+    "result_max_bytes": 65536
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/review-verdict.schema.json",
+  "title": "Review verdict",
+  "description": "Written by the reviewer. The CLI requires exactly one answer per requested subject and assessment, and rejects omissions, duplicates and unsolicited subjects. Reviewer identity and independence come from runner provenance, not from this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "dispatch", "order_hash", "subjects"],
+  "properties": {
+    "schema": { "const": "intentlang.review-verdict/1" },
+    "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
+    "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
+    "subjects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "conformance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["verdict", "reason"],
+            "properties": {
+              "verdict": { "enum": ["conforms", "does_not_conform", "cannot_determine"] },
+              "reason": { "$ref": "common.schema.json#/$defs/untrusted_text" },
+              "mismatch": { "type": "string", "description": "Required for does_not_conform: what the code does versus what the requirement says." },
+              "missing": { "type": "string", "description": "Required for cannot_determine: what information would decide it." },
+              "locations": { "type": "array", "items": { "type": "string" } }
+            },
+            "allOf": [
+              { "if": { "properties": { "verdict": { "const": "does_not_conform" } } }, "then": { "required": ["mismatch"] } },
+              { "if": { "properties": { "verdict": { "const": "cannot_determine" } } }, "then": { "required": ["missing"] } }
+            ]
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate", "verdict", "reason"],
+              "properties": {
+                "candidate": { "type": "string" },
+                "verdict": { "enum": ["sufficient", "insufficient", "cannot_determine"] },
+                "reason": { "$ref": "common.schema.json#/$defs/untrusted_text" }
+              }
+            }
+          },
+          "regression": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["follows_from_requirement", "demonstrates_observation", "reason"],
+            "properties": {
+              "follows_from_requirement": { "type": "boolean" },
+              "demonstrates_observation": { "type": "boolean" },
+              "reason": { "$ref": "common.schema.json#/$defs/untrusted_text" }
+            }
+          }
+        },
+        "anyOf": [
+          { "required": ["conformance"] },
+          { "required": ["coverage"] },
+          { "required": ["regression"] }
+        ]
+      }
+    }
+  }
+}

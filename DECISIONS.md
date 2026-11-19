@@ -95,3 +95,19 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D5.10 [accept] Drift blocks managed declarations, is reported for frozen; `repair` added as a drift resolution; hand-edited generated files are restored, not adopted.
 - D5.11 [accept] `spec import` proposes an ownership mapping (integration owner, extern, or extraction); never competing claims.
 - D5.12 [accept] Generator-definition changes regenerate the outputs that generator wrote.
+
+## Round 6: agent protocol
+
+- D6.1 [accept] Four protocol documents with JSON Schemas (`work-order`, `result`, `review-order`, `review-verdict`) plus shared defs; generated worked examples; the checker validates them and recomputes bindings — exit criterion, REVIEW agent interop.
+- D6.2 [accept] Every order has a unique dispatch id and a binding with a recomputable `order_hash`; replies echo it; digests are full and tagged.
+- D6.3 [accept] Orders have `subjects[]` with per-subject envelopes so coordinated transactions keep owner attribution.
+- D6.4 [accept] Typed `causes[]`; `repair` block required exactly when a cause is repair, with pre-fix snapshot.
+- D6.5 [accept] Spec text rendered as `source/1` with a resolution map and a real unified diff.
+- D6.6 [accept] Import grants list exports; requirements are subject pairs with contract hash, policy provenance and test sets.
+- D6.7 [accept] Result status `submitted | blocked`; created-output claims (create/relocate/remove); discriminated regression and blocker unions with evidence.
+- D6.8 [accept] Retries: classified failures; infrastructure reruns do not consume attempts; continue by default; restart only as an explicit recovery action.
+- D6.9 [accept] Blockers are claims; resolution paths: spec change, plan amendment, environment recovery; unsupported blockers count as failed attempts.
+- D6.10 [accept] Context: inline mandatory set never truncated; other required items fetched in full by resource; optional items packed by `context-pack/1`.
+- D6.11 [accept] Review protocol: per-subject exact-once verdicts, three-valued conformance and coverage, regression assessment, compiler-issued context subjects.
+- D6.12 [accept] MCP surface: `get_task`, `get_declaration`, `read_context`, `get_diagnostic`, `run_self_check` (execution class), `validate_result`; confidentiality and final-tree limits stated.
+- D6.13 [accept] Project-level `verify` default; core default policy `judged`.

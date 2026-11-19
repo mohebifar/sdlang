@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentlang.dev/schemas/common.schema.json",
+  "title": "Shared definitions for intentlang protocol files",
+  "$defs": {
+    "digest": {
+      "description": "A full content digest with its algorithm, or a git object id.",
+      "type": "string",
+      "pattern": "^(sha256:[0-9a-f]{64}|git:[0-9a-f]{40})$"
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+    },
+    "member": {
+      "description": "decl#collection.key",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+    },
+    "subject": {
+      "description": "An evidence subject: the declaration the requirement applies to, and the requirement. They differ for rule requirements.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "requirement"],
+      "properties": {
+        "target": { "$ref": "#/$defs/address" },
+        "requirement": { "$ref": "#/$defs/member" }
+      }
+    },
+    "test": {
+      "description": "One test case inside a test output owned by a declaration.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output", "case"],
+      "properties": {
+        "output": { "$ref": "#/$defs/member" },
+        "case": { "type": "string", "minLength": 1 }
+      }
+    },
+    "resource": {
+      "description": "A CLI-issued handle for immutable content, served by the read_context tool.",
+      "type": "string",
+      "pattern": "^ctx:[a-z0-9_-]+:[0-9a-f]{12}$"
+    },
+    "untrusted_text": { "type": "string", "maxLength": 4000 },
+    "dispatch": {
+      "type": "string",
+      "description": "<plan>/<revision>/<transaction>/<n>: unique across plans, revisions and attempts.",
+      "pattern": "^[a-z0-9-]+/r[0-9]+/tx-[0-9]+/[0-9]+$"
+    }
+  }
+}

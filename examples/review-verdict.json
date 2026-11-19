@@ -1,0 +1,24 @@
+{
+  "schema": "intentlang.review-verdict/1",
+  "dispatch": "p-2026-11-18-01/r1/tx-4/2",
+  "order_hash": "sha256:74ffd67e6f420363a223683baa54e34baa8d383c37412a319515c0a0d37e34d0",
+  "subjects": [
+    {
+      "id": "s1",
+      "conformance": {
+        "verdict": "conforms",
+        "reason": "LoginForm renders a Link to /forgot-password directly under the password input.",
+        "locations": [
+          "src/app/login/_parts/LoginForm.tsx:41"
+        ]
+      },
+      "coverage": [
+        {
+          "candidate": "c1",
+          "verdict": "sufficient",
+          "reason": "The test renders the page, finds the link by its accessible name and asserts its href."
+        }
+      ]
+    }
+  ]
+}

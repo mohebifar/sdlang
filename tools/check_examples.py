@@ -8,6 +8,9 @@ production by production. It checks that:
   * every ```json block in SPEC.md is valid JSON;
   * a set of built-in negative cases is rejected.
 
+  * every protocol example in examples/ validates against schemas/, its binding
+    hash is recomputable, and replies echo their orders (needs `pip install jsonschema`).
+
 Usage: python3 tools/check_examples.py [SPEC.md ...]
 Exit status is non-zero if anything fails.
 """
@@ -287,14 +290,14 @@ class Parser:
             while self.atp("."):
                 self.take(); self.word()
 
-    def exportable(self, in_template=False):
+    def exportable(self):
         if self.atkw("let"):
             self.take(); self.ident(); self.expectp("="); self.gap(); self.expr()
-        elif not in_template and self.atkw("type"):
+        elif self.atkw("type"):
             self.take(); self.ident(); self.expectp("="); self.gap(); self.expr()
-        elif not in_template and self.atkw("kind"):
+        elif self.atkw("kind"):
             self.take(); self.ident(); self.block()
-        elif not in_template and self.atkw("annotation"):
+        elif self.atkw("annotation"):
             self.take(); self.ident(); self.block()
         else:
             self.named_decl()
@@ -306,34 +309,6 @@ class Parser:
         while self.atp("@"):
             self.annotation()
         self.block()
-
-    def template_def(self):
-        self.expectkw("template"); self.ident()
-        self.expectp("("); self.gap()
-        if not self.atp(")"):
-            while True:
-                self.ident(); self.expectp(":"); self.gap(); self.expr()
-                if self.atp(","):
-                    self.take(); self.gap()
-                    if self.atp(")"):
-                        break
-                    continue
-                break
-        self.gap(); self.expectp(")")
-        self.expectp("{"); self.gap()
-        while not self.atp("}"):
-            if self.atkw("export"):
-                self.take()
-            self.exportable(in_template=True)
-            if self.atp("}"):
-                break
-            if not self.at("NL"):
-                self.err("expected a line break between template statements")
-            self.gap()
-        self.expectp("}")
-
-    def arg(self):
-        self.word(); self.expectp(":"); self.gap(); self.expr()
 
     # Bodies
     def block(self):
@@ -520,8 +495,117 @@ def check_spec_md(path):
     return count, failures
 
 
+SCHEMA_EXAMPLES = [
+    ("work-order", "examples/work-order.json"),
+    ("result", "examples/result.json"),
+    ("review-order", "examples/review-order.json"),
+    ("review-verdict", "examples/review-verdict.json"),
+]
+
+_R = {"schema": "intentlang.result/1", "dispatch": "p-1/r1/tx-1/1",
+      "order_hash": "sha256:" + "0" * 64, "summary": "s"}
+_EVID = {"references": ["ctx:code:000000000000"], "attempted": "read the stack and lock"}
+
+# Result files the result schema must accept.
+GOOD_RESULTS = {
+    "blocked spec question": dict(_R, status="blocked", blocked={
+        "kind": "spec_question", "question": "Should the link open in a new tab?",
+        "subjects": [{"target": "auth.login", "requirement": "auth.login#expect.forgot_link"}],
+        "evidence": _EVID}),
+    "blocked dependency request": dict(_R, status="blocked", blocked={
+        "kind": "authority_request",
+        "request": {"type": "dependency", "package": "zod", "version": "^3.23.0", "capability": "validation"},
+        "evidence": _EVID}),
+    "repair with no automated reproduction": dict(_R, status="submitted", regression={
+        "kind": "not_automatable", "reason": "layout overlap only visible at 320px in Safari"}),
+}
+
+# Result files the result schema must reject.
+BAD_RESULTS = {
+    "blocked without blocked object": dict(_R, status="blocked"),
+    "submitted with blocked object": dict(_R, status="submitted", blocked={
+        "kind": "environment", "problem": "registry down", "evidence": _EVID}),
+    "positional requirement id": dict(_R, status="submitted", tests=[{
+        "subject": {"target": "auth.login", "requirement": "auth.login#e1"},
+        "tests": [{"output": "auth.login#outputs.tests", "case": "c"}]}]),
+    "regression with test and reason": dict(_R, status="submitted", regression={
+        "kind": "automated", "tests": [{"output": "a.b#outputs.tests", "case": "c"}], "reason": "x"}),
+    "short digest": dict(_R, status="submitted", order_hash="sha256:abcd"),
+    "blocker without evidence": dict(_R, status="blocked", blocked={
+        "kind": "environment", "problem": "registry down"}),
+}
+
+
+def _canonical_hash(obj, field):
+    import hashlib
+    clone = json.loads(json.dumps(obj))
+    del clone[field]["order_hash"]
+    blob = json.dumps(clone, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return "sha256:" + hashlib.sha256(blob).hexdigest()
+
+
+def check_schemas():
+    try:
+        import jsonschema
+        from referencing import Registry, Resource
+    except ImportError:
+        return ["jsonschema not installed: cannot validate schemas (pip install jsonschema)"], 0
+    schemas = {}
+    for name in ["common", "work-order", "result", "review-order", "review-verdict"]:
+        schemas[name] = json.load(open(f"schemas/{name}.schema.json"))
+        jsonschema.Draft202012Validator.check_schema(schemas[name])
+    registry = Registry().with_resources(
+        [(s["$id"], Resource.from_contents(s)) for s in schemas.values()])
+
+    def validator(name):
+        return jsonschema.Draft202012Validator(schemas[name], registry=registry)
+
+    failures, docs = [], {}
+    for name, path in SCHEMA_EXAMPLES:
+        doc = json.load(open(path))
+        docs[name] = doc
+        for err in validator(name).iter_errors(doc):
+            failures.append(f"{path}: {err.json_path}: {err.message[:200]}")
+    wo, rs, ro, rv = (docs[k] for k in ("work-order", "result", "review-order", "review-verdict"))
+    # Bindings: order hashes are recomputable; replies echo the dispatch and hash.
+    for name, order in (("work-order", wo), ("review-order", ro)):
+        if _canonical_hash(order, "binding") != order["binding"]["order_hash"]:
+            failures.append(f"{name}: binding.order_hash does not match the canonical order")
+    for reply, order, label in ((rs, wo, "result"), (rv, ro, "review-verdict")):
+        if (reply["dispatch"], reply["order_hash"]) != (order["dispatch"], order["binding"]["order_hash"]):
+            failures.append(f"{label}: dispatch/order_hash do not echo the order")
+    # Cross-document rules the schema cannot express.
+    order_subjects = {(r["subject"]["target"], r["subject"]["requirement"])
+                      for s in wo["subjects"] for r in s["requirements"]}
+    for t in rs.get("tests", []):
+        if (t["subject"]["target"], t["subject"]["requirement"]) not in order_subjects:
+            failures.append(f"result: test binding for unknown subject {t['subject']}")
+    if [s["id"] for s in rv["subjects"]] != [s["id"] for s in ro["subjects"]]:
+        failures.append("review-verdict: subjects must match the review order exactly")
+    if wo["attempt"]["number"] > wo["attempt"]["max"]:
+        failures.append("work-order: attempt.number exceeds attempt.max")
+    for s in wo["subjects"]:
+        for key in ("current", "previous"):
+            text = s["spec"].get(key)
+            if text:
+                try:
+                    parse(text)
+                except ParseError as e:
+                    failures.append(f"work-order: {s['address']} spec.{key} does not parse: {e}")
+    rv_ok = validator("result")
+    for name, good in GOOD_RESULTS.items():
+        for err in rv_ok.iter_errors(good):
+            failures.append(f"result schema rejected good case {name}: {err.message[:160]}")
+    for name, bad in BAD_RESULTS.items():
+        if rv_ok.is_valid(bad):
+            failures.append(f"result schema accepted bad case: {name}")
+    return failures, len(SCHEMA_EXAMPLES)
+
+
 def main(argv):
     failures = []
+    schema_failures, n_schemas = check_schemas()
+    failures += schema_failures
     for name, src in NEGATIVE.items():
         try:
             parse(src)
@@ -540,7 +624,8 @@ def main(argv):
         for k in total:
             total[k] += count[k]
     print(f"checked {total['spec']} spec blocks, {total['json']} json blocks, "
-          f"{len(NEGATIVE)} negative and {len(POSITIVE)} positive grammar cases")
+          f"{len(NEGATIVE)} negative and {len(POSITIVE)} positive grammar cases, "
+          f"{n_schemas} protocol examples, {len(GOOD_RESULTS)} good and {len(BAD_RESULTS)} bad result files")
     for f in failures:
         print("FAIL", f)
     print("OK" if not failures else f"{len(failures)} failure(s)")
