@@ -1,7 +1,7 @@
 {
-  "protocol": "intentlang.generator/1",
+  "protocol": "intlang.generator/1",
   "dispatch": "p-2026-11-18-01/r1/tx-1/1",
-  "order_hash": "sha256:b03d2d0104e0088e2748091edb24beb26d10afb8eef52b2bb8c945fd541251d1",
+  "order_hash": "sha256:0d381e0d192fe3fec1c7178f3bb9564d3be594dae2b015afa64a75d5f728dda5",
   "status": "written",
   "files": [
     {

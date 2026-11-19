@@ -1,7 +1,7 @@
 {
-  "schema": "intentlang.review-verdict/1",
+  "schema": "intlang.review-verdict/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
-  "order_hash": "sha256:98c1cc62806deb71bd2013915202d71a81670e329ad092f940a5254140cb002f",
+  "order_hash": "sha256:86c289072c11c8234a8361549e0f3d7cd90e6fb47c0a081fdacf2e3101d372dc",
   "subjects": [
     {
       "id": "s1",

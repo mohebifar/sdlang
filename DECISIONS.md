@@ -114,7 +114,7 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 
 ## Round 7: packages
 
-- D7.1 [accept] Packages carry a static `intentlang` manifest; importing runs no code and creates no declarations; catalog exports are types, constants and `extern`s.
+- D7.1 [accept] Packages carry a static `intlang` manifest; importing runs no code and creates no declarations; catalog exports are types, constants and `extern`s.
 - D7.2 [accept] Closed kind vocabulary: `fields` (schema), `outputs`, `creates`, `exports`, `ambient`, `checks`, `generator`, `skills`; unknown sections are errors; core fields cannot be redeclared — REVIEW flaw 5 (semantics half).
 - D7.3 [accept] Compatibility without package code: variance for core action signatures, invariance for package `@interface` fields, entity dimensions in round 8, unknown = incompatible.
 - D7.4 [accept] Relations fixed by core in v0; no custom relations.
@@ -253,3 +253,4 @@ these corrections and were not revised.
 
 - A.1 [accept] All provisional defaults Q1–Q10 are kept as decisions, except the file extension.
 - A.2 [change] Source files end in `.int` instead of `.spec`. The CLI stays `spec`, as do the `spec/` source directory, the `.spec/` state directory and `spec.lock`, which are named after the CLI rather than the extension. The two adapter examples were renamed to `examples/*.int`, and the worked graph's source paths changed with them, so the example hashes were regenerated. `.int` has no GitHub Linguist entry. Its known uses (Micro Focus COBOL intermediate code, Unreal Engine localisation, some game scripts) are outside this audience. Round files keep the old paths because they record what was said at the time.
+- A.3 [change] The language is called int lang, written `intlang` in identifiers: protocol schema ids (`intlang.plan/1`), the package manifest key, the schema URLs and the example adapter's npm scope (`@intlang/nextjs`). The repository folder and the CLI name `spec` are unchanged.

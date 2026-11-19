@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/package-manifest.schema.json",
+  "$id": "https://intlang.dev/schemas/package-manifest.schema.json",
   "title": "Package manifest (package.json)",
-  "description": "The parts of an npm package.json that intentlang reads. Read statically; no package code runs. Fields marked 'deferred' are reserved for features outside the first milestone and are rejected by a v0 implementation if present.",
+  "description": "The parts of an npm package.json that intlang reads. Read statically; no package code runs. Fields marked 'deferred' are reserved for features outside the first milestone and are rejected by a v0 implementation if present.",
   "type": "object",
-  "required": ["name", "version", "intentlang"],
+  "required": ["name", "version", "intlang"],
   "properties": {
     "name": { "type": "string", "description": "npm package name; with the version it forms the canonical package identity npm:<name>." },
     "version": { "type": "string" },
-    "intentlang": {
+    "intlang": {
       "type": "object",
       "additionalProperties": false,
       "required": ["format", "name", "entry"],

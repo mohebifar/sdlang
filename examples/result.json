@@ -1,7 +1,7 @@
 {
-  "schema": "intentlang.result/1",
+  "schema": "intlang.result/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
-  "order_hash": "sha256:2a428a905e0df70fca4ff1ee76d8f7f5d278fd13d8bfedd8b018cd6126264c87",
+  "order_hash": "sha256:79745da34f50d08a83b864965b9f520d7a285e614ff63576fcafe90103042b09",
   "status": "submitted",
   "summary": "Added a 'Forgot password?' link below the password field in LoginForm, using ui-sdk Link with the /forgot-password route. Added test case forgot_link. No other behaviour changed.",
   "outputs": [],

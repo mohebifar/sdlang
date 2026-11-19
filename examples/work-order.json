@@ -1,8 +1,8 @@
 {
-  "schema": "intentlang.work-order/1",
+  "schema": "intlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:2a428a905e0df70fca4ff1ee76d8f7f5d278fd13d8bfedd8b018cd6126264c87",
+    "order_hash": "sha256:79745da34f50d08a83b864965b9f520d7a285e614ff63576fcafe90103042b09",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -36,7 +36,7 @@
         "previous": "export nextjs.page login {\n  route: \"/login\"\n  summary: \"A page where you can sign in\"\n  uses: [ui.form, ui.input, ui.button]\n  calls: [sign_in]\n  prompt: \"\"\"\n    Email and password form in the shared auth card.\n    On success go to @{dashboard.home}.\n  \"\"\"\n  expect {\n    redirects: \"valid credentials redirect to @{dashboard.home}\"\n    generic_error: \"invalid credentials show one generic error and keep the email filled in\"\n    busy_button: \"the submit button is disabled while the request is in flight\"\n  }\n}\n",
         "diff": "--- a/auth.login\n+++ b/auth.login\n@@ -1,15 +1,17 @@\n export nextjs.page login {\n   route: \"/login\"\n   summary: \"A page where you can sign in\"\n-  uses: [ui.form, ui.input, ui.button]\n+  uses: [ui.form, ui.input, ui.button, ui.link]\n   calls: [sign_in]\n   prompt: \"\"\"\n     Email and password form in the shared auth card.\n     On success go to @{dashboard.home}.\n+    Link to @{forgot_password} under the password field.\n   \"\"\"\n   expect {\n     redirects: \"valid credentials redirect to @{dashboard.home}\"\n     generic_error: \"invalid credentials show one generic error and keep the email filled in\"\n     busy_button: \"the submit button is disabled while the request is in flight\"\n+    forgot_link: \"the forgot-password link goes to @{forgot_password}\"\n   }\n }\n",
         "resolution": {
-          "nextjs.page": "npm:@intentlang/nextjs::page",
+          "nextjs.page": "npm:@intlang/nextjs::page",
           "ui.form": "npm:ui-sdk::Form",
           "ui.input": "npm:ui-sdk::Input",
           "ui.button": "npm:ui-sdk::Button",
@@ -269,7 +269,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "applied",
-        "hash": "sha256:f283601b0666b0cb5f7c1149acf3cd046b390670f74c39e0193ee7df43b37b93",
+        "hash": "sha256:807ac521f44afb760aee58c3efd1f648d4c13aeb762e0596ea19418bff18e26b",
         "text": "nextjs.page home { route: \"/app\" summary: \"Lists the signed-in user's workspaces\" }\n"
       },
       {
@@ -278,7 +278,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "desired",
-        "hash": "sha256:b7bf348cb343689c0372d8157af73e4818e7690eac2a481af932ce41db79f4ed",
+        "hash": "sha256:3249301e9798e4b087c8b1bdab31c52c437660a6ed53b1402ee7d5e6982f83f8",
         "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
       },
       {

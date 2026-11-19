@@ -1,8 +1,8 @@
 {
-  "name": "@intentlang/nextjs",
+  "name": "@intlang/nextjs",
   "version": "0.1.0",
   "files": ["spec/", "skills/", "checks/", "gen/"],
-  "intentlang": {
+  "intlang": {
     "format": 1,
     "name": "nextjs",
     "entry": "./spec/index.int",

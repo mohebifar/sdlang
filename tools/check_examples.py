@@ -517,7 +517,7 @@ SCHEMA_EXAMPLES = [
     ("generator#output", "examples/generator.output.json"),
 ]
 
-_R = {"schema": "intentlang.result/1", "dispatch": "p-1/r1/tx-1/1",
+_R = {"schema": "intlang.result/1", "dispatch": "p-1/r1/tx-1/1",
       "order_hash": "sha256:" + "0" * 64, "summary": "s"}
 _EVID = {"references": ["ctx:code:000000000000"], "attempted": "read the stack and lock"}
 
@@ -604,7 +604,7 @@ def check_graphs(before, after, plan):
     nested = copy.deepcopy(before)
     nested["modules"].append({"path": "auth.child", "imports": []})
     nested["declarations"].append({"address": "auth.child.page", "module": "auth.child",
-        "kind": "npm:@intentlang/nextjs::page", "sort": "managed", "exported": False,
+        "kind": "npm:@intlang/nextjs::page", "sort": "managed", "exported": False,
         "fields": {"route": "/child"}, "members": {}, "edges": [], "lifecycle": "managed",
         "source": {"file": "spec/auth/child/page.int", "line": 1}})
     nested_variant = copy.deepcopy(nested)

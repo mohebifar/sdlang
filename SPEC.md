@@ -1,4 +1,4 @@
-# Spec language: design draft v0.2
+# int lang: design draft v0.2
 
 Working copy. v0 was exported on 2026-11-18; `REVIEW.md` is the self-review of v0,
 `DECISIONS.md` logs every change since, and `rounds/` holds the design rounds.
@@ -16,7 +16,7 @@ declarations (pages, entities, actions, rules) joined by typed edges. A CLI diff
 graph against recorded state and the code on disk, prints a reviewable plan, and applies
 it as a series of verified transactions, each handed to an agent as a scoped work order.
 
-Working names: files end in `.int`, the CLI is `spec` (`spec plan`, `spec apply`).
+The language is called int lang (`intlang` in identifiers); files end in `.int`; the CLI is `spec` (`spec plan`, `spec apply`).
 
 | Decision | Choice | Why |
 | --- | --- | --- |
@@ -616,12 +616,12 @@ project declaration or claims a file.
 
 ### Contents
 
-A package is an npm package whose `package.json` has a static `intentlang` entry:
+A package is an npm package whose `package.json` has a static `intlang` entry:
 
 ```json
 {
-  "name": "@intentlang/nextjs",
-  "intentlang": {
+  "name": "@intlang/nextjs",
+  "intlang": {
     "format": 1,
     "name": "nextjs",
     "entry": "./spec/index.int",
@@ -645,7 +645,7 @@ upgrade affects a declaration.
 
 `name` is the package's import name: `import nextjs` resolves through `spec.lock` to the one
 locked package whose manifest declares `"name": "nextjs"`; if none or several do, the import
-must name the package (`import package "@intentlang/nextjs" as nextjs`). A provider that
+must name the package (`import package "@intlang/nextjs" as nextjs`). A provider that
 accepts `use` options declares an `options` type in its spec sources
 (`"options": "DrizzleOptions"` in the manifest); the record after `use ... for database` is
 checked against it, and options on a provider without one are an error.
@@ -812,7 +812,7 @@ Nobody has written packages yet, so v0 depends on as few as possible:
 
 - **The core is not a package.** `entity`, `action` and `rule` semantics live in the
   compiler, so an npm upgrade cannot change them.
-- **One adapter.** `@intentlang/nextjs` supports one App Router layout, static routes and
+- **One adapter.** `@intlang/nextjs` supports one App Router layout, static routes and
   one exact Next.js, React, TypeScript and package-manager combination, and rejects
   anything else explicitly. It is validated by the milestone trial and by installing its
   packed artifact in a clean project, which catches missing spec files and skills.

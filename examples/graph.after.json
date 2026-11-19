@@ -1,5 +1,5 @@
 {
-  "schema": "intentlang.graph/1",
+  "schema": "intlang.graph/1",
   "lock": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d",
   "modules": [
     {
@@ -7,7 +7,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intentlang/nextjs"
+          "source": "package:npm:@intlang/nextjs"
         },
         {
           "alias": "auth",
@@ -35,7 +35,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intentlang/nextjs"
+          "source": "package:npm:@intlang/nextjs"
         },
         {
           "alias": "dashboard",
@@ -48,7 +48,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intentlang/nextjs"
+          "source": "package:npm:@intlang/nextjs"
         },
         {
           "alias": "core",
@@ -89,7 +89,7 @@
         "applies_to": {
           "$select": {
             "kinds": [
-              "npm:@intentlang/nextjs::page"
+              "npm:@intlang/nextjs::page"
             ],
             "where": "route matches \"/app/**\""
           }
@@ -121,7 +121,7 @@
     {
       "address": "auth.forgot_password",
       "module": "auth",
-      "kind": "npm:@intentlang/nextjs::page",
+      "kind": "npm:@intlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -184,7 +184,7 @@
     {
       "address": "auth.login",
       "module": "auth",
-      "kind": "npm:@intentlang/nextjs::page",
+      "kind": "npm:@intlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -401,7 +401,7 @@
     {
       "address": "auth.signup",
       "module": "auth",
-      "kind": "npm:@intentlang/nextjs::page",
+      "kind": "npm:@intlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -527,7 +527,7 @@
     {
       "address": "dashboard.home",
       "module": "dashboard",
-      "kind": "npm:@intentlang/nextjs::page",
+      "kind": "npm:@intlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {

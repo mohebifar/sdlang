@@ -1,8 +1,8 @@
 {
-  "schema": "intentlang.review-order/1",
+  "schema": "intlang.review-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/2",
   "binding": {
-    "order_hash": "sha256:98c1cc62806deb71bd2013915202d71a81670e329ad092f940a5254140cb002f",
+    "order_hash": "sha256:86c289072c11c8234a8361549e0f3d7cd90e6fb47c0a081fdacf2e3101d372dc",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "candidate_snapshot": "sha256:06274e4232485e587649394bce63fdbe1cd929625f636507a67a7e27f43fe315",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -74,7 +74,7 @@
         "relation": "mentions",
         "projection": "public",
         "viewpoint": "desired",
-        "hash": "sha256:b7bf348cb343689c0372d8157af73e4818e7690eac2a481af932ce41db79f4ed",
+        "hash": "sha256:3249301e9798e4b087c8b1bdab31c52c437660a6ed53b1402ee7d5e6982f83f8",
         "text": "nextjs.page forgot_password { route: \"/forgot-password\" summary: \"Request a password reset email\" }\n"
       }
     ],

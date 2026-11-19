@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/result.schema.json",
+  "$id": "https://intlang.dev/schemas/result.schema.json",
   "title": "Task result",
   "description": "Written by the agent at the order's result_path, atomically (write then rename). A claim, not a verdict: the CLI re-derives the diff from the frozen candidate and reruns every check. Missing or malformed results are protocol failures, not agent verdicts.",
   "type": "object",
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "intentlang.result/1"
+      "const": "intlang.result/1"
     },
     "dispatch": {
       "$ref": "common.schema.json#/$defs/dispatch"

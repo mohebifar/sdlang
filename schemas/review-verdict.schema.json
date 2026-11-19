@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/review-verdict.schema.json",
+  "$id": "https://intlang.dev/schemas/review-verdict.schema.json",
   "title": "Review verdict",
   "description": "Written by the reviewer. The CLI requires exactly one answer per requested subject and assessment, and rejects omissions, duplicates and unsolicited subjects. Reviewer identity and independence come from runner provenance, not from this file.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "dispatch", "order_hash", "subjects"],
   "properties": {
-    "schema": { "const": "intentlang.review-verdict/1" },
+    "schema": { "const": "intlang.review-verdict/1" },
     "dispatch": { "$ref": "common.schema.json#/$defs/dispatch" },
     "order_hash": { "$ref": "common.schema.json#/$defs/digest" },
     "subjects": {

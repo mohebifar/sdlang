@@ -3,7 +3,7 @@ plan expected from them. Used by make_examples.py; checked by check_examples.py.
 import copy
 import hashlib
 
-NEXT = "npm:@intentlang/nextjs::page"
+NEXT = "npm:@intlang/nextjs::page"
 
 
 def d(label):
@@ -52,18 +52,18 @@ LOGIN_PROMPT = "Email and password form in the shared auth card.\nOn success go 
 LOGIN_PROMPT_AFTER = LOGIN_PROMPT + "Link to @{auth.forgot_password} under the password field.\n"
 
 _before = {
-    "schema": "intentlang.graph/1",
+    "schema": "intlang.graph/1",
     "lock": d("lock:5f3a"),
     "modules": [
-        {"path": "", "imports": [{"alias": "nextjs", "source": "package:npm:@intentlang/nextjs"},
+        {"path": "", "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
                                  {"alias": "auth", "source": "module:auth"}]},
         {"path": "core", "imports": []},
         {"path": "auth", "header": {"summary": "Sign-in, sign-up and session handling",
                                     "prompt": prose(AUTH_PROMPT),
                                     "skills": [ref("npm:better-auth::skills")]},
-         "imports": [{"alias": "nextjs", "source": "package:npm:@intentlang/nextjs"},
+         "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
                      {"alias": "dashboard", "source": "module:dashboard"}]},
-        {"path": "dashboard", "imports": [{"alias": "nextjs", "source": "package:npm:@intentlang/nextjs"},
+        {"path": "dashboard", "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
                                           {"alias": "core", "source": "module:core"}]},
     ],
     "declarations": [
@@ -181,7 +181,7 @@ GRAPH_BEFORE["declarations"].sort(key=lambda x: x["address"])
 def plan_fixture():
     tx = lambda n: f"tx-{n}"
     return {
-        "schema": "intentlang.plan/1",
+        "schema": "intlang.plan/1",
         "plan": "p-2026-11-18-01",
         "revision": 1,
         "binding": {

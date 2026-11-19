@@ -23,7 +23,7 @@ KIND_INTERFACE = {
     "core:rule": ["applies_to"],
     "core:entity": [],
     "core:action": ["input", "output"],
-    "npm:@intentlang/nextjs::page": ["route"],
+    "npm:@intlang/nextjs::page": ["route"],
 }
 BEHAVIOUR_FIELDS = {"prompt"}
 GUIDANCE_FIELDS = {"hint", "skills"}

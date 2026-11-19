@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/graph.schema.json",
+  "$id": "https://intlang.dev/schemas/graph.schema.json",
   "title": "Spec graph",
   "description": "The evaluated, canonical graph a frontend emits and the planner consumes. Every name is resolved; short forms are expanded; defaults are filled. Canonical JSON (sorted keys, no insignificant whitespace, UTF-8, NFC strings) of a projection is what gets hashed. The first milestone's runner reads this directly. Arrays that are sets (edges, set-valued reference fields such as uses/calls/reads, applies) are sorted by the canonical JSON of their elements; all other arrays keep authored order. Signature records (action input and output) are field values; their keys are also the addressable members input.<key> and output.<key>.",
   "type": "object",
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "intentlang.graph/1"
+      "const": "intlang.graph/1"
     },
     "lock": {
       "$ref": "common.schema.json#/$defs/digest"

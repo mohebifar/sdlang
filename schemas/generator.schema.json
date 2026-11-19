@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/generator.schema.json",
+  "$id": "https://intlang.dev/schemas/generator.schema.json",
   "title": "Generator protocol",
   "description": "One JSON document on the generator's stdin (input) and one on its stdout (output). Version 1.",
   "$defs": {
@@ -19,7 +19,7 @@
       ],
       "properties": {
         "protocol": {
-          "const": "intentlang.generator/1"
+          "const": "intlang.generator/1"
         },
         "dispatch": {
           "$ref": "common.schema.json#/$defs/dispatch"
@@ -256,7 +256,7 @@
       ],
       "properties": {
         "protocol": {
-          "const": "intentlang.generator/1"
+          "const": "intlang.generator/1"
         },
         "dispatch": {
           "$ref": "common.schema.json#/$defs/dispatch"

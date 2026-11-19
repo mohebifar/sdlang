@@ -1,4 +1,4 @@
-(* intentlang grammar.
+(* intlang grammar.
    Notation: W3C EBNF. 'x' is a literal token; X? optional; X* zero or more;
    X+ one or more; (A | B) alternation. Lexical rules follow the syntax.
    Every ```spec block in SPEC.md must parse under this grammar; run

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/plan.schema.json",
+  "$id": "https://intlang.dev/schemas/plan.schema.json",
   "title": "Plan",
   "description": "The immutable output of `spec plan`, bound to its inputs. A new revision is written for every amendment.",
   "type": "object",
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "intentlang.plan/1"
+      "const": "intlang.plan/1"
     },
     "plan": {
       "type": "string"

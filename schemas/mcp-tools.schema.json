@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intentlang.dev/schemas/mcp-tools.schema.json",
+  "$id": "https://intlang.dev/schemas/mcp-tools.schema.json",
   "title": "MCP tool surface",
   "description": "Input and output schemas of the tools `spec mcp --dispatch <id>` serves. Every tool is scoped to one dispatch and its bound snapshot. Only run_self_check executes code.",
   "$defs": {
