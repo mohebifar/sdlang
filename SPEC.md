@@ -116,8 +116,8 @@ consumed changed.
 The **baseline** is the set of output hashes a human or a passing transaction accepted.
 **Evidence** is the result of a check, and records what it ran on:
 
-```
-{ "expect": "auth.login.redirects", "status": "tested",
+```json
+{ "expect": "auth.login#redirects", "status": "tested",
   "by": "tests/auth/login.test.ts#redirects",
   "tree": "<git tree id>", "check": "<check definition hash>" }
 ```
@@ -127,64 +127,220 @@ definition) marks it `stale`. Adopting a hand edit renews the baseline, not the 
 
 ## Surface syntax
 
-The language has three statement forms: project statements, imports, and declarations of
-the shape `<kind> <name> { fields }`.
+The normative grammar is `GRAMMAR.ebnf`; `tools/check_examples.py` parses every `spec`
+block in this document against it. This section explains the choices.
 
-```
-// 1. Project statements (root file only)
-stack {
-  language: "typescript"
-  runtime: "nodejs"
-  framework: "nextjs"
-  package_manager: "pnpm"
+```spec
+// Root module only: project, stack, use
+project acme_web {
+  summary: "Customer portal for Acme"
 }
+
+stack {
+  language: { name: "typescript" }
+  runtime: { name: "nodejs", version: "22" }
+  framework: { name: "nextjs", version: "^15.0.0" }
+  package_manager: { name: "pnpm" }
+}
+
 use "better-auth" for authentication
-use "drizzle" for database
+use "drizzle" for database { dialect: "postgres" }
 use "ui-sdk" for ui
 
-// 2. Imports
+// Any module: imports and declarations
 import nextjs
 import dashboard
 
-// 3. Declarations
-nextjs.page login {
+export nextjs.page login {
   route: "/login"
   summary: "A page where you can sign in"
   uses: [ui.input, ui.button]
-  skills: [authentication.skills]
   prompt: """
     Email and password form. On success go to @{dashboard.home}.
   """
-  expect: [
-    "valid credentials redirect to @{dashboard.home}",
-    "invalid credentials show one generic error",
-  ]
+  expect: {
+    redirects: "valid credentials redirect to @{dashboard.home}"
+    generic_error: "invalid credentials show one generic error"
+  }
 }
 ```
 
-- **Declarations are named, not called.** `nextjs.page login { route: "/login" }` rather
-  than `nextjs.page("/login", {...})`: a call has no stable identity.
-- **`stack` has named slots** so packages can check compatibility.
-- **`use "<package>" for <capability>`** binds a library to a capability name. Nodes write
-  `authentication.session` without naming the library. Swapping the library is a one-line
-  change whose blast radius the planner computes, and it plans as `update` on every
-  dependent: two libraries with the same capability name are not assumed compatible.
-- **Prose is triple-quoted**, because prompts contain Markdown backticks.
-- **`@{ref}` inside prose** is a `mentions` edge, checked at compile time.
+### Statements
 
-**Values.** Strings, numbers, booleans, lists, records, references and type expressions
-such as `string?`, `uuid` or `"draft" | "sent"`. `let` binds constants.
+| Form | Example | Where |
+| --- | --- | --- |
+| `project <name> { }` | `project acme_web { summary: "..." }` | Root module, once |
+| `stack { }` | named tool slots, each `{ name, version? }` | Root module, once |
+| `use "<package>" for <capability> { options }?` | `use "drizzle" for database { dialect: "postgres" }` | Root module |
+| `module { }` | the directory's header: summary, prompt, skills | Once per directory |
+| `import <path> (as <alias>)?` | `import nextjs`, `import module auth as auth_pages`, `import package "@acme/ui" as acme_ui` | Any module |
+| `<kind> <name> @annotation* { }` | `nextjs.page login { ... }` | Any module |
+| `extern <kind> <name> { }` | existing code, referenced but unmanaged | Any module |
+| `type <name> = <type>` | `type Plan = "free" \| "team"` | Any module |
+| `let <name> = <expr>` | `let max_name = 80` | Any module |
+| `moved <address> -> <address>` | `moved auth.login -> auth.sign_in` | Any module |
+| `kind`, `annotation` | definitions | Package sources only |
+
+`export` may precede `type`, `let` and declarations. Bodies hold **fields** (`name: expr`)
+and **sections** (`name { ... }`); which fields and sections are legal is fixed by the
+kind's schema. A declaration's own metadata (`summary`, `prompt`, `lifecycle`) and its
+user-defined schema never share a namespace: an entity's persisted fields live in a
+`fields { }` section, so an entity may have a column called `summary`.
+
+**Separators.** Inside `{ }`, `[ ]` and `( )` items are separated by a comma or a line
+break, and a trailing separator is allowed. Top-level statements are separated by line
+breaks. Line breaks are tokens, never inferred: an expression may continue onto the next
+line only after an opener, a comma, `:`, `=`, `|`, `where`, `and`, `or`, `not` or a
+comparison operator. Comments run from `//` to the end of the line.
+
+**Strings.** `"line strings"` take backslash escapes (`\"`, `\\`, `\n`, `\t`, `\u{...}`).
+`"""prose strings"""` take none except `\"""`; a prose string that starts with a line
+break is a block, dedented by the indentation of its least-indented line, with its closing
+`"""` on a line of its own. In both, `@{path}` is a mention (a `mentions` edge) and
+`@@{` is a literal `@{`. A lone `@`, an email address or a backtick is just text.
+`${field}` interpolation exists only in `template`-typed fields of kind definitions.
+
+**Keywords** are reserved only where a name is being bound or a path starts. Any word,
+`type` included, can be a field name, section name, record key or path segment after a dot.
+
+### Values and types
+
+There is one expression grammar. The field's schema says whether an expression is read
+as a value or as a type:
+
+| Expression | As a value | As a type |
+| --- | --- | --- |
+| `"free"` | string | the singleton type `"free"` |
+| `42`, `true`, `null` | number, boolean, null | singleton types |
+| `[T]` | one-element list | list of `T` |
+| `{ name: string }` | record | structural record type |
+| `A \| B` | error | union |
+| `T?` | error | optional: `T` or `null`, and omittable as a record field |
+| `ref T` | error | reference to a managed declaration, e.g. an entity foreign key |
+| `path` | reference to a declaration or constant | named type |
+| `path { ... }` | constructor record of a kind or catalog type, e.g. a contribution | error |
+| `self` | the enclosing declaration | error |
+
+Defaults (`= expr`) and annotations are legal only where a record describes a schema:
+entity `fields`, `input`, `output`, kind `fields`. Defaults apply when a field is omitted,
+not when it is `null`. `now` is a symbolic initializer meaning "at creation time"; the
+compiler never reads the clock. Enum-like values are string literals (`check: "tested"`,
+`lifecycle: "frozen"`), and enumerations are unions: `type Plan = "free" | "team"`.
+
+### Scoping and resolution
+
+All files in a directory form one module with one binding table:
+
+- local declarations, types and lets;
+- import aliases (imports belong to the module, not the file; identical repeated imports
+  coalesce);
+- capability names bound by `use` anywhere in the project;
+- the core prelude: core kinds, builtin types, `now`, core annotations.
+
+Any two bindings with the same name are a compile error, whatever their sorts: a module
+imported as `auth` and a capability called `auth` collide, and the fix is an alias
+(`import module auth as auth_pages`). Nothing shadows anything. Imports and lets do not
+flow into child modules, and child modules need an import like any other.
+
+`import x` succeeds only if exactly one local module or package is called `x`; otherwise
+write `import module x` or `import package "x" as y`.
+
+A path `a.b.c` resolves as follows:
+
+1. Look up `a` in the binding table. Absent is an error.
+2. Walk each further segment through what the previous one denoted: a module (its exported
+   declarations, lets and child modules), a package or capability (its exported catalog
+   declarations), or a constant record (its keys). Anything else, including a
+   declaration, is an error: declarations are not records, so `login.route` is illegal.
+3. Check visibility when the walk leaves the current module: only `export`ed names.
+4. Check the result against the field's schema. There is no fallback to another reading.
+
+Mentions in strings use the same resolver. `self` names the enclosing declaration.
+`moved` takes canonical addresses, which are not resolved through bindings, so the old
+address may no longer exist. Forward references and reference cycles are legal;
+`let` and `type` cycles are errors.
+
+A capability bound to a package with no spec package (no catalog) exposes only its own
+name: `uses: [pdf]` grants imports of the whole library and nothing more.
+
+### Annotations
+
+An annotation is `@name` or `@name(args)` after a field, or after a declaration's name.
+Each annotation is a declaration with a definition, never free-form metadata:
+
+```spec
+export annotation index {
+  targets: ["entity_field"]
+  parameters {
+    method: "btree" | "hash" = "btree"
+  }
+}
+```
+
+The compiler resolves the name like any path (`@database.index("hash")`), checks the
+target, the field type and the arguments, rejects repeats, and puts the application into
+the projection the definition names. Packages export annotations; their meaning is
+consumed by the package's own checks and generators, never invented by the compiler.
+
+Core annotations:
+
+| Annotation | On | Meaning |
+| --- | --- | --- |
+| `@id` | entity field | Identity field; one non-optional scalar |
+| `@unique` | entity field | Uniqueness constraint |
+| `@max_length(n)` | string field | Length limit |
+| `@interface` | kind field | The field joins the public projection |
+| `@relation("name")` | kind field | The relation of edges from this field (see Edges and relations) |
+| `@deprecated("message")` | declaration | Warning on every reference |
+
+### Selectors
+
+Rules select the declarations they apply to:
+
+```spec
+rule app_requires_session {
+  applies_to: select nextjs.page where route matches "/app/**"
+  require: "unauthenticated visitors are redirected to @{auth.login}"
+  check: "tested"
+}
+```
+
+`select` takes `*`, a kind, or a list of kinds, then an optional `where` predicate built
+from `and`, `or`, `not`, parentheses and tests. A test is `exists field` or
+`field op operand` with `==`, `!=`, `<`, `<=`, `>`, `>=`, `matches`, `in` or `contains`.
+A bare name is a field of the candidate; `meta.module`, `meta.name` and `meta.kind` are
+its metadata. `matches` is a full-string, case-sensitive glob in which `*` matches within
+one path segment and `**` matches zero or more whole segments, so `/app/**` matches `/app`.
+`contains` is collection membership, not substring search. A missing field makes a test
+false.
+
+To keep attachment cheap and deterministic, a selector sees only the candidate's authored
+fields and schema defaults. It cannot follow references, read other rules, evidence,
+files or state, or call anything. A rule applies to matching managed declarations in its
+own module and below; a root rule applies project-wide. A selector that matches nothing is
+a warning, since rules also cover declarations added later.
+
+### Core symbols
+
+| Sort | Names |
+| --- | --- |
+| Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `annotation` |
+| Core kinds | `entity`, `action`, `rule` |
+| Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template` |
+| Constants | `now` |
+| Annotations | see above |
+
+Everything else (`nextjs.page`, `ui.button`, `authentication.User`, checks such as
+`typecheck`) comes from a package or a capability and must be bound by an import or `use`.
 
 **Deliberately absent.** Loops, conditionals, functions, I/O and environment access.
-Reuse arrives as `template`, expanded at compile time so each resulting declaration has a
-stable address.
 
 ## Projects, files and modules
 
 A directory is a module: every `.spec` file in it shares one namespace, and
 subdirectories are submodules.
 
-```
+```text
 acme/
   spec/
     app.spec            project, stack, use, project-wide rules
@@ -213,8 +369,8 @@ acme/
 
 **Inherited context.** Prompts, skills and rules flow project → module → declaration:
 
-```
-module auth {
+```spec
+module {
   summary: "Sign-in, sign-up and session handling"
   prompt: """
     All auth screens use one centered card layout.
@@ -250,20 +406,23 @@ it, which plans as a `verify` obligation, not an `update`.
 projection), `prompt` (requirements in prose), `hint` (implementation guidance with no
 test obligation), `uses`, `skills`, `expect`, `depends_on` and `lifecycle`.
 
-```
+```spec
 export entity Workspace {
-  id: uuid @id
-  name: string @max(80)
-  slug: string @unique
-  owner: ref authentication.User
-  plan: "free" | "team" = "free"
-  created_at: timestamp @default(now)
+  summary: "A team's shared space"
+  fields {
+    id: uuid @id
+    name: string @max_length(80)
+    slug: string @unique
+    owner: ref authentication.User
+    plan: "free" | "team" = "free"
+    created_at: timestamp = now
+  }
 }
 
 action create_workspace {
   input: { name: string }
   output: Workspace
-  errors: [NameTaken, LimitReached]
+  errors: ["NameTaken", "LimitReached"]
   requires: [authentication.session]
   writes: [Workspace]
   prompt: """
@@ -272,9 +431,9 @@ action create_workspace {
 }
 
 rule app_requires_session {
-  applies_to: nextjs.page where route matches "/app/**"
+  applies_to: select nextjs.page where route matches "/app/**"
   require: "unauthenticated visitors are redirected to @{auth.login}"
-  check: tested
+  check: "tested"
 }
 
 extern ui.component LegacyChart {
@@ -311,19 +470,26 @@ Each component is hashed separately into the `context` projection of declaration
 use the package, so the plan can say *why* an upgrade affects a node (new skill text
 versus a changed output convention versus a new check).
 
-```
+```spec
+import package "ui-sdk" as ui
+
 export kind page {
-  route: route_path                          @interface
-  rendering: "static" | "server" | "client" = "server"
-  layout: ref layout?
-  uses: [ref ui.component]
-  calls: [ref action]
-  outputs: "src/app/${route}/page.tsx"
+  fields {
+    route: route_path @interface
+    rendering: "static" | "server" | "client" = "server"
+    layout: ref layout?
+    uses: [ref ui.component] @relation("uses")
+    calls: [ref action] @relation("calls")
+  }
+  outputs {
+    page: "src/app/${route}/page.tsx"
+  }
   checks: [typecheck, build]
 }
 ```
 
-`@interface` marks the fields that join the public projection.
+`fields` is the schema; `outputs` and `checks` are metadata. `@interface` marks the fields
+that join the public projection, and `@relation` names the relation of their edges.
 
 **Capabilities** are names a package declares it provides: `better-auth` provides
 `authentication` by exporting `User`, `session` and `skills`. v0 makes no claim that two
@@ -362,7 +528,7 @@ flowchart LR
 
 One file per managed declaration, for example `.spec/state/auth.login.json`:
 
-```
+```json
 {
   "address": "auth.login",
   "kind": "nextjs.page",
@@ -428,7 +594,7 @@ in later plans, then remove the old contract.
 
 `spec plan` writes `plan.json`, which records its inputs:
 
-```
+```json
 {
   "baseline_commit": "a41c...",
   "graph_hash": "77d0...",
@@ -476,7 +642,7 @@ re-rolled.
 
 **Work order.** Each agent task receives:
 
-```
+```json
 {
   "transaction": "tx-3",
   "node": "auth.login",
@@ -546,10 +712,10 @@ without managing it.
 many declarations. The proposal is owner plus contributions: one declaration owns the
 file; others declare typed contributions to it.
 
-```
+```spec
 nextjs.page login {
   route: "/login"
-  contributes: [nav.item { label: "Sign in", to: @{login}, when: "signed out" }]
+  contributes: [nav.item { label: "Sign in", to: self, when: "signed out" }]
 }
 ```
 
@@ -557,7 +723,7 @@ nextjs.page login {
 
 | Level | Catches | Supplied by | Deterministic |
 | --- | --- | --- | --- |
-| 1. Compile | Dangling references, spec type errors, selectors matching nothing | The language | Yes |
+| 1. Compile | Dangling references, name collisions, spec type errors, bad annotations | The language | Yes |
 | 2. Conformance | Wrong output path, imports outside the allowed set, columns differing from entity fields | The package | Yes |
 | 3. Build | Type errors, lint failures, broken build | The package | Yes |
 | 4. Behaviour | An `expect` item with no passing test mapped to it | Tests, run by the CLI | The run is; test quality is not |
@@ -585,7 +751,7 @@ forgot-password page.
 
 `spec/app.spec`
 
-```
+```spec
 import nextjs
 import auth
 
@@ -597,10 +763,10 @@ project acme_web {
 }
 
 stack {
-  language: "typescript"
-  runtime: "nodejs@22"
-  framework: "nextjs@15"
-  package_manager: "pnpm"
+  language: { name: "typescript" }
+  runtime: { name: "nodejs", version: "22" }
+  framework: { name: "nextjs", version: "^15.0.0" }
+  package_manager: { name: "pnpm" }
 }
 
 use "better-auth" for authentication
@@ -608,27 +774,30 @@ use "drizzle" for database { dialect: "postgres" }
 use "ui-sdk" for ui
 
 rule app_requires_session {
-  applies_to: nextjs.page where route matches "/app/**"
+  applies_to: select nextjs.page where route matches "/app/**"
   require: "unauthenticated visitors are redirected to @{auth.login}"
-  check: tested
+  check: "tested"
 }
 ```
 
 `spec/core/workspace.spec`
 
-```
+```spec
 export entity Workspace {
-  id: uuid @id
-  name: string @max(80)
-  slug: string @unique
-  owner: ref authentication.User
-  created_at: timestamp @default(now)
+  summary: "A team's shared space"
+  fields {
+    id: uuid @id
+    name: string @max_length(80)
+    slug: string @unique
+    owner: ref authentication.User
+    created_at: timestamp = now
+  }
 }
 ```
 
 `spec/auth/login.spec`
 
-```
+```spec
 import nextjs
 import dashboard
 
@@ -641,24 +810,24 @@ export nextjs.page login {
     Email and password form in the shared auth card.
     On success go to @{dashboard.home}.
   """
-  expect: [
-    "valid credentials redirect to @{dashboard.home}",
-    "invalid credentials show one generic error and keep the email filled in",
-    "the submit button is disabled while the request is in flight",
-  ]
+  expect: {
+    redirects: "valid credentials redirect to @{dashboard.home}"
+    generic_error: "invalid credentials show one generic error and keep the email filled in"
+    busy_button: "the submit button is disabled while the request is in flight"
+  }
 }
 
 action sign_in {
   input: { email: email, password: string }
   output: authentication.session
-  errors: [InvalidCredentials, RateLimited]
+  errors: ["InvalidCredentials", "RateLimited"]
   hint: "Use the library's email and password flow. Do not hand-roll hashing."
 }
 ```
 
 `spec/dashboard/home.spec`
 
-```
+```spec
 import nextjs
 import core
 
@@ -681,7 +850,7 @@ hand-edited the signup page.
 
 `spec/auth/forgot_password.spec`
 
-```
+```spec
 import nextjs
 
 export nextjs.page forgot_password {
@@ -689,21 +858,21 @@ export nextjs.page forgot_password {
   summary: "Request a password reset email"
   uses: [ui.form, ui.input, ui.button]
   calls: [request_reset]
-  expect: [
-    "submitting any email shows the same confirmation message",
-  ]
+  expect: {
+    same_message: "submitting any email shows the same confirmation message"
+  }
 }
 
 action request_reset {
   input: { email: email }
   output: { sent: boolean }
-  errors: [RateLimited]
+  errors: ["RateLimited"]
   uses: [authentication.password_reset]
   hint: "Use the library's reset flow. Never reveal whether the email exists."
 }
 ```
 
-```
+```console
 $ spec plan
 
 Spec changes

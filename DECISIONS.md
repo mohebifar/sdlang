@@ -25,3 +25,22 @@ the CLI but rejected for this ChatGPT-account login; the user approved the subst
 - D1.15 [defer] Entities and runtime migration state to round 8; kept in the language, outside the milestone.
 - D1.16 [accept] Large transactions for breaking changes are correct; document expand-migrate-contract staging.
 - D1.17 [defer] Shared output owners joining transactions — round 5.
+
+## Round 2: grammar
+
+- D2.1 [accept] `GRAMMAR.ebnf` written; `tools/check_examples.py` parses every `spec` block and validates every `json` block in SPEC.md, plus negative cases — exit criterion and REVIEW flaw 4.
+- D2.2 [accept] Dedicated statement forms replace the generic declaration production — the parser, not the schema, should reject `nextjs.page {}`.
+- D2.3 [accept] Entity schema lives in a `fields { }` section — entity columns collided with declaration metadata.
+- D2.4 [accept] Line breaks are preserved tokens with explicit continuation points; comma or line break separates items — REVIEW flaw 4 (separators, comments).
+- D2.5 [accept] String scanning state machine, `@@{` and `$${` literal openers, one prose escape, mechanical dedent — REVIEW flaw 4 (escapes, `${}` versus `@{}`).
+- D2.6 [accept] One expression grammar with a value/type interpretation matrix; `null`; `now` symbolic; defaults only in schema records.
+- D2.7 [accept] One binding table per module, no shadowing, any collision is an error; `import module` and `import package` disambiguate — REVIEW flaw 4 (`@{}` resolution) and flaw 7.
+- D2.8 [reject] `this`, `root`, `builtin` roots — they never disambiguate, and `root` bypasses imports; only `self` kept.
+- D2.9 [accept] `moved` takes canonical addresses.
+- D2.10 [accept] Annotations are declared and typed; core set `@id @unique @max_length @interface @relation @deprecated` — REVIEW flaw 4 (annotations).
+- D2.11 [accept] Selectors: `select <kinds> where <predicate>`, bare names are fields, `meta.` for metadata, fixed glob semantics, no graph traversal; empty match warns — REVIEW flaw 4 (selector language).
+- D2.12 [accept] Stack slots are `{ name, version }` records — REVIEW flaw 4 (string-encoded versions).
+- D2.13 [accept] `enum` cut in favour of string-literal unions; enum-like field values are strings.
+- D2.14 [accept] `errors` are string codes; free-text `use` roles cut; a capability without a spec package exposes only its name. `use ... { options }` is checked against the provider's options schema — REVIEW flaw 4 (`use` options).
+- D2.15 [defer] Declaration templates — round 3.
+- D2.16 [accept] Kind definitions split into `fields` (schema) and `outputs` / `checks` (metadata) sections — REVIEW flaw 5, syntax half; semantics in round 7.
