@@ -515,6 +515,9 @@ SCHEMA_EXAMPLES = [
     ("package-manifest", "examples/package.json"),
     ("generator#input", "examples/generator.input.json"),
     ("generator#output", "examples/generator.output.json"),
+    ("check#input", "examples/check.input.json"),
+    ("check#conformance_result", "examples/check.conformance-result.json"),
+    ("check#test_result", "examples/check.test-result.json"),
 ]
 
 _R = {"schema": "intlang.result/1", "dispatch": "p-1/r1/tx-1/1",
@@ -644,7 +647,7 @@ def check_schemas():
         return ["jsonschema not installed: cannot validate schemas (pip install jsonschema)"], 0
     schemas = {}
     for name in ["common", "work-order", "result", "review-order", "review-verdict", "graph", "plan",
-                 "package-manifest", "generator", "mcp-tools"]:
+                 "package-manifest", "generator", "mcp-tools", "check"]:
         schemas[name] = json.load(open(f"schemas/{name}.schema.json"))
         jsonschema.Draft202012Validator.check_schema(schemas[name])
     registry = Registry().with_resources(
@@ -664,6 +667,14 @@ def check_schemas():
         for err in validator(name).iter_errors(doc):
             failures.append(f"{path}: {err.json_path}: {err.message[:200]}")
     wo, rs, ro, rv = (docs[k] for k in ("work-order", "result", "review-order", "review-verdict"))
+    # Check protocol: a conformance result reports every declared rule for the subject exactly
+    # once, for the same check and snapshot as its input.
+    ci, cr = docs["check#input"], docs["check#conformance_result"]
+    if (cr["check"], cr["snapshot"]) != (ci["check"], ci["snapshot"]):
+        failures.append("check result: check or snapshot does not echo the input")
+    reported = sorted(r["rule"] for r in cr["results"] if r["subject"] == ci["subject"])
+    if reported != sorted(ci["rules"]):
+        failures.append(f"check result: rules reported {reported} differ from the inventory {sorted(ci['rules'])}")
     # Bindings: order hashes are recomputable; replies echo the dispatch and hash.
     gi, go = docs["generator#input"], docs["generator#output"]
     if _canonical_hash(gi, "binding") != gi["binding"]["order_hash"]:
@@ -750,7 +761,7 @@ def main(argv):
             parse(open(path).read())
         except ParseError as e:
             failures.append(f"{path}: {e}")
-    for path in argv or ["SPEC.md", "PROTOCOL.md"]:
+    for path in argv or ["SPEC.md", "PROTOCOL.md", "EXTENSIONS.md"]:
         count, f = check_spec_md(path)
         failures += f
         for k in total:

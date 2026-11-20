@@ -14,6 +14,7 @@ checks the cross-document rules a schema cannot express.
 | Review verdict | `schemas/review-verdict.schema.json` | reviewer agent | One verdict per subject and assessment |
 | Generator input and output | `schemas/generator.schema.json` | CLI, generator | One deterministic generator run (see Generator protocol) |
 | MCP tool calls | `schemas/mcp-tools.schema.json` | agent, CLI | Inputs and outputs of each tool |
+| Check input and result | `schemas/check.schema.json` | CLI, package check | One check run (SPEC.md, Packages → Check protocol) |
 
 Shared definitions (digests, addresses, members, subjects, test locators, policies) are in
 `schemas/common.schema.json`. Every document type has a generated example, including

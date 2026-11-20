@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intlang.dev/schemas/check.schema.json",
+  "title": "Check protocol",
+  "description": "How the CLI runs a package check and what the check returns. The check's argv runs without a shell, reads one input document on stdin and writes one result document on stdout, then exits 0. Any other exit, or a result that fails this schema, is an infrastructure error. The result shape is chosen by the check's purpose.",
+  "$defs": {
+    "check_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "definition_hash"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Qualified check name, e.g. nextjs.test."
+        },
+        "definition_hash": {
+          "$ref": "common.schema.json#/$defs/digest"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "check",
+        "purpose",
+        "scope",
+        "subject",
+        "outputs",
+        "snapshot",
+        "workdir",
+        "scratch",
+        "package_root",
+        "profile"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "intlang.check/1"
+        },
+        "check": {
+          "$ref": "#/$defs/check_ref"
+        },
+        "purpose": {
+          "enum": [
+            "build",
+            "conformance",
+            "test"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "declaration",
+            "project"
+          ]
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/address"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The declaration checked; null for a project-scope check."
+        },
+        "outputs": {
+          "type": "array",
+          "description": "The subject's owned outputs (for a test check, the one test output being run). Empty for project scope.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "member",
+              "path"
+            ],
+            "properties": {
+              "member": {
+                "$ref": "common.schema.json#/$defs/member"
+              },
+              "path": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "description": "Conformance only: the rule inventory the check's definition declares. The result must report each rule for the subject exactly once."
+        },
+        "snapshot": {
+          "$ref": "common.schema.json#/$defs/digest",
+          "description": "The frozen candidate being checked."
+        },
+        "workdir": {
+          "type": "string",
+          "description": "Absolute path of a read-only copy of the candidate tree; the check's working directory."
+        },
+        "scratch": {
+          "type": "string",
+          "description": "Absolute path of a disposable writable directory, also used for caches."
+        },
+        "package_root": {
+          "type": "string",
+          "description": "Absolute path of the installed package, against which package-relative argv entries resolve."
+        },
+        "profile": {
+          "type": "string",
+          "description": "Name and version of the execution profile."
+        }
+      }
+    },
+    "build_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "check",
+        "snapshot",
+        "result",
+        "excerpt"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "intlang.check/1"
+        },
+        "check": {
+          "$ref": "#/$defs/check_ref"
+        },
+        "snapshot": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "result": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "log": {
+          "type": "string",
+          "description": "Path under scratch of the full log, kept by the CLI as a diagnostic."
+        }
+      }
+    },
+    "conformance_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "check",
+        "snapshot",
+        "results"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "intlang.check/1"
+        },
+        "check": {
+          "$ref": "#/$defs/check_ref"
+        },
+        "snapshot": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rule",
+              "subject",
+              "status",
+              "inputs"
+            ],
+            "properties": {
+              "rule": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              },
+              "subject": {
+                "$ref": "common.schema.json#/$defs/address"
+              },
+              "status": {
+                "enum": [
+                  "satisfied",
+                  "violated",
+                  "unsupported",
+                  "error"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Repository paths the rule read."
+              }
+            }
+          }
+        }
+      }
+    },
+    "test_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "check",
+        "snapshot",
+        "output",
+        "selection",
+        "cases",
+        "inventory",
+        "inputs",
+        "profile"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "intlang.check/1"
+        },
+        "check": {
+          "$ref": "#/$defs/check_ref"
+        },
+        "snapshot": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "output": {
+          "$ref": "common.schema.json#/$defs/member"
+        },
+        "selection": {
+          "enum": [
+            "complete",
+            "filtered"
+          ],
+          "description": "filtered: some discovered cases were not run; they count as not passed."
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "case",
+              "oracle",
+              "instances"
+            ],
+            "properties": {
+              "case": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              },
+              "oracle": {
+                "$ref": "common.schema.json#/$defs/digest"
+              },
+              "instances": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "key",
+                    "attempts"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "attempts": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "enum": [
+                          "passed",
+                          "failed",
+                          "skipped",
+                          "error"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "untagged": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "Tests without a stable tag: they can fail the check but never provide coverage."
+        },
+        "inventory": {
+          "$ref": "common.schema.json#/$defs/digest",
+          "description": "Digest of the complete discovered case list."
+        },
+        "inputs": {
+          "$ref": "common.schema.json#/$defs/digest",
+          "description": "Digest of the run input closure."
+        },
+        "profile": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

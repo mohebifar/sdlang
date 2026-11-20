@@ -56,6 +56,14 @@ export implements action {
   checks: [typecheck, test, conformance]
 }
 
+// Shared code: one module per lib, unless the lib names an existing file with `path`.
+export implements lib {
+  outputs {
+    main: "src/lib/${meta.module}/${meta.name}.ts"
+  }
+  checks: [typecheck, test]
+}
+
 // Toolchain files owned by the stack declaration.
 export implements stack {
   outputs {
@@ -76,6 +84,7 @@ export check typecheck {
 export check build {
   purpose: "build"
   scope: "project"
+  cadence: "plan"
   run: ["pnpm", "exec", "next", "build"]
 }
 
@@ -88,6 +97,7 @@ export check test {
 export check conformance {
   purpose: "conformance"
   scope: "declaration"
+  rules: ["page_default_export", "no_client_secrets"]
   run: ["node", "./checks/conformance.js"]
 }
 

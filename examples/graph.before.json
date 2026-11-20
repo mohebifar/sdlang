@@ -229,7 +229,7 @@
           "name": "npm:better-auth::session"
         },
         "hint": {
-          "$prose": "Use the library's email and password flow. Do not hand-roll hashing."
+          "$prose": "Use the library's email and password flow rather than custom hashing."
         }
       },
       "members": {

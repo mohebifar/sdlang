@@ -26,6 +26,10 @@ design is weakest.
 
 ## Findings
 
+**Status (2026-11-19):** findings 1 to 7 were addressed the same day (DECISIONS.md, R2.2 to
+R2.8) and finding 8 earlier (R2.1). The text below is the review as written, except for the
+correction marked in finding 4. None of the changes has been rescored.
+
 1. **The process rewarded adding mechanism, and nothing pushed back.** Every round closed a
    hole by adding a concept. A user must now hold five projections, six relations with four
    properties each, five changes, four strategies, two obligations, seven kinds of evidence,
@@ -59,6 +63,8 @@ design is weakest.
    - `request_reset` carries "Never reveal whether the email exists" in a `hint`, which is
      non-normative by definition. A security requirement is filed where changes to it cause
      no obligation. If the document's author misfiles one, users will too.
+     *Correction:* the requirement was not missing. The `auth` module prompt states it, and
+     inherited normative text is reviewed. The hint was a misfiled second copy.
    - `tested` means "an LLM reviewer judged the tests sufficient". The milestone measures
      this, which is right, but until then every `tested` label is a model's opinion.
 

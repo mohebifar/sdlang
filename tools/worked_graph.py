@@ -114,7 +114,7 @@ _before = {
         decl("auth.sign_in", "core:action", "managed", {
             "input": {"$type": "record", "fields": {"email": b("email"), "password": b("string")}},
             "output": {"$type": "named", "name": "npm:better-auth::session"},
-            "hint": prose("Use the library's email and password flow. Do not hand-roll hashing.")},
+            "hint": prose("Use the library's email and password flow rather than custom hashing.")},
             members={"errors": {
                 "invalid_credentials": {"summary": "Email or password is wrong", "code": "invalid_credentials"},
                 "rate_limited": {"summary": "Too many attempts; try again later", "code": "rate_limited"}}},
@@ -164,7 +164,7 @@ def _after():
             "input": {"$type": "record", "fields": {"email": b("email")}},
             "output": {"$type": "record", "fields": {"sent": b("boolean")}},
             "uses": [ref("npm:better-auth::password_reset")],
-            "hint": prose("Use the library's reset flow. Never reveal whether the email exists.")},
+            "hint": prose("Use the library's reset flow.")},
             members={"errors": {"rate_limited": {"summary": "Too many requests; try again later",
                                                  "code": "rate_limited"}}},
             edges=[edge("uses", "npm:better-auth::password_reset", "uses")],
@@ -221,7 +221,8 @@ def plan_fixture():
             {"id": tx(3), "entries": ["auth.forgot_password"], "after": [tx(2)], "obligations": {}},
             {"id": tx(4), "entries": ["auth.login"], "after": [], "obligations": {}},
         ],
-        "reviews": {"coverage": ["auth.forgot_password#expect.same_message", "auth.login#expect.forgot_link"]},
+        "reviews": {"coverage": ["auth.forgot_password#expect.same_message", "auth.login#expect.forgot_link",
+                               "auth.request_reset#errors.rate_limited"]},
         "rollout": {"prerequisites": [{"id": "migration:workspace_archived_at", "before": "code reading core.Workspace#fields.archived_at"}],
                     "readiness": "unknown"},
     }

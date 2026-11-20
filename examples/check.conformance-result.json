@@ -1,0 +1,27 @@
+{
+  "protocol": "intlang.check/1",
+  "check": {
+    "id": "nextjs.conformance",
+    "definition_hash": "sha256:27f3d66bab0962b731ace6dd4381ea9c9271f77bb75bbfbde035cda65a2917a9"
+  },
+  "snapshot": "sha256:a88ed3fb2eb8c97a373ce941b6aa00ffe0339f0362a4ecd8803f38ab35436cad",
+  "results": [
+    {
+      "rule": "page_default_export",
+      "subject": "auth.login",
+      "status": "satisfied",
+      "inputs": [
+        "src/app/login/page.tsx"
+      ]
+    },
+    {
+      "rule": "no_client_secrets",
+      "subject": "auth.login",
+      "status": "satisfied",
+      "inputs": [
+        "src/app/login/page.tsx",
+        "src/app/login/_parts/LoginForm.tsx"
+      ]
+    }
+  ]
+}

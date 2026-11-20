@@ -25,7 +25,7 @@
       "public": "sha256:cd8fa156df0fc1646a7f421c82a394ed6c4c22a9fec451ef221ba03b4112a600",
       "behaviour": "sha256:f3639f525c1d73e81efc4ce109e11573c80c72e6fb2d1bcf5278dec0f03d9ae5",
       "body": "sha256:df2fcbd6b5874fbdba55446fc38f18aac3bb6d29ad968e4884827389448016b2",
-      "guidance": "sha256:d6640aa61036db8a700c5d7e85368338a0c8ccb4d569f1717e2fc795e44037f0",
+      "guidance": "sha256:152a317de6a8619a7c06afe43a75debc237c1ccc9d19ceb5cf381dc17699447c",
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.signup": {
@@ -111,14 +111,14 @@
       "public": "sha256:d1801984f7bdeb24f3b5a0fc2afda86d67e9535dc004b39cf18f298bf919a48e",
       "behaviour": "sha256:fe19ae70cb661c8f350a3a0a4269e16a2e1196450e4606772f6de5fac827ef25",
       "body": "sha256:a1af6257f27a08742402e314b2f329330dfc9f3aab157e04aa00a5ddd991d99e",
-      "guidance": "sha256:e9c35fa36bdc672690cb70d5dee60d8b6455ab6c4c090f0901c8daf067bd9b30",
+      "guidance": "sha256:81dad39afe38ad3639471741dfb5f253ec5bd3feef3769fef360e62e11dc06fc",
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.sign_in": {
       "public": "sha256:cd8fa156df0fc1646a7f421c82a394ed6c4c22a9fec451ef221ba03b4112a600",
       "behaviour": "sha256:f3639f525c1d73e81efc4ce109e11573c80c72e6fb2d1bcf5278dec0f03d9ae5",
       "body": "sha256:df2fcbd6b5874fbdba55446fc38f18aac3bb6d29ad968e4884827389448016b2",
-      "guidance": "sha256:d6640aa61036db8a700c5d7e85368338a0c8ccb4d569f1717e2fc795e44037f0",
+      "guidance": "sha256:152a317de6a8619a7c06afe43a75debc237c1ccc9d19ceb5cf381dc17699447c",
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.signup": {

@@ -1,0 +1,50 @@
+{
+  "protocol": "intlang.check/1",
+  "check": {
+    "id": "nextjs.test",
+    "definition_hash": "sha256:183e890ed86b1fdad9b7f84bd009872d4f0702aedd22e68631bdffc4ec7da8a0"
+  },
+  "snapshot": "sha256:a88ed3fb2eb8c97a373ce941b6aa00ffe0339f0362a4ecd8803f38ab35436cad",
+  "output": "auth.login#outputs.tests",
+  "selection": "complete",
+  "cases": [
+    {
+      "case": "generic_error",
+      "oracle": "sha256:0d5f9d9ca0afb694649726782e06dd69b7fa072cb62c5794f35e1b22a0cf39a3",
+      "instances": [
+        {
+          "key": "unknown_email",
+          "attempts": [
+            "passed"
+          ]
+        },
+        {
+          "key": "wrong_password",
+          "attempts": [
+            "failed",
+            "passed"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "forgot_link",
+      "oracle": "sha256:cde185fc383c46fc475975080de4ccd390e0376937f695318a64285405af11ac",
+      "instances": [
+        {
+          "key": "default",
+          "attempts": [
+            "passed"
+          ]
+        }
+      ]
+    }
+  ],
+  "untagged": {
+    "passed": 2,
+    "failed": 0
+  },
+  "inventory": "sha256:549cec6fb53010b53b9a4b60c5d984cceed3c519e1272af8b94ed15c0532916c",
+  "inputs": "sha256:c3af46a32fe0bb0b16ce8c1075f9c5e5ba82693b42528e355d037ad1f256e319",
+  "profile": "integration-v3"
+}
