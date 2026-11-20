@@ -254,3 +254,10 @@ these corrections and were not revised.
 - A.1 [accept] All provisional defaults Q1–Q10 are kept as decisions, except the file extension.
 - A.2 [change] Source files end in `.int` instead of `.spec`. The CLI stays `spec`, as do the `spec/` source directory, the `.spec/` state directory and `spec.lock`, which are named after the CLI rather than the extension. The two adapter examples were renamed to `examples/*.int`, and the worked graph's source paths changed with them, so the example hashes were regenerated. `.int` has no GitHub Linguist entry. Its known uses (Micro Focus COBOL intermediate code, Unreal Engine localisation, some game scripts) are outside this audience. Round files keep the old paths because they record what was said at the time.
 - A.3 [change] The language is called int lang, written `intlang` in identifiers: protocol schema ids (`intlang.plan/1`), the package manifest key, the schema URLs and the example adapter's npm scope (`@intlang/nextjs`). The repository folder and the CLI name `spec` are unchanged.
+
+## Second review (2026-11-19)
+
+`REVIEW-2.md` re-evaluates v0.2 at about 7 out of 10 and adds three unscored areas
+(simplicity, cost, team workflow). Its findings 1 to 7 are not applied.
+
+- R2.1 [fix] Seven document defects from finding 8, all in `SPEC.md`: the `context` row is back inside the projections table; the summary and goals say evidence names its inputs, not a tree; the package-only forms are listed in full; the `page` kind excerpt has the adapter's four ambient imports and four checks; `stack` owns `next.config.ts`; the open question about the name now asks only whether the CLI keeps `spec`; the manifest example matches `examples/package.json`, with `provides` shown for a `use`-bound package instead.

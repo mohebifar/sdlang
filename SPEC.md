@@ -27,7 +27,7 @@ The language is called int lang (`intlang` in identifiers); files end in `.int`;
 | Modules | A directory is a module; context inherits project → module → declaration | Splitting files needs no ceremony; module boundaries bound what an agent reads. |
 | Framework constructs | Kinds such as `nextjs.page` come from packages | The core stays small. |
 | State | One record per managed declaration, committed beside the code | Each branch carries its own baseline. |
-| Trust | Baseline and evidence are separate; evidence names the tree it ran on | "Applied" means checks passed on this code, not that an agent said so. |
+| Trust | Baseline and evidence are separate; evidence names the inputs it depended on | "Applied" means checks passed on this code, not that an agent said so. |
 
 ## Goals and non-goals
 
@@ -39,7 +39,7 @@ Goals:
 - **Incremental change.** One edited declaration produces one scoped transaction, not a rebuild.
 - **Brownfield first.** Existing code is adopted piece by piece; hand-written parts stay hand-written.
 - **Deterministic tools before agents.** Where a generator or codemod can make a change, the plan uses it.
-- **Visible trust.** Every requirement shows how, and on which tree, it was verified.
+- **Visible trust.** Every requirement shows how, and on which inputs, it was verified.
 
 Non-goals:
 
@@ -187,13 +187,13 @@ of the plan, and the checker confirms that `examples/plan.json` (schema
 | `behaviour` | The declaration's own normative prose: `prompt`, `expect` and `errors` text | The declaration; dependents that observe it |
 | `body` | Everything else the declaration states except guidance: `uses`, non-interface kind fields | The declaration itself |
 | `guidance` | `hint` and `skills` | Nothing: guidance shapes future work only, so a change creates no obligation |
+| `context` | Inherited normative context (project prompt, module prompt, matching rules' prompts and expectations), inherited hints, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation; dependents that observe it |
 
 Which fields are `@interface` comes from the kind: package kinds mark them, and core kinds
 fix them (`action`: `input`, `output` and error codes; `entity`: its `fields` members;
 `stack` and `use`: all their fields; `rule`: `applies_to`). Inherited normative context is
 kept out of `behaviour` on purpose: an edit the author made to this declaration and an edit
 made to a module above it have different consequences (see Propagation).
-| `context` | Inherited normative context (project prompt, module prompt, matching rules' prompts and expectations), inherited hints, and package components (skills, output conventions, checks, generators), each hashed separately | The declaration, as classified under Propagation; dependents that observe it |
 
 A type reference inside a public projection is replaced by the referenced type's address
 and public hash, so changing a shared `type` changes the public projection of every action
@@ -626,19 +626,17 @@ A package is an npm package whose `package.json` has a static `intlang` entry:
     "name": "nextjs",
     "entry": "./spec/index.int",
     "skills": { "app_router": "./skills/app-router" },
-    "provides": {
-      "nextjs": { "page": "page", "typecheck": "typecheck", "build": "build" }
-    },
     "migrations": "./spec/migrations.json"
   }
 }
 ```
 
-Its spec sources may contain `kind`, `annotation`, `check` and `generator` definitions
-(package-only forms) and exported catalog declarations: types, constants, and `extern`
+Its spec sources may contain `kind`, `implements`, `annotation`, `check`, `generator`,
+`observer` and `binding` definitions (package-only forms) and exported catalog declarations: types, constants, and `extern`
 declarations describing the package's runtime exports (`ui.button` describes `ui-sdk`'s `Button`). Packages cannot export
-managed instances in v0. `provides` maps a capability's export names to the package's
-declarations; it is a namespace, not a behavioural contract, and two providers of one
+managed instances in v0. A package bound with `use` also has a `provides` entry, which maps
+a capability's export names to the package's declarations
+(`"provides": { "ui": { "button": "Button" } }` in `ui-sdk`'s manifest); it is a namespace, not a behavioural contract, and two providers of one
 capability are never assumed interchangeable (D1.7). Each component (kind schemas,
 conventions, skills, checks, generators) is hashed separately, so a plan can say *why* an
 upgrade affects a declaration.
@@ -679,9 +677,9 @@ export kind page {
     }
   }
   ambient {
-    imports: ["next/link", "next/navigation", "react"]
+    imports: ["next/link", "next/navigation", "react", "react/jsx-runtime"]
   }
-  checks: [typecheck, build, conformance]
+  checks: [typecheck, build, test, conformance]
 }
 ```
 
@@ -1231,7 +1229,7 @@ nextjs.page login {
 
 - **`stack` is the toolchain owner.** It is a managed declaration (address `stack`) owning
   the dependency manifest, the lockfile and the configuration files its packages declare
-  (`tsconfig.json`, `next.config.js`). Every `use` adds its package to the aggregate input of
+  (`tsconfig.json`, `next.config.ts`). Every `use` adds its package to the aggregate input of
   `stack`; the manifest and lockfile are maintained by the package manager through a
   generator. An agent that needs a dependency returns `blocked` with the concrete `use` it
   needs; it never runs a package manager itself.
@@ -1849,4 +1847,4 @@ parallel apply, package distribution, and any adapter beyond `nextjs`.
 | --- | --- |
 | How much belongs in structure versus prose? | Structure for anything another declaration consumes. Prose for the rest. |
 | How do prompts stay short? | A lint on prompt length, and pressure to move detail into fields, `hint` or skills. |
-| What is the language called? | Undecided; see `QUESTIONS.md`. `spec` is a placeholder. |
+| Should the CLI keep the name `spec`? | Kept for now. The language is int lang and files end in `.int` (`QUESTIONS.md`, Q1); `spec` still collides with other tools. |

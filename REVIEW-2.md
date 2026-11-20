@@ -78,7 +78,8 @@ design is weakest.
    agent with the repository, its tests, and a Markdown spec file. Beating the weaker
    baseline would not show the language earns its cost.
 
-8. **Small defects in the documents.**
+8. **Small defects in the documents.** All seven were fixed on 2026-11-19, after this review
+   was written (DECISIONS.md, R2.1); line numbers are from before the fix.
    - `SPEC.md` line 196: the `context` row of the projections table sits after a paragraph
      and renders as stray text.
    - Lines 30 and 42 say evidence names "the tree it ran on"; line 1385 says tree identity
