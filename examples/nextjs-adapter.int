@@ -94,6 +94,12 @@ export check test {
   run: ["pnpm", "exec", "vitest", "run", "--reporter", "./checks/vitest-cases.js"]
 }
 
+// Conformance rules. page_default_export: the page slot's module has a default export
+// that is a React component. no_client_secrets: no module in the subject's client bundle
+// (a file marked "use client" and every module it imports, transitively) reads a
+// process.env variable without the NEXT_PUBLIC_ prefix or imports a module marked
+// "server-only". Both are judged statically on the candidate; a dynamic env access
+// such as process.env with a computed name is reported unsupported.
 export check conformance {
   purpose: "conformance"
   scope: "declaration"

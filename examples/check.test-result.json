@@ -44,7 +44,7 @@
     "passed": 2,
     "failed": 0
   },
-  "inventory": "sha256:549cec6fb53010b53b9a4b60c5d984cceed3c519e1272af8b94ed15c0532916c",
+  "inventory": "sha256:e63303c05885761e654d89d095813841fc4a17f6109ef60a1e21f5f66f011f84",
   "inputs": "sha256:c3af46a32fe0bb0b16ce8c1075f9c5e5ba82693b42528e355d037ad1f256e319",
   "profile": "integration-v3"
 }

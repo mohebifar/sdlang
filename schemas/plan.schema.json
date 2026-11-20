@@ -70,19 +70,46 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "parents",
-            "base"
+            "records"
           ],
+          "description": "Set by spec plan --reconcile: the saved versions of each conflicted state record (SPEC.md, Reconciling after a merge). No commit is referenced.",
           "properties": {
-            "parents": {
+            "records": {
               "type": "array",
-              "minItems": 2,
+              "minItems": 1,
               "items": {
-                "$ref": "common.schema.json#/$defs/digest"
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "record",
+                  "base",
+                  "current",
+                  "incoming"
+                ],
+                "properties": {
+                  "record": {
+                    "type": "string",
+                    "description": "Path of the state record under .spec/state/."
+                  },
+                  "base": {
+                    "oneOf": [
+                      {
+                        "$ref": "common.schema.json#/$defs/digest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Null when both sides created the record."
+                  },
+                  "current": {
+                    "$ref": "common.schema.json#/$defs/digest"
+                  },
+                  "incoming": {
+                    "$ref": "common.schema.json#/$defs/digest"
+                  }
+                }
               }
-            },
-            "base": {
-              "$ref": "common.schema.json#/$defs/digest"
             }
           }
         }

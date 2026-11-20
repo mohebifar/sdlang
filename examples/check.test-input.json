@@ -14,9 +14,21 @@
     }
   ],
   "expected_cases": [
-    "generic_error",
-    "forgot_link"
+    {
+      "case": "generic_error",
+      "keys": [
+        "unknown_email",
+        "wrong_password"
+      ]
+    },
+    {
+      "case": "forgot_link",
+      "keys": [
+        "default"
+      ]
+    }
   ],
+  "inputs": "sha256:c3af46a32fe0bb0b16ce8c1075f9c5e5ba82693b42528e355d037ad1f256e319",
   "graph": "/run/protocol/graph.json",
   "snapshot": "sha256:a88ed3fb2eb8c97a373ce941b6aa00ffe0339f0362a4ecd8803f38ab35436cad",
   "workdir": "/run/candidate",

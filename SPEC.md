@@ -137,6 +137,7 @@ each step, chains are followed to their end, and the mapping must be one-to-one:
 | Rename without `moved` | Delete plus create. The plan may *suggest* a `moved` when bodies are near-identical. |
 | `a -> b`, later `b -> c` | Both `a` and `b` resolve to `c`. |
 | `a -> b` and `b -> a` | Compile error. |
+| `a -> b` and `a -> c` | Compile error: an identity conflict, usually left by a merge. |
 | Two baseline objects reach one target | Compile error: moves cannot merge. |
 | Source and target both have state | Collision error; target state is never overwritten. |
 | Source absent from this baseline | No-op here, reported as such. |
@@ -153,10 +154,11 @@ transaction. Splitting or merging members needs an explicit change, not several 
 `moved` statements stay in the spec indefinitely. A local planner cannot know which
 branches still hold old state, so it never reports a move as safe to delete.
 
-**Branch merges.** After a merge, `spec plan` reconciles identity three-way against the
-merge base: it applies one branch's edits through the other branch's moves, reports two
-different destinations for one source as an identity conflict, and reports two state
-records claiming one output as an ownership conflict.
+**Branch merges.** When a merge, rebase or cherry-pick leaves conflicting state records,
+`spec plan --reconcile` reconciles identity three-way from the base, current and incoming
+versions of each record: it applies one side's edits through the other side's moves and
+reports two records claiming one output as an ownership conflict (see Apply → Reconciling
+after a merge).
 
 ### Edges and relations
 
@@ -773,14 +775,19 @@ return `blocked`. A generator that cannot meet this is not used.
 and the CLI keeps a bounded excerpt of its output. Conformance and test checks speak JSON,
 defined in `schemas/check.schema.json`. The CLI writes one input document to the check's
 stdin: the check's id and definition hash, its purpose and scope, the subject and its owned
-outputs (none for project scope), the path of the bound canonical graph (so a check can read
-the declaration it judges and what it references), the snapshot, a working directory that is
+outputs (none for project scope), the path of the canonical graph the transaction is
+checked against (the applied graph: published declarations plus this transaction's, see
+Transactions → Partial progress), so a check can read the declaration it judges and what it
+references, the snapshot, a working directory that is
 a disposable copy of the candidate (writes there are discarded), a scratch directory, the
 package root and the execution profile. A conformance input also carries the rules that
-apply to the subject's kind; a test input carries the cases the evidence expects. The check
+apply to the subject's kind. A test input carries the cases and instance keys the evidence
+expects, and the digest of the run input closure, which the CLI computes because a check
+cannot see ownership; the result echoes it. The check
 writes one result document to stdout and exits 0; any other exit, or an invalid result, is
 an infrastructure error. A conformance result has one entry per applicable rule; a test
-result has cases, instances, every attempt and the discovered inventory digest. Examples:
+result has cases, instances, every attempt and the inventory digest (Verification →
+Tests). Examples:
 `examples/check.input.json` with `examples/check.conformance-result.json`, and
 `examples/check.test-input.json` with `examples/check.test-result.json`.
 
@@ -1094,9 +1101,9 @@ v0 runs transactions serially:
 5. On success, commit code, state records and evidence together, then append the receipt.
    On failure, discard the candidate; transactions that depend on it are skipped.
 
-Evidence records the digest of the checked inputs, which excludes everything under
-`.spec/` (state, evidence, the applied store, the journal and protocol files), so
-committing a receipt does not invalidate the evidence it records.
+Evidence records the digest of its inputs, which never include anything under `.spec/`
+(Verification → Currency), so committing a receipt does not invalidate the evidence it
+records.
 
 **Cost.** `spec plan` prints what a plan will cost: coding dispatches, review subjects,
 check runs by check, and the contingent update count. Caps on these, and running slow checks
@@ -1109,12 +1116,19 @@ re-rolled.
 
 ### Reconciling after a merge
 
-`spec plan --reconcile` runs after a branch merge. It records both parents and the merge
-base in the binding, runs the three-way identity reconciliation from "Moves", and blocks on
-identity or ownership conflicts instead of choosing the newer state file. Coverage
-judgements survive only where their inputs are unchanged; runs on either parent's tree do
-not count for the merged tree, so affected checks rerun. The result is an ordinary plan,
-applied with `spec apply`, and may contain work even when the merged spec has no diff.
+`spec plan --reconcile` runs while `.spec/reconcile/` exists (Team workflow → Merging
+state files). Its inputs are the merged spec tree, which holds both sides' `moved`
+statements; the applied store, which holds both sides' entries, since its files are
+content-addressed and never conflict; and the saved base, current and incoming versions of
+each conflicted record (a record created on both sides has no base). It reads no commit, so
+a merge, a rebase and a cherry-pick reconcile the same way. The binding records the digest
+of every saved version. It runs the three-way identity reconciliation from "Moves" and
+blocks on identity or ownership conflicts instead of choosing either version. Evidence from
+either side stays current only where its inputs are unchanged in the merged tree
+(Currency); the rest reruns. The result is an ordinary plan, applied with `spec apply`, and
+may contain work even when the merged spec has no diff. A merge with no textual conflict
+needs no reconciliation; if it still combines records that clash, `spec check` reports
+`ownership`, and a source moved to two targets is a compile error.
 
 ## Team workflow
 
@@ -1154,8 +1168,7 @@ merge driver. On a textual conflict, during a merge, rebase or cherry-pick, the 
 keeps the current branch's file and saves the base, current and incoming versions of the
 record under `.spec/reconcile/`; nobody edits state JSON by hand. While that directory
 exists, `spec check` reports `reconcile` and `spec plan` runs only with `--reconcile`,
-which takes the three versions from there, so it needs no parent commits (see Reconciling
-after a merge). Reconciliation publishes like a transaction and removes the directory.
+which reads those versions and no commits (see Reconciling after a merge). Reconciliation publishes like a transaction and removes the directory.
 
 **How far evidence can be trusted.** An evidence record is a claim made by whoever ran
 `spec apply`. `spec check --rerun` reproduces runs and checks on a machine the team trusts.
@@ -1200,8 +1213,9 @@ A kind declares named output slots (`outputs`) and creation roots (`creates`); s
 kind under Packages → Kind definitions.
 
 - **Slots.** Required slots exist when the create transaction publishes; nothing is
-  pre-created. A slot's path is a locator recomputed from fields, so a route change moves
-  the file.
+  pre-created, except under `acquire`, which claims only files that exist (see Brownfield
+  adoption). A slot's path is a locator recomputed from fields, so a route change moves the
+  file.
 - **Created outputs.** The agent may create files under a creation root. Its result file
   registers each with a stable key it chooses (`#outputs.login_form`), recorded with its
   root and relative path, so the file keeps its identity if renamed or relocated. On a
@@ -1277,12 +1291,15 @@ creates competing claims:
 
 Accepting a mapping is a `create` with strategy `acquire`: no agent runs, the file's exact
 current bytes become the baseline, its owner is recorded, and its evidence starts
-`unverified`. Only after that is the file managed, so an agent may write it. `acquire` is
-the one exception to "every policy is met before publishing": it publishes after compile,
-ownership and build checks only, because it changes no code and claims no conformance. Its
-requirements are reported `unverified`, and the next `spec plan` schedules them as `verify`
-and `review` obligations (`none` changes), which discharge them like any other. A walk-through,
-for an existing `src/lib/auth.ts` that exports `signIn` and `requestReset`, used by two pages:
+`unverified`. Only after that is the file managed, so an agent may write it. A required slot
+with no existing file (an acquired declaration with no test file, say) is left without an
+output; the next `spec plan` finds the empty slot and schedules an `update` that writes it.
+`acquire` is the one exception to "every policy is met before publishing": it publishes
+after compile, ownership and build checks only, because it changes no code and claims no
+conformance. Its requirements are reported `unverified`, and the next `spec plan` schedules
+them as `verify` and `review` obligations (`none` changes), which discharge them like any
+other. A walk-through, for an existing `src/lib/auth.ts` that exports `signIn` and
+`requestReset`, used by two pages:
 
 ```console
 $ spec import src/lib/auth.ts
@@ -1301,8 +1318,10 @@ export lib auth_lib {
 }
 ```
 
-With `path`, the `lib` owns exactly that file. Applying that plan
-publishes ownership and the baseline, and nothing else. Extraction is a later spec change:
+With `path`, that file is the `lib`'s `main` slot; its `tests` slot has no file yet.
+Applying that plan publishes ownership and the baseline of `src/lib/auth.ts`, and nothing
+else; the next plan's `update` of `auth_lib` writes `tests/lib/auth/auth_lib.test.ts`.
+Extraction is a later spec change:
 declare `action sign_in` and `action request_reset`, make both pages `calls` them, and remove
 the exports from `auth_lib`. Its plan has one transaction, because the pages' import grants
 change with it: `sign_in` and `request_reset` (`create`, slots from `implements action`),
@@ -1387,9 +1406,10 @@ declaration reachable from `D` over ordering relations (`calls`, `reads`, `write
 `types`), the `stack`'s outputs, the oracle closure of the test, the check definition and the
 execution profile. The closure also contains the `inputs` its kind declares (implicit framework files such as
 a root layout or middleware, owned or not). Under `verify_scope: "all"`, and for every
-project-scope check, the closure is the whole tree except state, evidence, journal and
-protocol files, so an edit to an unmanaged file stales project-scope check results and the
-next plan carries a `verify` obligation rooted at those checks.
+project-scope check, the closure is the whole tree except `.spec/`. No closure ever
+includes anything under `.spec/` (state, evidence, the applied store, the journal,
+reconcile and protocol files). An edit to an unmanaged file stales project-scope check
+results and the next plan carries a `verify` obligation rooted at those checks.
 
 | Input that changed | Test run | Coverage | Conformance review | Check result | Approval |
 | --- | --- | --- | --- | --- | --- |
@@ -1430,8 +1450,11 @@ way, but no update is planned.
   oracle digest invalidates coverage; changed implementation only requires a rerun.  A coarse digest
   (the whole harness) makes one changed helper stale every coverage judgement; batching that
   re-review is provisional (`EXTENSIONS.md`, Cost controls).
-- **Discovery.** The test check reports a complete inventory. An expected case that is
-  missing, skipped or filtered out counts as not passed; duplicate tags fail discovery.
+- **Discovery.** The test check reports a complete inventory: the digest of the canonical
+  JSON of the sorted `[case, key]` pairs of every tagged instance it discovered, run or not.
+  When it ran them all, the digest must match the reported pairs. An expected case or
+  instance that is missing, skipped or filtered out counts as not passed; duplicate tags or
+  keys fail discovery.
   Untagged tests still run and can fail the check, but never provide coverage.
 - **Flakiness.** Every attempt is kept. Under the default policy `failed → passed` does not
   pass; a configured retry policy may accept it, and the evidence records that it did. A
@@ -1447,7 +1470,9 @@ A test check reports per case and per attempt through the check protocol's test 
 A conformance check declares its rule inventory with the kinds each rule applies to
 (`rules { page_default_export: [page] }`, and `advisory: [...]` for rules that never block)
 and reports each applicable rule for each subject:
-`satisfied`, `violated`, `unsupported` or `error`, with the inputs it read. Silence is never
+`satisfied`, `violated`, `unsupported` or `error`, with the inputs it read. A rule's meaning
+is part of its package's documentation, and changing it needs a new package version (the
+milestone adapter defines its two rules in `examples/nextjs-adapter.int`). Silence is never
 satisfaction: a rule missing from the result counts as `error`. Every declared rule is
 required unless listed as advisory. A required rule that is `violated` fails the obligation and escalates
 to `update`; `unsupported` leaves any policy or transaction obligation that needs that check

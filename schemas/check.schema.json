@@ -118,17 +118,123 @@
         },
         "graph": {
           "type": "string",
-          "description": "Absolute path of the bound canonical graph (schemas/graph.schema.json), read-only."
+          "description": "Absolute path of the canonical graph the transaction is checked against (schemas/graph.schema.json): the applied graph, meaning published declarations plus this transaction's. Read-only."
         },
         "expected_cases": {
           "type": "array",
+          "description": "Test only: the cases and instance keys that current evidence relies on. Each must appear in the result; a missing one counts as not passed.",
           "items": {
-            "type": "string",
-            "pattern": "^[a-z_][a-z0-9_]*$"
-          },
-          "description": "Test only: the case tags that current evidence relies on. Each must appear in the result; a missing one counts as not passed."
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "case",
+              "keys"
+            ],
+            "properties": {
+              "case": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              },
+              "keys": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "inputs": {
+          "$ref": "common.schema.json#/$defs/digest",
+          "description": "Test only: digest of the run input closure, computed by the CLI. The result echoes it."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "conformance"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "rules"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "expected_cases"
+                  ]
+                },
+                {
+                  "required": [
+                    "inputs"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "test"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "expected_cases",
+              "inputs"
+            ],
+            "not": {
+              "required": [
+                "rules"
+              ]
+            },
+            "properties": {
+              "scope": {
+                "const": "declaration"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "declaration"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject": {
+                "type": "string"
+              },
+              "outputs": {
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "subject": {
+                "type": "null"
+              },
+              "outputs": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
     },
     "conformance_result": {
       "type": "object",
@@ -318,11 +424,11 @@
         },
         "inventory": {
           "$ref": "common.schema.json#/$defs/digest",
-          "description": "Digest of the complete discovered case list."
+          "description": "Digest of the canonical JSON of the sorted [case, key] pairs of every tagged instance discovered, run or not. With selection complete it must equal the digest of the reported pairs."
         },
         "inputs": {
           "$ref": "common.schema.json#/$defs/digest",
-          "description": "Digest of the run input closure."
+          "description": "Echo of the input's inputs: the run input closure digest computed by the CLI."
         },
         "profile": {
           "type": "string"

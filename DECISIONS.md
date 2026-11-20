@@ -285,3 +285,21 @@ accepted (`rounds/13-review2.decision.md`). Not rescored after these changes.
 - R13.5 [fix] `lib`: the adapter gives it a test slot; Compatibility has a `lib` bullet; `uses` observes no behaviour, so a lib's behaviour change gives users `verify`, not `review`, and the "whatever their types say" rule is qualified to observing relations.
 - R13.6 [fix] The milestone lists its kinds; `entity`, `rule` and `environment` are marked as partly provisional; `rollout` is optional in the plan schema; a stale "below" and the stale R2 status line are corrected; the milestone's conformance rule count matches the adapter.
 - O.7 [open] A core-only worked example, using only the kinds the first milestone needs, with its own graphs and plan fixture.
+
+## Round 14: independent rescoring
+
+Codex (`rounds/14-rescore.codex.md`) scored 8 (architecture), 7 (drift and brownfield),
+7 (verification), 8 (grammar), 8 (agent interop), 6 (packages), 6 (simplicity), 5 (cost)
+and 7 (team workflow). It judged R13.2 and R13.6 fixed and R13.1, R13.3, R13.4 and R13.5
+partly fixed, found three contradictions and four gaps in the check contract, and advised
+running the trial after a focused cleanup rather than more broad rounds. All were checked
+against the files and accepted (`rounds/14-rescore.decision.md`). Not rescored after these
+changes. Its full checker run failed for lack of `jsonschema`; the editor's run, with it,
+passes.
+
+- R14.1 [fix] Checked inputs are defined once, in Currency: no closure includes anything under `.spec/`. Apply refers to it.
+- R14.2 [fix] Reconciliation reads the merged spec, the applied store and the saved base, current and incoming record versions, and no commit. The plan schema's `binding.reconcile` lists those versions by digest instead of `parents` and `base`. A source moved to two targets is a compile error, which covers clean textual merges that clash.
+- R14.3 [fix] `acquire` claims only existing files; a required slot with no file is left empty and the next plan schedules an `update` that writes it. The `lib` walk-through says its test file comes from that update.
+- R14.4 [fix] Check contract: the input's graph is the applied graph; a test input carries expected cases with instance keys and the CLI-computed run-input digest, which the result echoes; the inventory digest has a defined form, checked when selection is complete; the schema requires purpose-specific fields and ties subject and outputs to scope. The milestone adapter defines its two conformance rules. The checker catches three more mutations (dropped instance, duplicate case, changed profile) and five bad inputs.
+- O.2 [open, now milestone-relevant] Placement of compatible fan-in obligations must be fixed before the trial if its edits include that case.
+- O.8 [open] Pin the trial: toolchain and profile, the ten edits, the independent acceptance tests and the success margin.

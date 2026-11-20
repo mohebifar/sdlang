@@ -16,6 +16,7 @@ Exit status is non-zero if anything fails.
 """
 import copy
 import json
+import os
 import re
 import sys
 
@@ -534,15 +535,30 @@ def conformance_pair_problems(ci, cr, rules, graph):
     return out
 
 
+def _canon():
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import canon
+    return canon
+
+
 def test_pair_problems(ti, tr):
     out = []
-    if (tr["check"], tr["snapshot"]) != (ti["check"], ti["snapshot"]):
-        out.append("test result: check or snapshot does not echo the input")
+    if (tr["check"], tr["snapshot"], tr["profile"], tr["inputs"]) != (
+            ti["check"], ti["snapshot"], ti["profile"], ti.get("inputs")):
+        out.append("test result: check, snapshot, profile or inputs do not echo the input")
     if tr["output"] not in [o["member"] for o in ti["outputs"]]:
         out.append("test result: output is not the input's test output")
-    missing = sorted(set(ti.get("expected_cases", [])) - {c["case"] for c in tr["cases"]})
+    tags = [c["case"] for c in tr["cases"]]
+    pairs = [[c["case"], i["key"]] for c in tr["cases"] for i in c["instances"]]
+    if len(set(tags)) != len(tags) or len({tuple(p) for p in pairs}) != len(pairs):
+        out.append("test result: duplicate case tag or instance key")
+    if tr["selection"] == "complete" and tr["inventory"] != _canon().sha(sorted(pairs)):
+        out.append("test result: inventory does not match the reported instances")
+    reported = {tuple(p) for p in pairs}
+    missing = sorted((e["case"], k) for e in ti.get("expected_cases", []) for k in e["keys"]
+                     if (e["case"], k) not in reported)
     if missing:
-        out.append(f"test result: expected cases missing: {missing}")
+        out.append(f"test result: expected instances missing: {missing}")
     return out
 
 
@@ -725,11 +741,30 @@ def check_schemas():
     invented_out["results"] = [dict(cr["results"][0], rule="invented_rule")]
     dropped = copy.deepcopy(tr)
     dropped["cases"] = dropped["cases"][1:]
+    no_instance = copy.deepcopy(tr)
+    no_instance["cases"][0]["instances"] = no_instance["cases"][0]["instances"][:1]
+    duplicate = copy.deepcopy(tr)
+    duplicate["cases"].append(copy.deepcopy(duplicate["cases"][0]))
+    other_profile = dict(tr, profile="integration-v4")
     for label, problems in [("extra subject", conformance_pair_problems(ci, extra, rules, graph)),
                             ("invented rule", conformance_pair_problems(invented_in, invented_out, rules, graph)),
-                            ("dropped case", test_pair_problems(ti, dropped))]:
+                            ("dropped case", test_pair_problems(ti, dropped)),
+                            ("dropped instance", test_pair_problems(ti, no_instance)),
+                            ("duplicate case", test_pair_problems(ti, duplicate)),
+                            ("changed profile", test_pair_problems(ti, other_profile))]:
         if not problems:
             failures.append(f"check protocol: mutation not caught: {label}")
+    # Inputs the check schema must reject: purpose-specific fields missing or misplaced.
+    bad_inputs = {
+        "test input without expected cases": {k: v for k, v in ti.items() if k != "expected_cases"},
+        "test input without run inputs": {k: v for k, v in ti.items() if k != "inputs"},
+        "conformance input without rules": {k: v for k, v in ci.items() if k != "rules"},
+        "conformance input with expected cases": dict(ci, expected_cases=ti["expected_cases"]),
+        "declaration scope with null subject": dict(ci, subject=None),
+    }
+    for label, doc in bad_inputs.items():
+        if not list(validator("check#input").iter_errors(doc)):
+            failures.append(f"check schema accepted a bad input: {label}")
     # Bindings: order hashes are recomputable; replies echo the dispatch and hash.
     gi, go = docs["generator#input"], docs["generator#output"]
     if _canonical_hash(gi, "binding") != gi["binding"]["order_hash"]:
