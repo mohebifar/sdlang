@@ -29,5 +29,6 @@
   "workdir": "/run/candidate",
   "scratch": "/run/scratch",
   "package_root": "/run/packages/nextjs",
-  "profile": "integration-v3"
+  "profile": "integration-v3",
+  "graph": "/run/protocol/graph.json"
 }

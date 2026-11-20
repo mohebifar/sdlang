@@ -529,12 +529,17 @@ because a hint guides future work only (see Propagation).
 | `flow` | A user journey across pages | steps | managed | core, later |
 | `job`, `event` | Background work, schedules, webhooks | trigger, calls | managed | package, later |
 
+The first milestone uses `project`, `stack`, `use`, `module`, `nextjs.page`, `action` and
+`lib`. `entity`, `rule` and `environment` are core kinds, but parts of their behaviour
+(entity change classification and migrations, selectors, observation) are provisional and
+specified in `EXTENSIONS.md`.
+
 **Fields every declaration accepts.** `summary` (one line, part of the public
 projection), `prompt` (normative requirements in prose), `hint` (non-normative guidance; the
 compiler warns when a hint reads as a requirement, with words such as "must", "never",
 "always" or "do not", since a hint creates no obligation),
 `uses`, `skills`, `expect` and `lifecycle`. The project also accepts `verify` (the default
-policy), `verify_scope` and `limits` (see Apply).
+policy) and `verify_scope`.
 
 ```spec
 action create_workspace {
@@ -577,8 +582,11 @@ export lib dates {
 
 Its public projection is its summary and `exports`, the symbol names other declarations may
 import; they reach it with `uses: [dates]`. Adding a name is compatible; removing or
-renaming one is not. The adapter's `implements lib` gives it one file (in the milestone
-adapter, `src/lib/<module>/<name>.ts`); a `path` field instead names an existing file, which
+renaming one is not. An export is a value or type import according to the symbol found in
+the candidate. `uses` observes no behaviour, so a change to a lib's prompt or `expect`
+gives its users `verify` (implementation impact), not `review`; a caller that relies on a
+helper's behaviour states it in its own `expect`. The adapter's `implements lib` gives it a module and a test file
+(in the milestone adapter, `src/lib/<module>/<name>.ts` and its test); a `path` field instead names an existing file, which
 is how adoption claims shared code. Code may be reorganised freely inside one declaration's
 files. Moving code to another owner is a spec change (a new `lib`, or a `moved` member),
 because it changes who may write that code and who may import it.
@@ -716,13 +724,16 @@ computed without package code:
   more specific values, or fewer possible errors is compatible; the reverse is not. Record
   types are open for width (an added optional output field is compatible); making a
   required output field optional is not.
+- **`lib` exports** are a set of names: adding one is compatible, removing or renaming one is
+  not. Signatures of exported functions are not compared in v0.
 - **Package `@interface` fields are invariant**: any change to the value (a route from
   `/login` to `/sign-in`) is incompatible for consumers.
 - **Entities** have separate read, write and storage compatibility (`EXTENSIONS.md`, Entity changes).
 - Anything the compiler cannot compare is incompatible.
 
-Compatible never means unchecked: dependents still get `verify`, and behaviour changes get
-`review` whatever their types say.
+Compatible never means unchecked: dependents still get `verify`, and over observing
+relations (`calls`, `reads`, `writes`) behaviour changes get `review` whatever their types
+say.
 
 ### Checks and generators
 
@@ -740,9 +751,7 @@ export generator registry {
 
 A check has a `purpose` (`build`, `conformance` or `test`, which selects its result
 protocol: exit status, per-rule results, or per-case results; see the check protocol below),
-a `scope` (`declaration` or `project`), a `run` argv executed without a shell, and a
-`cadence`: `"transaction"` (the default: it must pass before each transaction publishes) or
-`"plan"` (it runs once, after the last transaction; see Apply). A test
+a `scope` (`declaration` or `project`) and a `run` argv executed without a shell. A test
 check is run once per test output; that run's id is `<check>:<output member>`
 (`nextjs.test:auth.login#outputs.tests`). A generator has only `run`; its inputs, outputs
 and result format follow the generator protocol in `PROTOCOL.md`, and it writes only inside
@@ -760,16 +769,20 @@ return `blocked`. A generator that cannot meet this is not used.
 | Generator | As a check, plus a staging area; only validated, authorised output operations publish. |
 | Dependency installation | A toolchain operation of `stack`, with its own network and install-script policy; lifecycle scripts off by default. |
 
-**Check protocol.** `schemas/check.schema.json` defines it. The CLI writes one input
-document to the check's stdin: the check's id and definition hash, its purpose and scope,
-the subject and its owned outputs (none for project scope), the declared rule inventory for
-a conformance check, the candidate snapshot, a read-only working copy, a scratch directory,
-the package root and the execution profile. The check writes one result document to stdout
-and exits 0; any other exit, or an invalid result, is an infrastructure error. The result
-depends on the purpose: `passed` or `failed` with a bounded excerpt (build); one entry per
-declared rule and subject (conformance); or cases, instances and every attempt, plus the
-discovered inventory digest (test). Examples: `examples/check.input.json`,
-`examples/check.conformance-result.json`, `examples/check.test-result.json`.
+**Check protocol.** A build check is a plain command: exit 0 passes, any other exit fails,
+and the CLI keeps a bounded excerpt of its output. Conformance and test checks speak JSON,
+defined in `schemas/check.schema.json`. The CLI writes one input document to the check's
+stdin: the check's id and definition hash, its purpose and scope, the subject and its owned
+outputs (none for project scope), the path of the bound canonical graph (so a check can read
+the declaration it judges and what it references), the snapshot, a working directory that is
+a disposable copy of the candidate (writes there are discarded), a scratch directory, the
+package root and the execution profile. A conformance input also carries the rules that
+apply to the subject's kind; a test input carries the cases the evidence expects. The check
+writes one result document to stdout and exits 0; any other exit, or an invalid result, is
+an infrastructure error. A conformance result has one entry per applicable rule; a test
+result has cases, instances, every attempt and the discovered inventory digest. Examples:
+`examples/check.input.json` with `examples/check.conformance-result.json`, and
+`examples/check.test-input.json` with `examples/check.test-result.json`.
 
 ### Lock
 
@@ -878,10 +891,12 @@ is derived from `coverage` and `run`. `provenance` is informational.
 **Applied projections.** To classify a change (an optional field added versus a required one
 removed) or show an old versus new diff, the planner needs the old canonical projections,
 not only their hashes. It reads them from `.spec/applied/<hash>.json`, a committed,
-content-addressed store holding every projection that some state record names (its own
-`hashes` and its `consumed` entries). Nothing depends on old commits being reachable, so
-squash merges and rebases lose no information. An entry no state record names is deleted
-when the transaction that stops naming it publishes.
+content-addressed store holding every projection that some state record names (its
+`hashes`, its `consumed` entries and its `context_parts`, which are the texts of inherited
+prompts and rules), and, transitively, every projection those entries reference by hash.
+Nothing depends on old commits being reachable, so squash merges and rebases lose no
+information. Store changes publish in the transaction commit, after checks; an entry that
+nothing reaches any more is deleted in the commit that stops reaching it.
 
 State is committed with the spec and code it describes, so each branch carries a
 consistent triple and git history is the audit log.
@@ -913,7 +928,7 @@ Each affected declaration gets one plan entry with independent dimensions:
 
 A declaration may carry both obligations. A transaction publishes only when every
 obligation of every declaration in it is satisfied on the final candidate and every
-policy is met, except plan-cadence checks (see Apply). A review verdict never waives a required test and never upgrades
+policy is met. A review verdict never waives a required test and never upgrades
 evidence to `tested`. Drift blocks a managed declaration until resolved (see Hashes and
 drift). A `frozen` declaration that needs an `update` blocks its transaction rather than being
 skipped. `moved` combines with any change and shows as `moved + update`.
@@ -1073,41 +1088,20 @@ v0 runs transactions serially:
    (see Agent interface). Generator output is validated exactly like agent output; a failed
    generator is reset, classified (unsupported change, generator defect, infrastructure,
    invalid output) and never silently replaced by an agent.
-3. Discharge every obligation on the final candidate: run transaction-cadence checks, then
-   reviews.
+3. Discharge every obligation on the final candidate: run checks, then reviews.
 4. An obligation that escalates to `update` inside the envelope joins the transaction;
    outside it, the transaction fails with an amended plan.
 5. On success, commit code, state records and evidence together, then append the receipt.
    On failure, discard the candidate; transactions that depend on it are skipped.
 
-Evidence records the digest of the checked inputs, which excludes state records, evidence
-and journal files, so committing a receipt does not invalidate the evidence it records.
+Evidence records the digest of the checked inputs, which excludes everything under
+`.spec/` (state, evidence, the applied store, the journal and protocol files), so
+committing a receipt does not invalidate the evidence it records.
 
-**Plan-cadence checks.** A slow project-scope check (a full production build) may declare
-`cadence: "plan"`. It runs once, on the tree after the last transaction, instead of once per
-transaction. Until it passes, the declarations whose closure it covers report it as
-`unverified` and `spec check` fails. If it fails, the CLI bisects over the journaled result
-commits to name the first transaction under which it fails, and the next plan carries a
-`verify` rooted at that check on that transaction's declarations, escalating to `update` as
-usual. Transaction-cadence checks (typecheck, tests) still gate each transaction.
-
-**Cost limits.** `spec plan` prints what a plan will cost: coding dispatches, review
-subjects, check runs by check, and the contingent update count. A project may cap these:
-
-```spec
-project acme_web {
-  summary: "Customer portal for Acme"
-  limits {
-    coding_dispatches: 10
-    review_subjects: 40
-    check_runs: 60
-  }
-}
-```
-
-A plan over any limit is not written; the CLI names the largest contributors (usually an
-inherited prompt edit, or a widely called action), and `spec plan --accept-cost` writes it
-anyway with the acceptance recorded in the plan.
+**Cost.** `spec plan` prints what a plan will cost: coding dispatches, review subjects,
+check runs by check, and the contingent update count. Caps on these, and running slow checks
+once per plan instead of once per transaction, are provisional (`EXTENSIONS.md`, Cost
+controls).
 
 **Update is an edit, not a regeneration.** The agent receives a spec diff plus the current
 code and is asked for the smallest change, so declarations that did not change are never
@@ -1156,10 +1150,12 @@ together. A human reviews the plan and the code, CI runs `spec check`, and the b
 by any method.
 
 **Merging state files.** `spec init` writes a `.gitattributes` entry that gives `.spec/` a
-merge driver. On a textual conflict the driver keeps the current branch's file and lists
-the record in `.spec/reconcile-required`; nobody edits state JSON by hand. While that file
+merge driver. On a textual conflict, during a merge, rebase or cherry-pick, the driver
+keeps the current branch's file and saves the base, current and incoming versions of the
+record under `.spec/reconcile/`; nobody edits state JSON by hand. While that directory
 exists, `spec check` reports `reconcile` and `spec plan` runs only with `--reconcile`,
-which reads the base and both parents' records from git (see Reconciling after a merge).
+which takes the three versions from there, so it needs no parent commits (see Reconciling
+after a merge). Reconciliation publishes like a transaction and removes the directory.
 
 **How far evidence can be trusted.** An evidence record is a claim made by whoever ran
 `spec apply`. `spec check --rerun` reproduces runs and checks on a machine the team trusts.
@@ -1431,11 +1427,9 @@ way, but no update is planned.
 - **Oracle digest.** What a case asserts depends on more than its body: helpers, mocks,
   fixtures, setup hooks, runner configuration and expected snapshots. The adapter hashes
   that closure into an oracle digest, or conservatively the whole test harness. A changed
-  oracle digest invalidates coverage; changed implementation only requires a rerun. When the
-  digest is coarse (the whole harness), one changed helper would stale every coverage
-  judgement, so stale judgements caused by a single oracle change are **reconfirmed** in one
-  batched review that receives the oracle diff: the reviewer answers `unchanged` for each
-  subject or names those that need a full coverage review.
+  oracle digest invalidates coverage; changed implementation only requires a rerun.  A coarse digest
+  (the whole harness) makes one changed helper stale every coverage judgement; batching that
+  re-review is provisional (`EXTENSIONS.md`, Cost controls).
 - **Discovery.** The test check reports a complete inventory. An expected case that is
   missing, skipped or filtered out counts as not passed; duplicate tags fail discovery.
   Untagged tests still run and can fail the check, but never provide coverage.
@@ -1446,12 +1440,13 @@ way, but no update is planned.
   its own coverage judgement.
 
 A test check reports per case and per attempt through the check protocol's test result
-(below; example `examples/check.test-result.json`).
+(Packages → Check protocol; example `examples/check.test-result.json`).
 
 ### Conformance
 
-A conformance check declares its rule inventory (`rules: ["page_default_export"]`, and
-`advisory: [...]` for rules that never block) and reports each rule for each subject:
+A conformance check declares its rule inventory with the kinds each rule applies to
+(`rules { page_default_export: [page] }`, and `advisory: [...]` for rules that never block)
+and reports each applicable rule for each subject:
 `satisfied`, `violated`, `unsupported` or `error`, with the inputs it read. Silence is never
 satisfaction: a rule missing from the result counts as `error`. Every declared rule is
 required unless listed as advisory. A required rule that is `violated` fails the obligation and escalates
@@ -1691,7 +1686,7 @@ Transactions (serial)
 
 Changes: 2 create, 3 update (2 by generator), 1 verify-only, 1 drift-blocked
 Coding dispatches: 3 (tx-2, tx-3, tx-4)
-Check runs: typecheck and tests in every transaction; next build once, after tx-4 (plan cadence)
+Check runs: typecheck, build and tests in every transaction (build 4 times)
 Reviews: coverage of forgot_password#expect.same_message, login#expect.forgot_link and
          request_reset#errors.rate_limited, plus any requirement whose test oracle
          changes; batches formed at apply time
@@ -1733,9 +1728,8 @@ The first milestone tests only that, and tests it against a control.
    `plan` with create, update, delete and drift, serial transactions, the work-order and
    result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
    in `examples/nextjs-adapter.int`, hard-coded. Its checks run through the check protocol:
-   typecheck, build (once per plan), test (the independent acceptance tests and
-   agent-written tests) and its one conformance rule, plus the core's ownership, envelope
-   and TypeScript import rules.
+   typecheck, build, test (the independent acceptance tests and agent-written tests) and its
+   conformance rules, plus the core's ownership, envelope and TypeScript import rules.
 2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
    with callers, a compatible input widening, a normative prose change to an action, a
    route move with created parts, an adopted hand edit, and an edit that tempts the agent to
@@ -1760,9 +1754,10 @@ The first milestone tests only that, and tests it against a control.
 5. Only then: the parser and evaluator for `project`, `stack`, `use`, `module`,
    `nextjs.page`, `action` and `lib`, and `spec check`.
 
-Deferred until that works: everything in `EXTENSIONS.md`, rules, plan-cadence checks and
-cost limits, parallel apply, package distribution, and any adapter beyond `nextjs`. No new
-concept enters this document before the trial reports.
+Deferred until that works: everything in `EXTENSIONS.md` (including rules, entities'
+change classification, plan-cadence checks and cost limits), parallel apply, package
+distribution, and any adapter beyond `nextjs`. No new concept enters this document before
+the trial reports.
 
 **Open questions.**
 

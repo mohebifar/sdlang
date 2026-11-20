@@ -60,6 +60,7 @@ export implements action {
 export implements lib {
   outputs {
     main: "src/lib/${meta.module}/${meta.name}.ts"
+    tests: "tests/lib/${meta.module}/${meta.name}.test.ts"
   }
   checks: [typecheck, test]
 }
@@ -84,7 +85,6 @@ export check typecheck {
 export check build {
   purpose: "build"
   scope: "project"
-  cadence: "plan"
   run: ["pnpm", "exec", "next", "build"]
 }
 
@@ -97,7 +97,10 @@ export check test {
 export check conformance {
   purpose: "conformance"
   scope: "declaration"
-  rules: ["page_default_export", "no_client_secrets"]
+  rules {
+    page_default_export: [page]
+    no_client_secrets: [page, action]
+  }
   run: ["node", "./checks/conformance.js"]
 }
 

@@ -216,7 +216,7 @@ The loop stopped at its 12-round limit. Final independent scores, editor / Codex
 Not every area reached 9 from both reviewers. Codex's remaining asks, carried forward as
 open items for the next design round (none is applied):
 
-- O.1 [resolved by R2.7] A check ABI: schemas for check input (subject, output selection, snapshot, profile, working directory, package-relative resolution) and check result (inventory, per-rule results, failures), plus a declared rule inventory per conformance check so omitted rules are detectable and advisory rules have syntax.
+- O.1 [resolved by R2.7 and R13.1, not rescored] A check ABI: schemas for check input (subject, output selection, snapshot, profile, working directory, package-relative resolution) and check result (inventory, per-rule results, failures), plus a declared rule inventory per conformance check so omitted rules are detectable and advisory rules have syntax.
 - O.2 Obligation placement for compatible fan-in (two changed actions with one caller): merge or verify per transaction, represented in the plan schema.
 - O.3 A complete evidence-transition example (implementation edit, oracle edit, unrelated publication) showing which evidence is reused or replaced.
 - O.4 A cross-module caller/callee protocol example where only the callee's inherited prompt changes.
@@ -258,7 +258,8 @@ these corrections and were not revised.
 ## Second review (2026-11-19)
 
 `REVIEW-2.md` re-evaluates v0.2 at about 7 out of 10 and adds three unscored areas
-(simplicity, cost, team workflow). Its findings 1 to 7 are not applied.
+(simplicity, cost, team workflow). R2.1 fixed its finding 8; R2.2 to R2.8 addressed findings 1
+to 7; round 13 reviewed that pass.
 
 - R2.1 [fix] Seven document defects from finding 8, all in `SPEC.md`: the `context` row is back inside the projections table; the summary and goals say evidence names its inputs, not a tree; the package-only forms are listed in full; the `page` kind excerpt has the adapter's four ambient imports and four checks; `stack` owns `next.config.ts`; the open question about the name now asks only whether the CLI keeps `spec`; the manifest example matches `examples/package.json`, with `provides` shown for a `use`-bound package instead.
 - R2.2 [change] Finding 1, simplicity. Provisional material moved to a new `EXTENSIONS.md`: rules and selectors, package annotation definitions, contributions, bindings and retained artifacts, runtime state, upgrades, test first and journeys, the tooling plan. `SPEC.md` opens with the ten ideas a reader must learn. The three overlapping propagation descriptions are one precedence table. The formatting-only drift digest is removed: reformatting is drift, and `adopt` accepts it. New rule: no new concept enters `SPEC.md` before the first milestone reports.
@@ -268,3 +269,19 @@ these corrections and were not revised.
 - R2.6 [change] Finding 5, cost. Checks declare `cadence`: `"plan"` checks (the adapter's `next build`) run once after the last transaction, with bisection over journaled commits on failure. Projects may set `limits` on coding dispatches, review subjects and check runs; a plan over a limit needs `--accept-cost`. Coverage made stale by one coarse oracle change is reconfirmed in one batched review.
 - R2.7 [change] Finding 6, adapter cost; resolves O.1. New `schemas/check.schema.json` (input, build, conformance and test results) with three examples, validated by the checker, which also checks that a conformance result reports its declared rule inventory exactly. Conformance checks declare `rules` and `advisory`. Ownership, envelopes and TypeScript imports are enforced by the core, not by adapters. Bootstrapping lists what an adapter must provide.
 - R2.8 [change] Finding 7, milestone. Two control arms: plain instructions, and a strong arm (the agent with the repository, its tests and a Markdown spec per feature). Cost joins the measures. A stop rule fixed before the trial: if the language does not beat the strong arm by a margin set in advance, it stops.
+
+## Round 13: review of the second-review pass
+
+Codex (`rounds/13-review2.codex.md`) scored the nine areas 7 (architecture), 7 (drift and
+brownfield), 7 (verification), 8 (grammar), 7 (agent interop), 6 (packages), 5 (simplicity),
+5 (cost) and 6 (team workflow). It judged findings 4 and 7 addressed and 1, 2, 3, 5 and 6
+partly addressed, and found nine defects, mostly in mechanisms the R2 pass added. All were
+accepted (`rounds/13-review2.decision.md`). Not rescored after these changes.
+
+- R13.1 [fix] Check protocol: build checks keep the exit-status contract and leave the schema; the working copy is disposable and writable; the input carries the bound graph's path; conformance rules declare the kinds they apply to (`rules { rule: [kinds] }`) and the input carries only the applicable ones; a paired test input carries `expected_cases`; generated-case metadata is in the test result. The checker derives the rule inventory from the adapter, compares exact `(subject, rule)` pairs, pairs the test input and result, and fails if three mutations (an extra subject, an invented rule, a dropped case) are not caught.
+- R13.2 [move] Plan-cadence checks, cost limits and coverage reconfirmation moved to `EXTENSIONS.md`, Cost controls, each with its open gaps (deferred-check receipts and statuses, non-monotonic bisection, no schema field for cost acceptance or an `unchanged` verdict). The core keeps the plan's printed cost. The milestone and the worked example run build in every transaction, which removes the milestone contradiction.
+- R13.3 [fix] Applied store: roots include `context_parts`, retention is transitive, store changes publish with the transaction commit, and everything under `.spec/` is excluded from checked inputs.
+- R13.4 [fix] Merge driver: saves base, current and incoming versions of each conflicted record under `.spec/reconcile/`, during a merge, rebase or cherry-pick, so `--reconcile` needs no parent commits.
+- R13.5 [fix] `lib`: the adapter gives it a test slot; Compatibility has a `lib` bullet; `uses` observes no behaviour, so a lib's behaviour change gives users `verify`, not `review`, and the "whatever their types say" rule is qualified to observing relations.
+- R13.6 [fix] The milestone lists its kinds; `entity`, `rule` and `environment` are marked as partly provisional; `rollout` is optional in the plan schema; a stale "below" and the stale R2 status line are corrected; the milestone's conformance rule count matches the adapter.
+- O.7 [open] A core-only worked example, using only the kinds the first milestone needs, with its own graphs and plan fixture.

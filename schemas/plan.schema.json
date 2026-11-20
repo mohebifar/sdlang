@@ -13,8 +13,7 @@
     "entries",
     "blocked",
     "transactions",
-    "reviews",
-    "rollout"
+    "reviews"
   ],
   "properties": {
     "schema": {

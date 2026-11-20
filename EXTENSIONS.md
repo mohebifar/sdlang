@@ -8,7 +8,7 @@ SPEC.md's.
 
 Contents: Rules and selectors · Package annotations · Contributions · Bindings and
 retained artifacts · Runtime state (entity changes, migrations and backfills, environments
-and observations, rollout handoff) · Upgrades · Test first and journeys · Tooling plan.
+and observations, rollout handoff) · Upgrades · Cost controls · Test first and journeys · Tooling plan.
 
 ## Rules and selectors
 
@@ -252,6 +252,49 @@ authorises deleting its file. A package may ship a declarative migration map
 which must be injective and preserves identity only; it certifies nothing about behaviour.
 Removed fields that carried values need an explicit resolution. If the old interpretation
 cannot be recovered, the upgrade stops rather than inventing a baseline.
+
+## Cost controls
+
+Three cost mechanisms from the second review. Each has gaps that a later round must close
+before use; the gaps found in round 13 are listed with each.
+
+**Plan-cadence checks.** A slow project-scope check (a full production build) may declare
+`cadence: "plan"`. It runs once, on the tree after the last transaction, instead of once per
+transaction. Until it passes, the declarations whose closure it covers report it as
+`unverified` and `spec check` fails. If it fails, the CLI bisects over the journaled result
+commits to name the first transaction under which it fails, and the next plan carries a
+`verify` rooted at that check on that transaction's declarations, escalating to `update` as
+usual. Transaction-cadence checks (typecheck, tests) still gate each transaction.
+
+*Open:* how the final check's receipt is attached to state records already committed; the
+statuses of a pending, failed or stale plan check (the general rule makes failed evidence
+`failed`, not `unverified`) and its `spec check` finding; and bisection, which names the
+first failing transaction only if failures are monotonic across transactions.
+
+**Cost limits.** `spec plan` prints what a plan will cost: coding dispatches, review
+subjects, check runs by check, and the contingent update count. A project may cap these:
+
+```spec
+project acme_web {
+  summary: "Customer portal for Acme"
+  limits {
+    coding_dispatches: 10
+    review_subjects: 40
+    check_runs: 60
+  }
+}
+```
+
+A plan over any limit is not written; the CLI names the largest contributors (usually an
+inherited prompt edit, or a widely called action), and `spec plan --accept-cost` writes it
+anyway with the acceptance recorded in the plan.
+
+*Open:* the plan schema has no field to record cost acceptance.
+
+**Coverage reconfirmation.** When the digest is coarse (the whole harness), one changed helper would stale every coverage judgement, so stale judgements caused by a single oracle change are **reconfirmed** in one batched review that receives the oracle diff: the reviewer answers `unchanged` for each subject or names those that need a full coverage review.
+
+*Open:* coverage verdicts allow only `sufficient`, `insufficient` and `cannot_determine`; an
+`unchanged` answer and its link to the old and new oracle digests need schema fields.
 
 ## Test first and journeys
 

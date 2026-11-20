@@ -71,7 +71,9 @@ export annotation index {
 export check schema_matches {
   purpose: "conformance"
   scope: "declaration"
-  rules: ["schema_matches_entity"]
+  rules {
+    schema_matches_entity: [entity]
+  }
   run: ["node", "./checks/schema-matches.js"]
 }
 
