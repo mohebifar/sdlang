@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 /// `run`, which returns the exit code: 0 success, 1 the input is wrong, 2 usage or
 /// internal error.
 mod commands {
+    pub mod graph;
     pub mod hash;
     pub mod parse;
 }
@@ -28,6 +29,8 @@ enum Command {
     Parse(commands::parse::Args),
     /// Print the canonical JSON or digest of a JSON file, or a graph's projection hashes.
     Hash(commands::hash::Args),
+    /// Lower a project's spec tree to the canonical graph and print it as JSON.
+    Graph(commands::graph::Args),
 }
 
 fn main() -> ExitCode {
@@ -47,6 +50,7 @@ fn main() -> ExitCode {
     let code = match cli.command {
         Command::Parse(args) => commands::parse::run(args),
         Command::Hash(args) => commands::hash::run(args),
+        Command::Graph(args) => commands::graph::run(args),
     };
     ExitCode::from(code)
 }

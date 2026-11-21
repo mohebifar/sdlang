@@ -1,3 +1,5 @@
+import package "./spec-packages/rust" as rust
+
 module {
   summary: "Phase 1: lexing and parsing .int source into a syntax tree"
   prompt: """

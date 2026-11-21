@@ -1,0 +1,6 @@
+import nextjs
+
+export nextjs.page signup {
+  route: "/signup"
+  summary: "Create an account"
+}

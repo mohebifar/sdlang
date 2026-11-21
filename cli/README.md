@@ -17,6 +17,10 @@ cargo run -p intlang-cli -- parse ..
 cargo run -p intlang-cli -- hash --graph ../examples/graph.after.json
 ```
 
+```bash
+cargo run -p intlang-cli -- graph .
+```
+
 ## Where things are
 
 | Spec | Code |
@@ -24,7 +28,7 @@ cargo run -p intlang-cli -- hash --graph ../examples/graph.after.json
 | `spec/syntax/` | `crates/syntax`: logos lexer, string scanning and prose dedent, syntax tree, parser, diagnostics |
 | `spec/cli/` | `crates/cli`: the `spec` binary (clap) and its commands |
 | `spec/canon/` | `crates/canon`: canonical JSON, digests and projection hashes |
-| `spec/graph/` | not built yet |
+| `spec/graph/` | `crates/graph`: project and package loading, scopes and resolution, kind schemas, selectors, lowering to the canonical graph |
 
 The checks are the ones the local package declares: `cargo build --locked`, `cargo clippy`
 with warnings denied, and `cargo test`. The syntax crate's corpus test parses every
@@ -39,8 +43,10 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
 2. **Canon** (done): canonical JSON, digests and projection hashes, reproducing
    `examples/hash-vectors.json` and `examples/hashes.json`; `spec hash [--canonical |
    --graph] <file>`.
-3. **Graph**: module discovery, imports, resolution and lowering to the canonical graph,
-   reproducing `examples/graph.before.json` and `graph.after.json`; `spec graph`.
+3. **Graph** (done): module discovery, packages, imports, resolution and lowering to the
+   canonical graph, reproducing `examples/graph.before.json` and `graph.after.json` from
+   `examples/worked/` (lock digest aside); `spec graph [dir]`. `spec graph .` lowers this
+   CLI's own spec.
 4. **State and plan**: state records, drift, propagation and transactions; `spec plan`.
 5. **Apply**: work orders, the check protocol, the `nextjs` adapter, transactions; `spec
    apply`. With phases 4 and 5 this is the runner `TRIAL.md` needs, and phase 3 removes

@@ -1,0 +1,10 @@
+{
+  "name": "@intlang/nextjs",
+  "version": "0.1.0",
+  "files": ["spec/"],
+  "intlang": {
+    "format": 1,
+    "name": "nextjs",
+    "entry": "./spec/index.int"
+  }
+}

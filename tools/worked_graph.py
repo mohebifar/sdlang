@@ -68,23 +68,24 @@ _before = {
     ],
     "declarations": [
         decl("acme_web", "core:project", "context",
-             {"summary": "Customer portal for Acme", "verify": "tested", "prompt": prose(PROJECT_PROMPT)}),
+             {"summary": "Customer portal for Acme", "verify": "tested", "prompt": prose(PROJECT_PROMPT)},
+             line=4),
         decl("stack", "core:stack", "managed", {
             "language": {"$record": {"name": "typescript"}},
             "runtime": {"$record": {"name": "nodejs", "version": "22"}},
             "framework": {"$record": {"name": "nextjs", "version": "^15.0.0"}},
-            "package_manager": {"$record": {"name": "pnpm"}}}, line=11),
+            "package_manager": {"$record": {"name": "pnpm"}}}, line=12),
         decl("authentication", "core:use", "context",
-             {"package": "better-auth", "capability": "authentication"}, line=18),
+             {"package": "better-auth", "capability": "authentication"}, line=19),
         decl("database", "core:use", "managed",
              {"package": "drizzle", "capability": "database", "options": {"$record": {"dialect": "postgres"}}},
-             edges=[edge("collects", "core.Workspace", "collects")], line=19),
-        decl("ui", "core:use", "context", {"package": "ui-sdk", "capability": "ui"}, line=20),
+             edges=[edge("collects", "core.Workspace", "collects")], line=20),
+        decl("ui", "core:use", "context", {"package": "ui-sdk", "capability": "ui"}, line=21),
         decl("app_requires_session", "core:rule", "context",
              {"applies_to": {"$select": {"kinds": [NEXT], "where": 'route matches "/app/**"'}}},
              members={"expect": {"redirects": {
                  "text": prose("unauthenticated visitors are redirected to @{auth.login}"), "verify": "tested"}}},
-             edges=[edge("mentions", "auth.login", "expect.redirects.text")], line=22),
+             edges=[edge("mentions", "auth.login", "expect.redirects.text")], line=23),
         decl("core.Workspace", "core:entity", "managed", {"summary": "A team's shared space"},
              members={"fields": {
                  "id": {"type": b("uuid")},
@@ -121,7 +122,7 @@ _before = {
             edges=[edge("types", "npm:better-auth::session", "output")],
             file="spec/auth/login.int", line=20),
         decl("auth.signup", NEXT, "managed", {"route": "/signup", "summary": "Create an account"},
-             exported=True, file="spec/auth/signup.int"),
+             exported=True, file="spec/auth/signup.int", line=3),
         decl("dashboard.home", NEXT, "managed", {
             "route": "/app", "summary": "Lists the signed-in user's workspaces",
             "requires": [ref("npm:better-auth::session")], "reads": [ref("core.Workspace")],
@@ -134,6 +135,7 @@ _before = {
     "moves": [],
 }
 
+_before["modules"].sort(key=lambda m: m["path"])
 GRAPH_BEFORE = _before
 
 
@@ -142,6 +144,7 @@ def _after():
     decls = {x["address"]: x for x in g["declarations"]}
     ws = decls["core.Workspace"]
     ws["members"]["fields"]["archived_at"] = {"type": {"$type": "optional", "of": b("timestamp")}}
+    decls["auth.sign_in"]["source"]["line"] = 22  # two lines added to login above it
     login = decls["auth.login"]
     login["fields"]["prompt"] = prose(LOGIN_PROMPT_AFTER)
     login["fields"]["uses"] = sorted(login["fields"]["uses"] + [ref("npm:ui-sdk::Link")], key=lambda r: r["$ref"])
@@ -168,7 +171,7 @@ def _after():
             members={"errors": {"rate_limited": {"summary": "Too many requests; try again later",
                                                  "code": "rate_limited"}}},
             edges=[edge("uses", "npm:better-auth::password_reset", "uses")],
-            file="spec/auth/forgot_password.int", line=14),
+            file="spec/auth/forgot_password.int", line=13),
     ]
     g["declarations"].sort(key=lambda x: x["address"])
     return g

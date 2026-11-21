@@ -1,0 +1,19 @@
+{
+  "name": "ui-sdk",
+  "version": "0.1.0",
+  "files": ["spec/"],
+  "intlang": {
+    "format": 1,
+    "name": "ui_sdk",
+    "entry": "./spec/index.int",
+    "provides": {
+      "ui": {
+        "form": "Form",
+        "input": "Input",
+        "button": "Button",
+        "link": "Link",
+        "card": "Card"
+      }
+    }
+  }
+}

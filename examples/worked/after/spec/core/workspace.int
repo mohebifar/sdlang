@@ -1,0 +1,11 @@
+export entity Workspace {
+  summary: "A team's shared space"
+  fields {
+    id: uuid @id
+    name: string @max_length(80)
+    slug: string @unique
+    owner: ref authentication.User
+    created_at: timestamp = now
+    archived_at: timestamp?
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "drizzle",
+  "version": "0.1.0",
+  "files": ["spec/"],
+  "intlang": {
+    "format": 1,
+    "name": "drizzle",
+    "entry": "./spec/index.int",
+    "options": "DrizzleOptions"
+  }
+}

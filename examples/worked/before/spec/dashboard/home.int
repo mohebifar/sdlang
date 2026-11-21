@@ -1,0 +1,14 @@
+import nextjs
+import core
+
+export nextjs.page home {
+  route: "/app"
+  summary: "Lists the signed-in user's workspaces"
+  requires: [authentication.session]
+  reads: [core.Workspace]
+  uses: [ui.card, ui.button]
+  prompt: """
+    One card per workspace, newest first.
+    The empty state offers "Create workspace".
+  """
+}

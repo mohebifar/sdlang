@@ -2,7 +2,7 @@
   "protocol": "intlang.generator/1",
   "dispatch": "p-2026-11-18-01/r1/tx-1/1",
   "binding": {
-    "order_hash": "sha256:0d381e0d192fe3fec1c7178f3bb9564d3be594dae2b015afa64a75d5f728dda5",
+    "order_hash": "sha256:d0fe515fc9ba80605d0f0070e296f0cd2b44ac2dcbeca544e3c45e4e895c3477",
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
     "input_snapshot": "sha256:be3fb193e7176896f7536bfeb455bf36da72441e22dcbe147a85590b7f08f8d0",
     "graph_hash": "sha256:3fbac04520ae2b7de52ede9995174014053f59946af477f8274b4cc75cea40a4",
@@ -211,7 +211,7 @@
         ],
         "source": {
           "file": "spec/app.int",
-          "line": 19
+          "line": 20
         }
       },
       "after": {
@@ -240,7 +240,7 @@
         ],
         "source": {
           "file": "spec/app.int",
-          "line": 19
+          "line": 20
         }
       },
       "aggregate": [

@@ -1,0 +1,31 @@
+// Example spec package for ui-sdk: its runtime components, described as externs of its
+// own component kind, behind `use "ui-sdk" for ui` in SPEC.md's worked example.
+
+export kind component {
+  fields {
+    props: json
+  }
+  outputs {
+    component: "src/components/${meta.name}.tsx"
+  }
+}
+
+export extern component Form {
+  source: "ui-sdk#Form"
+}
+
+export extern component Input {
+  source: "ui-sdk#Input"
+}
+
+export extern component Button {
+  source: "ui-sdk#Button"
+}
+
+export extern component Link {
+  source: "ui-sdk#Link"
+}
+
+export extern component Card {
+  source: "ui-sdk#Card"
+}

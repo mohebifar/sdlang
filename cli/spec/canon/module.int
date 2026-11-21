@@ -1,3 +1,5 @@
+import package "./spec-packages/rust" as rust
+
 module {
   summary: "Phase 2: canonical JSON, digests and declaration projections"
   prompt: """

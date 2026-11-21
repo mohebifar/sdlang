@@ -203,10 +203,20 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "intlang-canon",
+ "intlang-graph",
  "intlang-syntax",
  "serde",
  "serde_json",
  "walkdir",
+]
+
+[[package]]
+name = "intlang-graph"
+version = "0.1.0"
+dependencies = [
+ "intlang-canon",
+ "intlang-syntax",
+ "serde_json",
 ]
 
 [[package]]

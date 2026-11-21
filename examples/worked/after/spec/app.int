@@ -1,0 +1,31 @@
+import nextjs
+import auth
+
+project acme_web {
+  summary: "Customer portal for Acme"
+  verify: "tested"
+  prompt: """
+    Server-render by default. All copy in plain English, sentence case.
+  """
+}
+
+stack {
+  language: { name: "typescript" }
+  runtime: { name: "nodejs", version: "22" }
+  framework: { name: "nextjs", version: "^15.0.0" }
+  package_manager: { name: "pnpm" }
+}
+
+use "better-auth" for authentication
+use "drizzle" for database { dialect: "postgres" }
+use "ui-sdk" for ui
+
+rule app_requires_session {
+  applies_to: select nextjs.page where route matches "/app/**"
+  expect {
+    redirects {
+      text: "unauthenticated visitors are redirected to @{auth.login}"
+      verify: "tested"
+    }
+  }
+}

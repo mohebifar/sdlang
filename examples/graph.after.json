@@ -16,10 +16,6 @@
       ]
     },
     {
-      "path": "core",
-      "imports": []
-    },
-    {
       "path": "auth",
       "header": {
         "summary": "Sign-in, sign-up and session handling",
@@ -42,6 +38,10 @@
           "source": "module:dashboard"
         }
       ]
+    },
+    {
+      "path": "core",
+      "imports": []
     },
     {
       "path": "dashboard",
@@ -76,7 +76,7 @@
       "edges": [],
       "source": {
         "file": "spec/app.int",
-        "line": 1
+        "line": 4
       }
     },
     {
@@ -115,7 +115,7 @@
       ],
       "source": {
         "file": "spec/app.int",
-        "line": 22
+        "line": 23
       }
     },
     {
@@ -342,7 +342,7 @@
       ],
       "source": {
         "file": "spec/auth/forgot_password.int",
-        "line": 14
+        "line": 13
       }
     },
     {
@@ -395,7 +395,7 @@
       ],
       "source": {
         "file": "spec/auth/login.int",
-        "line": 20
+        "line": 22
       }
     },
     {
@@ -413,7 +413,7 @@
       "edges": [],
       "source": {
         "file": "spec/auth/signup.int",
-        "line": 1
+        "line": 3
       }
     },
     {
@@ -431,7 +431,7 @@
       "edges": [],
       "source": {
         "file": "spec/app.int",
-        "line": 18
+        "line": 19
       }
     },
     {
@@ -613,7 +613,7 @@
       ],
       "source": {
         "file": "spec/app.int",
-        "line": 19
+        "line": 20
       }
     },
     {
@@ -651,7 +651,7 @@
       "edges": [],
       "source": {
         "file": "spec/app.int",
-        "line": 11
+        "line": 12
       }
     },
     {
@@ -669,7 +669,7 @@
       "edges": [],
       "source": {
         "file": "spec/app.int",
-        "line": 20
+        "line": 21
       }
     }
   ],

@@ -1,0 +1,30 @@
+import nextjs
+import dashboard
+
+export nextjs.page login {
+  route: "/login"
+  summary: "A page where you can sign in"
+  uses: [ui.form, ui.input, ui.button, ui.link]
+  calls: [sign_in]
+  prompt: """
+    Email and password form in the shared auth card.
+    On success go to @{dashboard.home}.
+    Link to @{forgot_password} under the password field.
+  """
+  expect {
+    redirects: "valid credentials redirect to @{dashboard.home}"
+    generic_error: "invalid credentials show one generic error and keep the email filled in"
+    busy_button: "the submit button is disabled while the request is in flight"
+    forgot_link: "the forgot-password link goes to @{forgot_password}"
+  }
+}
+
+action sign_in {
+  input: { email: email, password: string }
+  output: authentication.session
+  errors {
+    invalid_credentials: "Email or password is wrong"
+    rate_limited: "Too many attempts; try again later"
+  }
+  hint: "Use the library's email and password flow rather than custom hashing."
+}

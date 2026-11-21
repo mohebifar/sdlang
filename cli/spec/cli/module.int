@@ -1,5 +1,7 @@
+import package "./spec-packages/rust" as rust
 import syntax
 import canon
+import graph
 
 module {
   summary: "The spec binary: argument parsing and commands"
@@ -12,7 +14,7 @@ module {
 
 export rust.binary spec {
   summary: "The spec binary's entry point"
-  uses: [parse, hash]
+  uses: [parse, hash, graph_command]
   expect {
     help: "spec --help lists every command with a one-line description"
     version: "spec --version prints the crate version"
@@ -44,6 +46,17 @@ export rust.command hash {
     canonical: "with --canonical it prints the canonical JSON text instead"
     graph: "with --graph it prints, as JSON, each declaration's projection hashes keyed by address"
     invalid: "a file that is not valid JSON, or holds a non-finite number, exits 1 with the reason"
+  }
+}
+
+export rust.command graph_command {
+  name: "graph"
+  summary: "Lowers a project's spec tree to the canonical graph and prints it as JSON"
+  uses: [graph.loader, graph.lower]
+  expect {
+    prints: "given a project directory, it prints the graph as JSON and exits 0"
+    default_dir: "with no directory it uses the current one"
+    error: "a resolution or schema error exits 1 and prints the file, line, column and reason"
   }
 }
 

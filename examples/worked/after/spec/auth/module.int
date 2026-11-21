@@ -1,0 +1,8 @@
+module {
+  summary: "Sign-in, sign-up and session handling"
+  prompt: """
+    All auth screens use one centered card layout.
+    Never reveal whether an email address is registered.
+  """
+  skills: [authentication.skills]
+}
