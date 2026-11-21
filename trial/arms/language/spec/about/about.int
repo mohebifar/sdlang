@@ -1,0 +1,13 @@
+import nextjs
+import tasks
+
+export nextjs.page about {
+  route: "/about"
+  summary: "Says what the app is for"
+  prompt: """
+    Two short paragraphs. Link back to @{tasks.tasks_index}.
+  """
+  expect {
+    explains: "the page has the heading 'About' and links to @{tasks.tasks_index}"
+  }
+}

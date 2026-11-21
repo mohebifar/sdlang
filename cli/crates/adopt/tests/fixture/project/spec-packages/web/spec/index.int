@@ -11,6 +11,7 @@ export kind page {
   creates {
     parts: "src/app/${route}/_parts/"
   }
+  inputs: ["src/app/layout.tsx"]
   checks: [build, test]
 }
 

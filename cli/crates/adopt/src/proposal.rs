@@ -112,7 +112,8 @@ pub struct Proposal {
     pub owned: Vec<(String, String)>,
     /// (path, why) for files that cannot be claimed without a choice.
     pub collisions: Vec<(String, String)>,
-    /// Pointed-at files nothing claims and that are not code: left unmanaged.
+    /// Pointed-at files nothing claims that are not code, or that a kind names as an
+    /// input (a root layout): left unmanaged.
     pub unmanaged: Vec<String>,
     /// (address, slot, path) of slots of claimed declarations whose file exists but was
     /// not pointed at; nothing claims it.
@@ -255,6 +256,13 @@ pub fn propose(root: &Path, paths: &[String]) -> AdResult<Proposal> {
         ..Proposal::default()
     };
     let owner_of = owners(&records);
+    let decls = declarations(&graph);
+    // Framework files a kind names as inputs stay unmanaged unless a slot claims them.
+    let kind_inputs: BTreeSet<String> = mats
+        .keys()
+        .filter_map(|a| decls.get(a.as_str()))
+        .flat_map(|d| intlang_apply::checks::kind_inputs(&project, d))
+        .collect();
     let mut lib_files: Vec<String> = Vec::new();
     for path in &pointed {
         if let Some(owner) = owner_of.get(path) {
@@ -263,6 +271,7 @@ pub fn propose(root: &Path, paths: &[String]) -> AdResult<Proposal> {
         }
         let found = candidates(&mats, path);
         match found.as_slice() {
+            [] if kind_inputs.contains(path) => p.unmanaged.push(path.clone()),
             [] if is_code(path) => lib_files.push(path.clone()),
             [] => p.unmanaged.push(path.clone()),
             [(address, slot, root_key)] => {
@@ -318,7 +327,6 @@ pub fn propose(root: &Path, paths: &[String]) -> AdResult<Proposal> {
     // A claimed declaration whose collisions removed every claim is not claimed.
     p.claims
         .retain(|_, c| !c.slots.is_empty() || !c.created.is_empty());
-    let decls = declarations(&graph);
     for (address, claim) in &mut p.claims {
         claim.kind = decls[address.as_str()]["kind"]
             .as_str()

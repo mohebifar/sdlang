@@ -136,7 +136,11 @@ fn propose_accept_acquire_then_discharge() {
         )]
     );
     assert!(p.claims.contains_key("auth.forgot_password"));
-    assert_eq!(p.unmanaged, ["src/app/login/page.css"]);
+    // The root layout is a kind input: left unmanaged, not proposed as a lib.
+    assert_eq!(
+        p.unmanaged,
+        ["src/app/layout.tsx", "src/app/login/page.css"]
+    );
     assert_eq!(
         p.unresolved
             .iter()

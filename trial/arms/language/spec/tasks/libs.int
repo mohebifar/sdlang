@@ -1,0 +1,16 @@
+export lib store {
+  summary: "In-memory record storage keyed by id; empty after a restart"
+  exports: ["insert", "all", "find", "save"]
+  expect {
+    newest_first: "all returns records newest first by created_at"
+    unknown_id: "find returns null for an unknown id"
+  }
+}
+
+export lib dates {
+  summary: "Date formatting for task pages"
+  exports: ["formatDate"]
+  expect {
+    iso_date: "formatDate returns the date part of a timestamp as YYYY-MM-DD in UTC"
+  }
+}

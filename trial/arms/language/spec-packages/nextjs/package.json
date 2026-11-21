@@ -1,0 +1,26 @@
+{
+  "name": "@intlang/nextjs",
+  "version": "0.1.0",
+  "description": "The int lang adapter for Next.js App Router projects: kinds, path templates, checks and generators",
+  "license": "MIT OR Apache-2.0",
+  "files": [
+    "spec/",
+    "checks/",
+    "gen/",
+    "skills/"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "intlang": {
+    "format": 1,
+    "name": "nextjs",
+    "entry": "./spec/index.int",
+    "skills": {
+      "app_router": "./skills/app_router.md"
+    }
+  }
+}

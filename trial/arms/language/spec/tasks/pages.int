@@ -1,0 +1,32 @@
+import nextjs
+import about
+
+export nextjs.page tasks_index {
+  route: "/tasks"
+  summary: "Lists tasks"
+  calls: [list_tasks, complete_task]
+  uses: [dates]
+  prompt: """
+    One row per task: title, created date and a Complete button for open tasks.
+    A link to @{new_task} sits above the list.
+  """
+  expect {
+    listed: "every task is listed with its title and created date"
+    complete: "Complete marks the task done and moves it below the open tasks"
+    empty: "with no tasks, the page says 'No tasks yet' and links to @{new_task}"
+    footer: "the footer links to @{about.about}"
+  }
+}
+
+export nextjs.page new_task {
+  route: "/tasks/new"
+  summary: "A form that adds a task"
+  calls: [create_task]
+  prompt: """
+    A title field and an Add button. After adding, go to @{tasks_index}.
+  """
+  expect {
+    adds: "submitting a title adds the task and shows the list with it"
+    required: "the Add button is disabled while the title is empty"
+  }
+}

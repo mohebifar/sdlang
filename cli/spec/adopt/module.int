@@ -46,6 +46,7 @@ export lib proposal {
     created: "a file under a creation root of a managed declaration with no state record is claimed as a created output keyed by its stem"
     owned: "a file a state record already owns is reported as owned and not claimed"
     collision: "a file two declarations could claim is a collision and claimed by neither"
+    kind_inputs: "a file a kind names as an input, such as a root layout, is left unmanaged unless a slot claims it"
     new_lib: "an unclaimed TypeScript or JavaScript file is proposed as a new lib; its name comes from the lib template when the path fits it, and otherwise it keeps the file with path"
     integration: "a proposed lib whose file has two or more exports imported from two or more declarations is labelled one integration owner, with extern and planned extraction offered as the other choices"
     grants: "a declaration whose files import a proposed lib's file is listed as needing uses on it"

@@ -183,6 +183,14 @@ pub fn run_input_digest(
     )?)
 }
 
+/// The implicit framework files a declaration's kind declares as `inputs` (a root layout,
+/// middleware), owned or not.
+pub fn kind_inputs(project: &Project, decl: &Value) -> Vec<String> {
+    kind_body(project, decl)
+        .map(|body| strings(field(body, "inputs")))
+        .unwrap_or_default()
+}
+
 fn strings(expr: Option<&Expr>) -> Vec<String> {
     match expr {
         Some(Expr::List { items, .. }) => items

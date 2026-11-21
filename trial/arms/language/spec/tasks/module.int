@@ -1,0 +1,7 @@
+module {
+  summary: "Creating, listing and completing tasks"
+  prompt: """
+    Every tasks page uses the shared page shell: a heading, then the content.
+    Show dates as YYYY-MM-DD.
+  """
+}

@@ -370,3 +370,34 @@ fn an_invalid_verdict_is_asked_again_then_fails_only_its_transaction() {
     };
     assert!(reason.contains("invalid twice"), "{reason}");
 }
+
+#[test]
+fn a_candidate_links_the_installed_dependencies_and_git_ignores_the_link() {
+    let root = setup("deps");
+    fs::create_dir_all(root.join("node_modules/dep")).unwrap();
+    fs::write(
+        root.join("node_modules/dep/index.js"),
+        "module.exports = 1;\n",
+    )
+    .unwrap();
+    let repo = intlang_apply::workspace::Repo::open(&root).unwrap();
+    let head = repo.head().unwrap();
+    let c = repo.candidate("deps-check", &head).unwrap();
+    assert!(c.dir.join("node_modules/dep/index.js").is_file());
+    assert!(fs::symlink_metadata(c.dir.join("node_modules"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(git(&c.dir, &["status", "--porcelain"]), "");
+    let snapshot = c.freeze("probe").unwrap();
+    let tree = git(
+        &c.dir,
+        &[
+            "ls-tree",
+            "--name-only",
+            intlang_apply::workspace::untagged(&snapshot),
+        ],
+    );
+    assert!(!tree.lines().any(|l| l == "node_modules"), "{tree}");
+    repo.remove_candidate(&c);
+}

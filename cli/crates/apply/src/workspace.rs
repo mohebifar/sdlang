@@ -162,9 +162,35 @@ impl Repo {
                 untagged(base),
             ],
         )?;
+        self.link_dependencies(&dir)?;
         Ok(Candidate {
             dir,
             base: base.to_string(),
+        })
+    }
+
+    /// The installed dependency tree is not in git, so a candidate links the project's
+    /// `node_modules` (TypeScript is the only v0 stack) and git never sees the link.
+    /// Checks then run with exactly the dependencies the lockfile installed.
+    fn link_dependencies(&self, dir: &Path) -> AResult<()> {
+        let installed = self.root.join("node_modules");
+        if !installed.is_dir() || dir.join("node_modules").exists() {
+            return Ok(());
+        }
+        let common = git(&self.root, &["rev-parse", "--git-common-dir"])?;
+        let exclude = self.root.join(common.trim()).join("info/exclude");
+        let current = fs::read_to_string(&exclude).unwrap_or_default();
+        if !current.lines().any(|l| l == "/node_modules") {
+            let sep = if current.is_empty() || current.ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            fs::write(&exclude, format!("{current}{sep}/node_modules\n"))
+                .map_err(|e| ApplyError::new(format!("{}: {e}", exclude.display())))?;
+        }
+        std::os::unix::fs::symlink(&installed, dir.join("node_modules")).map_err(|e| {
+            ApplyError::new(format!("cannot link node_modules into the candidate: {e}"))
         })
     }
 

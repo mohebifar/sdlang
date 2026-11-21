@@ -17,14 +17,14 @@ Measures · Stop rule · Run log.
 | Item | Pinned value |
 | --- | --- |
 | Toolchain | Node.js 22 LTS, Next.js 15 (App Router, static routes only), React 19, TypeScript 5, pnpm 10, Vitest 3, Playwright 1 for UI acceptance tests. Exact versions are whatever `pnpm-lock.yaml` holds at the baseline commit; they are recorded in the run log and never change during the trial. |
-| Profile `trial-v1` | One container image based on `node:22`, pinned by digest at the baseline commit. No network in checks or acceptance runs except localhost. No credentials exist. |
+| Profile `trial-v1` | One container image based on `node:22`, pinned by digest at the baseline commit (`trial/profile/Dockerfile`). No network in checks or acceptance runs except localhost. No credentials exist. |
 | Adapter | `examples/nextjs-adapter.int`, hard-coded in the runner, unchanged. |
 | Coding agent | Claude Code in headless mode, one model (`claude-sonnet-5-5`), the same version in every arm, default settings. The version is recorded in the run log. |
 | Reviewer (language arm) | The same model in a separate session that wrote none of the code. |
 | Repetitions | Three independent runs per arm, each from the baseline commit with fresh sessions. |
 | Retries | Up to two per edit, each given only the arm's own failure output (below). Acceptance tests are never shown to any agent. |
 | Time cap | 45 minutes of wall time per edit, retries included. An edit that hits the cap counts as failed. |
-| Graphs | The runner reads hand-written graph JSON, since the parser comes later. The operator writes eleven graphs (baseline and one after each edit) from the `.int` text below, before the first run, and a second person checks each against that text. |
+| Graphs | The runner lowers the `.int` files itself (`spec graph`); no graph is written by hand. |
 
 ## Baseline app
 
@@ -38,7 +38,9 @@ the baseline acceptance tests. The language arm adopts it with `spec import` (st
 `acquire`), then runs one plan to discharge the resulting `verify` and `review`
 obligations. That setup is measured but not counted. The index page's row component,
 `src/app/tasks/_parts/task_row.tsx`, is mapped as the created output
-`tasks.tasks_index#outputs.task_row`.
+`tasks.tasks_index#outputs.task_row`, and the new task page's title form,
+`src/app/tasks/new/_parts/title_form.tsx`, as `tasks.new_task#outputs.title_form`. The
+baseline, the arms' overlays, the acceptance tests and the profile are in `trial/`.
 
 `spec/app.int`
 
@@ -351,8 +353,10 @@ against that arm's tree. Two kinds:
   test file so the in-memory store starts empty. Routes come from a route map the operator
   owns.
 - **Contract tests** (Vitest) that import an action's module from its adapter path
-  (`src/server/tasks/<name>.ts`) and call its default export. Names and signatures are part
-  of every arm's instructions, so this is fair across arms.
+  (`src/server/tasks/<name>.ts`) and call its default export. A declared error is a
+  rejection with an `Error` whose `code` is the error's key, the adapter's convention.
+  Names, signatures and that convention are part of every arm's instructions (the
+  baseline's `complete_task` shows it to the plain arm), so this is fair across arms.
 
 | Id | Edit | Kind | Asserts |
 | --- | --- | --- | --- |
@@ -399,7 +403,7 @@ order that binds the weak test to the edit's new requirement, five times per edi
 All arms start from the same baseline code and use the same agent, edits, retries, time cap
 and acceptance tests.
 
-- **Language.** The operator edits the `.int` files and the graph JSON, runs `spec plan`,
+- **Language.** The operator edits the `.int` files, runs `spec plan`,
   compares the plan with the expected plan above (recording any difference as a planner
   defect, then applying anyway), and runs `spec apply`. On failure, the retry gets the
   runner's failure report.

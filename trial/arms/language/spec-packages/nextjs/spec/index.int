@@ -1,0 +1,118 @@
+// @intlang/nextjs, spec/index.int: the first milestone's only adapter.
+// Supported: one App Router layout, static routes only (route_path admits nothing else in
+// v0), and the exact toolchain pinned by the package's own lock. Path templates use the
+// core substitution rule for route_path (SPEC.md, Packages -> Kind definitions).
+
+export kind page {
+  fields {
+    route: route_path @interface
+    calls: [ref action] @relation("calls")
+    reads: [ref entity] @relation("reads")
+    requires: [ref catalog] @relation("requires")
+  }
+  outputs {
+    page: "src/app/${route}/page.tsx"
+    tests: "tests/app/${route}/page.test.ts"
+  }
+  creates {
+    parts: "src/app/${route}/_parts/"
+  }
+  exports {
+    page {
+      output: "page"
+      symbol: "default"
+      mode: "value"
+    }
+  }
+  ambient {
+    imports: ["next/link", "next/navigation", "react", "react/jsx-runtime"]
+  }
+  inputs: ["src/app/layout.tsx", "src/middleware.ts", "next.config.ts"]
+  checks: [typecheck, build, test, conformance]
+  skills: [app_router]
+}
+
+// How this adapter materialises the core action kind: one server module per action.
+export implements action {
+  outputs {
+    server: "src/server/${meta.module}/${meta.name}.ts"
+    tests: "tests/server/${meta.module}/${meta.name}.test.ts"
+  }
+  exports {
+    action {
+      output: "server"
+      symbol: "default"
+      mode: "value"
+    }
+    contract {
+      output: "server"
+      symbol: "Input"
+      mode: "type"
+    }
+  }
+  ambient {
+    imports: ["server-only"]
+  }
+  checks: [typecheck, test, conformance]
+}
+
+// Shared code: one module per lib, unless the lib names an existing file with `path`.
+export implements lib {
+  outputs {
+    main: "src/lib/${meta.module}/${meta.name}.ts"
+    tests: "tests/lib/${meta.module}/${meta.name}.test.ts"
+  }
+  checks: [typecheck, test]
+}
+
+// Toolchain files owned by the stack declaration.
+export implements stack {
+  outputs {
+    manifest: "package.json"
+    lockfile: "pnpm-lock.yaml"
+    tsconfig: "tsconfig.json"
+    next_config: "next.config.ts"
+  }
+  generator: install
+}
+
+export check typecheck {
+  purpose: "build"
+  scope: "project"
+  run: ["pnpm", "exec", "tsc", "--noEmit"]
+}
+
+export check build {
+  purpose: "build"
+  scope: "project"
+  run: ["pnpm", "exec", "next", "build"]
+}
+
+// Runs Vitest on one test output and reports per case. A test names its case in its
+// title: "[case:valid_credentials]", or "[case:generic_error:wrong_password]" for one
+// instance of a parameterised case.
+export check test {
+  purpose: "test"
+  scope: "declaration"
+  run: ["node", "./checks/test.js"]
+}
+
+// Conformance rules. page_default_export: the page slot's module has a default export
+// that is a React component. no_client_secrets: no module in the subject's client bundle
+// (a file marked "use client" and every module it imports, transitively) reads a
+// process.env variable without the NEXT_PUBLIC_ prefix or imports a module marked
+// "server-only". Both are judged statically on the candidate; a dynamic env access
+// such as process.env with a computed name is reported unsupported.
+export check conformance {
+  purpose: "conformance"
+  scope: "declaration"
+  rules {
+    page_default_export: [page]
+    no_client_secrets: [page, action]
+  }
+  run: ["node", "./checks/conformance.js"]
+}
+
+export generator install {
+  run: ["node", "./gen/install.js"]
+}
