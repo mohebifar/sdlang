@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/syntax", "crates/canon", "crates/graph", "crates/plan", "crates/apply", "crates/cli"]
+members = ["crates/syntax", "crates/canon", "crates/graph", "crates/plan", "crates/apply", "crates/gate", "crates/adopt", "crates/cli"]
 resolver = "2"
 
 [workspace.package]
@@ -14,6 +14,8 @@ intlang-canon = { path = "crates/canon" }
 intlang-graph = { path = "crates/graph" }
 intlang-plan = { path = "crates/plan" }
 intlang-apply = { path = "crates/apply" }
+intlang-gate = { path = "crates/gate" }
+intlang-adopt = { path = "crates/adopt" }
 logos = "0.16"
 serde = { version = "1", features = ["derive"] }
 # arbitrary_precision keeps number text exact, so canonical JSON can write it exactly.

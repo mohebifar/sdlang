@@ -1,0 +1,64 @@
+import package "./spec-packages/rust" as rust
+import graph
+import plan
+import apply
+
+module {
+  summary: "Phase 6b: brownfield adoption with spec import"
+  prompt: """
+    SPEC.md's Brownfield adoption section is the contract. An import proposes; only
+    --accept writes, and then only new .int files for proposed libs and plan.json. It
+    claims nothing it was not pointed at and never creates competing claims: a path two
+    declarations could own is a collision, and a proposal with a collision cannot be
+    accepted. The proposal's text is meant for a human reviewer, so it says what will be
+    claimed, by whom, and what is left for later.
+  """
+}
+
+export rust.crate adopt {
+  summary: "The intlang-adopt crate"
+  uses: [scan, proposal, accept]
+  expect {
+    worked: "on a project whose spec declares a page that imports an unowned src/lib/auth.ts exporting signIn and requestReset, importing that file proposes lib auth.auth_lib with path src/lib/auth.ts, lists both exports and the importing page, and says the page needs uses: [auth_lib]"
+    existing: "importing files laid out by a declaration's templates maps each to its slot, and a file under its creation root to a created output keyed by the file's stem"
+  }
+}
+
+export lib scan {
+  summary: "The project's source files, their exports and imports, and who imports each file"
+  exports: ["scan", "Scanned"]
+  uses: [apply.imports]
+  expect {
+    walk: "paths are files or directories relative to the project; .git, .spec, node_modules, spec and spec-packages are skipped"
+    exports: "named exports from export function, const, let, class, type, interface and export { a, b as c } are found, and export default as default"
+    importers: "a relative or @/ import is resolved to a project file by trying the TypeScript extensions and index files"
+  }
+}
+
+export lib proposal {
+  summary: "The ownership mapping proposed for the pointed-at files"
+  exports: ["propose", "Proposal", "Claim"]
+  uses: [scan]
+  expect {
+    slot: "a file at a slot of a managed declaration with no state record is claimed for that slot"
+    created: "a file under a creation root of a managed declaration with no state record is claimed as a created output keyed by its stem"
+    owned: "a file a state record already owns is reported as owned and not claimed"
+    collision: "a file two declarations could claim is a collision and claimed by neither"
+    new_lib: "an unclaimed TypeScript or JavaScript file is proposed as a new lib; its name comes from the lib template when the path fits it, and otherwise it keeps the file with path"
+    integration: "a proposed lib whose file has two or more exports imported from two or more declarations is labelled one integration owner, with extern and planned extraction offered as the other choices"
+    grants: "a declaration whose files import a proposed lib's file is listed as needing uses on it"
+    unresolved: "a relative import of a project file that nothing owns or claims is an unresolved dependency"
+    unclaimed: "a slot of a claimed declaration whose file exists but was not pointed at is reported, and claimed by nothing"
+  }
+}
+
+export lib accept {
+  summary: "Accepting a proposal: the new lib files and an acquire plan"
+  exports: ["accept"]
+  uses: [proposal, plan.planner]
+  expect {
+    refuses: "a proposal with a collision is not accepted and nothing is written"
+    writes: "each proposed lib is written to spec/<module>/<name>.int; an existing file there is an error"
+    plan: "the plan gives every claimed declaration change create with strategy acquire and lists its claimed slots and created outputs"
+  }
+}

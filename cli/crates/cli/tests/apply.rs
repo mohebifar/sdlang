@@ -77,6 +77,28 @@ fn plan_then_apply() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert_eq!(stdout.matches("published").count(), 3, "{stdout}");
+    // The applied branch is consistent; bye's lack of requirements is only a warning.
+    let out = spec(&root, &["check"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{text}");
+    assert!(
+        text.contains("unspecified (warning)") && text.ends_with("consistent\n"),
+        "{text}"
+    );
+    assert_eq!(spec(&root, &["check", "--strict"]).status.code(), Some(1));
+    let out = spec(&root, &["check", "--json", "--strict"]);
+    let findings: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(findings[0]["kind"], "unspecified");
+    assert_eq!(
+        spec(&root, &["check", "--allow", "nonsense"]).status.code(),
+        Some(2)
+    );
+    fs::write(root.join("notes/hello.txt"), "note by hand\n").unwrap();
+    let out = spec(&root, &["check", "--allow", "evidence"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(1), "{text}");
+    assert!(text.starts_with("drift "), "{text}");
+    git(&root, &["checkout", "--", "notes/hello.txt"]);
     // Applying the same plan again refuses: its binding no longer holds without a journal.
     fs::remove_dir_all(root.join(".spec/journal")).unwrap();
     let out = spec(

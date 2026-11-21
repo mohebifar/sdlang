@@ -99,19 +99,28 @@ impl Store {
     /// Every record, keyed by address. A missing state directory is an empty state.
     pub fn records(&self) -> PResult<BTreeMap<String, StateRecord>> {
         let mut out = BTreeMap::new();
-        for (_, path) in self.record_files()? {
-            let text = fs::read_to_string(&path).map_err(|e| io(&path, e))?;
-            let record: StateRecord = serde_json::from_str(&text)
-                .map_err(|e| PlanError::new(format!("{}: {e}", path.display())))?;
-            let expected = format!("{}.json", record.address);
-            if path.file_name().and_then(|n| n.to_str()) != Some(expected.as_str()) {
+        for (name, record) in self.record_entries()? {
+            if name != format!("{}.json", record.address) {
                 return Err(PlanError::new(format!(
-                    "{}: holds the record of {}",
-                    path.display(),
+                    ".spec/state/{name}: holds the record of {}",
                     record.address
                 )));
             }
             out.insert(record.address.clone(), record);
+        }
+        Ok(out)
+    }
+
+    /// Every record with its file name, in file name order, without checking that the
+    /// name matches the address.
+    pub fn record_entries(&self) -> PResult<Vec<(String, StateRecord)>> {
+        let mut out = Vec::new();
+        for (rel, path) in self.record_files()? {
+            let text = fs::read_to_string(&path).map_err(|e| io(&path, e))?;
+            let record: StateRecord = serde_json::from_str(&text)
+                .map_err(|e| PlanError::new(format!("{}: {e}", path.display())))?;
+            let name = rel.trim_start_matches(".spec/state/").to_string();
+            out.push((name, record));
         }
         Ok(out)
     }

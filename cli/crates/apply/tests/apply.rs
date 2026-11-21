@@ -72,6 +72,7 @@ fn write_plan(root: &Path) -> Value {
         graph: &graph,
         plan_id: "p-test-01",
         baseline_commit: &head,
+        acquire: None,
     })
     .unwrap();
     fs::write(

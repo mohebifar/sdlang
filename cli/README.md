@@ -29,6 +29,10 @@ cargo run -p intlang-cli -- plan <project> --json
 cargo run -p intlang-cli -- apply <project> --agent "<command>" --reviewer "<command>"
 ```
 
+```bash
+cargo run -p intlang-cli -- check <project>
+```
+
 ## Where things are
 
 | Spec | Code |
@@ -39,6 +43,8 @@ cargo run -p intlang-cli -- apply <project> --agent "<command>" --reviewer "<com
 | `spec/graph/` | `crates/graph`: project and package loading, scopes and resolution, kind schemas, selectors, lowering to the canonical graph |
 | `spec/plan/` | `crates/plan`: output materialisation, state records and the applied store, compatibility, the planner |
 | `spec/apply/` | `crates/apply`: git candidates, work and review orders, the check protocol, evidence, the transaction engine |
+| `spec/gate/` | `crates/gate`: `spec check`'s findings, evidence currency, the ownership index and `--rerun` |
+| `spec/adopt/` | `crates/adopt`: `spec import`'s scan, proposal and acceptance |
 
 The checks are the ones the local package declares: `cargo build --locked`, `cargo clippy`
 with warnings denied, and `cargo test`. The syntax crate's corpus test parses every
@@ -75,7 +81,12 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
      (`../adapters/nextjs`). Context packing beyond the inline part is still a fixed
      budget record. A real agent (`claude -p`) has applied the toy project end to end
      (DECISIONS.md C.17).
-6. `spec check` and `spec import`.
+6. **Check and import**, in two parts.
+   - 6a (done): `spec check`, the read-only gate (`crates/gate`): unapplied spec, drift,
+     ownership, evidence currency recomputed from input digests, reconcile and
+     unspecified, with `--allow`, `--strict`, `--json` and `--rerun`.
+   - 6b: `spec import`, brownfield adoption (`crates/adopt`), and strategy `acquire` in
+     the planner and apply.
 
 Nothing in `../EXTENSIONS.md` is in scope, except the two pieces SPEC.md's worked example
 needs: entity reader and writer compatibility, and a `use` binding's outputs and generator.

@@ -53,6 +53,20 @@ fn git(dir: &Path, args: &[&str]) -> AResult<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// Every file git sees in `dir` (tracked, or untracked and not ignored), sorted, except
+/// `.spec/` and the plan document: the whole tree as a run input closure counts it.
+pub fn tree_files(dir: &Path) -> AResult<Vec<String>> {
+    let out = git(dir, &["ls-files", "-z", "-co", "--exclude-standard"])?;
+    let mut files: Vec<String> = out
+        .split('\0')
+        .filter(|p| !p.is_empty() && !p.starts_with(".spec/") && *p != "plan.json")
+        .map(String::from)
+        .collect();
+    files.sort();
+    files.dedup();
+    Ok(files)
+}
+
 /// `git:<sha>` for a 40-hex object id.
 pub fn tagged(sha: &str) -> String {
     format!("git:{}", sha.trim())

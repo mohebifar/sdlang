@@ -4,6 +4,8 @@ import canon
 import graph
 import plan
 import apply
+import gate
+import adopt
 
 module {
   summary: "The spec binary: argument parsing and commands"
@@ -16,7 +18,7 @@ module {
 
 export rust.binary spec {
   summary: "The spec binary's entry point"
-  uses: [parse, hash, graph_command, plan_command, apply_command, mcp_command]
+  uses: [parse, hash, graph_command, plan_command, apply_command, mcp_command, check_command, import_command]
   expect {
     help: "spec --help lists every command with a one-line description"
     version: "spec --version prints the crate version"
@@ -99,5 +101,30 @@ export rust.command mcp_command {
   expect {
     serves: "spec mcp --dispatch <id>, run in the candidate, answers MCP requests on stdin and stdout until stdin closes"
     unknown: "a dispatch with no protocol area exits 2"
+  }
+}
+
+export rust.command check_command {
+  name: "check"
+  summary: "Reports whether the branch is consistent: spec applied, no drift, sound ownership, current evidence"
+  uses: [gate.findings, gate.rerun]
+  expect {
+    ok: "a consistent project exits 0 and prints 'consistent'"
+    findings: "findings print one per line as kind, address or path, and detail, and exit 1"
+    allow: "--allow <kind>, repeatable, reports that kind without failing"
+    strict: "--strict makes unspecified fail"
+    json: "--json prints the findings as a JSON array"
+    rerun: "--rerun also reruns the test runs evidence relies on"
+  }
+}
+
+export rust.command import_command {
+  name: "import"
+  summary: "Proposes an ownership mapping for existing files, and with --accept writes it and an acquire plan"
+  uses: [adopt.proposal, adopt.accept]
+  expect {
+    proposes: "spec import <paths> prints the proposal and exits 0 without writing anything"
+    accept: "--accept writes the proposed lib files and plan.json, and says how to apply it"
+    collision: "a proposal with a collision exits 1 under --accept"
   }
 }

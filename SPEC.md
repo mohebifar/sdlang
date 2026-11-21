@@ -1413,7 +1413,7 @@ execution profile. The closure also contains the `inputs` its kind declares (imp
 a root layout or middleware, owned or not). Under `verify_scope: "all"`, and for every
 project-scope check, the closure is the whole tree except `.spec/`. No closure ever
 includes anything under `.spec/` (state, evidence, the applied store, the journal,
-reconcile and protocol files). An edit to an unmanaged file stales project-scope check
+reconcile and protocol files) or the plan document. An edit to an unmanaged file stales project-scope check
 results and the next plan carries a `verify` obligation rooted at those checks.
 
 | Input that changed | Test run | Coverage | Conformance review | Check result | Approval |

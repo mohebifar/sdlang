@@ -11,4 +11,4 @@ pub mod planner;
 pub mod state;
 
 pub use error::PlanError;
-pub use planner::{plan, PlanInputs};
+pub use planner::{plan, Acquisition, PlanInputs};

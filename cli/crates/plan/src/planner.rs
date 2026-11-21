@@ -25,6 +25,17 @@ pub struct PlanInputs<'a> {
     pub plan_id: &'a str,
     /// `git:<object id>` of the commit the plan starts from.
     pub baseline_commit: &'a str,
+    /// New declarations `spec import --accept` adopts, by address (strategy `acquire`).
+    pub acquire: Option<&'a BTreeMap<String, Acquisition>>,
+}
+
+/// What an accepted import claims for one new declaration: existing files only.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Acquisition {
+    /// Slot keys whose existing files become the baseline.
+    pub slots: BTreeSet<String>,
+    /// Created outputs: key -> (creation root key, path relative to the root).
+    pub created: BTreeMap<String, (String, String)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

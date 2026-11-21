@@ -94,6 +94,7 @@ pub fn run(args: Args) -> u8 {
         graph: &graph,
         plan_id: &id,
         baseline_commit: &baseline,
+        acquire: None,
     }) {
         Ok(p) => p,
         Err(e) => {
@@ -112,6 +113,16 @@ pub fn run(args: Args) -> u8 {
         return 2;
     }
     print!("{}", summary(&plan, &graph));
+    let unspecified = intlang_plan::materialise::materialise(&project, &graph)
+        .ok()
+        .and_then(|m| intlang_gate::findings::unspecified_addresses(&graph, &m).ok())
+        .unwrap_or_default();
+    if !unspecified.is_empty() {
+        println!(
+            "Unspecified (no requirements, so nothing about their behaviour is tested or reviewed): {}",
+            unspecified.join(", ")
+        );
+    }
     println!("Saved to {}.", out.display());
     0
 }

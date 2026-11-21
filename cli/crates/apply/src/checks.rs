@@ -8,6 +8,7 @@ use intlang_canon::digest;
 use intlang_graph::loader::{Package, Project};
 use intlang_graph::scope::lit_text;
 use intlang_plan::materialise::{kind_body, kind_package};
+use intlang_plan::state::{declarations, file_digest, ORDERING};
 use intlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
 use serde_json::{json, Value};
 
@@ -82,16 +83,7 @@ fn check_def(package: &Package, name: &str) -> Option<CheckDef> {
     }
     let purpose = text(field(body, "purpose"));
     let scope = text(field(body, "scope"));
-    let run: Vec<String> = match field(body, "run") {
-        Some(Expr::List { items, .. }) => items
-            .iter()
-            .filter_map(|i| match i {
-                Expr::String(s) => Some(lit_text(s)),
-                _ => None,
-            })
-            .collect(),
-        _ => vec![],
-    };
+    let run = strings(field(body, "run"));
     let advisory = names(field(body, "advisory"));
     let definition = json!({
         "package": package.id, "name": name, "purpose": purpose, "scope": scope,
@@ -119,6 +111,89 @@ pub fn resolve_checks(project: &Project, decl: &Value) -> Vec<CheckDef> {
         .iter()
         .filter_map(|n| check_def(package, n.rsplit('.').next().unwrap_or(n)))
         .collect()
+}
+
+/// What a run input closure is computed from (SPEC.md, Currency).
+pub struct Closure<'a> {
+    /// The tree the files are read from: a candidate, or the project for `spec check`.
+    pub dir: &'a Path,
+    pub project: &'a Project,
+    pub graph: &'a Value,
+    /// `(member, path)` of a declaration's outputs.
+    pub outputs_of: &'a dyn Fn(&str) -> Vec<(String, String)>,
+    pub profile: &'a str,
+}
+
+/// The digest of a run's input closure: for a declaration-scope run, the outputs of the
+/// subject, of everything it reaches over ordering relations (`requires` aside) and of
+/// the stack, plus the inputs its kind declares; for a project-scope run, every file git
+/// sees except `.spec/` and the plan document. Both add the check definition and the
+/// execution profile.
+pub fn run_input_digest(
+    c: &Closure,
+    address: &str,
+    definition_hash: &str,
+    project_scope: bool,
+) -> AResult<String> {
+    let decls = declarations(c.graph);
+    let mut files: BTreeMap<String, Value> = BTreeMap::new();
+    let mut add = |path: &str| -> AResult<()> {
+        files.insert(path.to_string(), json!(file_digest(c.dir, path)?));
+        Ok(())
+    };
+    if project_scope {
+        for path in crate::workspace::tree_files(c.dir)? {
+            add(&path)?;
+        }
+    } else {
+        let mut todo = vec![address.to_string()];
+        if decls.contains_key("stack") {
+            todo.push("stack".into());
+        }
+        if let Some(body) = decls.get(address).and_then(|d| kind_body(c.project, d)) {
+            for path in strings(field(body, "inputs")) {
+                add(&path)?;
+            }
+        }
+        let mut seen = BTreeSet::new();
+        while let Some(a) = todo.pop() {
+            if !seen.insert(a.clone()) {
+                continue;
+            }
+            for (_, path) in (c.outputs_of)(&a) {
+                add(&path)?;
+            }
+            for e in decls
+                .get(a.as_str())
+                .and_then(|d| d["edges"].as_array())
+                .into_iter()
+                .flatten()
+            {
+                let relation = e["relation"].as_str().unwrap_or_default();
+                if ORDERING.contains(&relation) && relation != "requires" {
+                    if let Some(t) = e["target"].as_str().filter(|t| decls.contains_key(*t)) {
+                        todo.push(t.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Ok(digest(
+        &json!({ "files": files, "check": definition_hash, "profile": c.profile }),
+    )?)
+}
+
+fn strings(expr: Option<&Expr>) -> Vec<String> {
+    match expr {
+        Some(Expr::List { items, .. }) => items
+            .iter()
+            .filter_map(|i| match i {
+                Expr::String(s) => Some(lit_text(s)),
+                _ => None,
+            })
+            .collect(),
+        _ => vec![],
+    }
 }
 
 /// A kind's short name, as conformance rules list kinds: `npm:x::page` -> `page`.

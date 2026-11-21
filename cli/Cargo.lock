@@ -189,6 +189,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "intlang-adopt"
+version = "0.1.0"
+dependencies = [
+ "intlang-apply",
+ "intlang-canon",
+ "intlang-graph",
+ "intlang-plan",
+ "serde",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
 name = "intlang-apply"
 version = "0.1.0"
 dependencies = [
@@ -217,9 +230,23 @@ dependencies = [
  "clap",
  "intlang-apply",
  "intlang-canon",
+ "intlang-gate",
  "intlang-graph",
  "intlang-plan",
  "intlang-syntax",
+ "serde",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
+name = "intlang-gate"
+version = "0.1.0"
+dependencies = [
+ "intlang-apply",
+ "intlang-canon",
+ "intlang-graph",
+ "intlang-plan",
  "serde",
  "serde_json",
  "walkdir",

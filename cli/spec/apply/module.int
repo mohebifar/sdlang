@@ -98,6 +98,7 @@ export lib checks {
     build: "a build check passes on exit 0 and keeps a bounded excerpt otherwise"
     test: "a test check receives one input document per test output and returns per-case attempts; a missing, skipped or failed-then-passed case does not pass"
     conformance: "a conformance check reports each applicable rule; a missing rule counts as error"
+    run_inputs: "a run's input digest is computed from files on disk by one function shared with spec check; a project-scope closure is every file git sees except .spec/ and the plan document"
     definition_hash: "a check's definition hash is the digest of its canonical definition, so editing it in the candidate changes nothing"
     isolation: "anything a check writes in the candidate is discarded before publishing"
   }
@@ -127,6 +128,7 @@ export lib engine {
     publish: "on success, state records for the transaction's declarations are written against the new graph, the applied store is extended, and one commit is made"
     journal: "each published transaction appends a receipt with its input and result commits to .spec/journal/<plan>.jsonl"
     mcp_config: "each coding dispatch gets an MCP client configuration naming spec mcp for it, in SPEC_MCP_CONFIG"
+    acquire: "an acquire entry runs no agent and no review: build checks run, its claimed files' current bytes become its baseline, and its requirements publish unverified"
     infrastructure: "a check that fails for infrastructure reasons is rerun once before the transaction fails, and never costs a coding attempt"
   }
 }

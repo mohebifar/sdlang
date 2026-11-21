@@ -65,6 +65,7 @@ fn run(root: &Path) -> Value {
         graph: &graph,
         plan_id: "p-2026-11-18-01",
         baseline_commit: "git:2fb0bc6f21fcbd443db01e91e32dc8b13f8e767c",
+        acquire: None,
     })
     .unwrap()
 }

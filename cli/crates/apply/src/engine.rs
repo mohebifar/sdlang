@@ -12,12 +12,14 @@ use intlang_graph::loader::Project;
 use intlang_graph::scope::Scope;
 use intlang_plan::materialise::{kind_body, kind_package, materialise, Materialisation};
 use intlang_plan::state::{
-    declarations, file_digest, publish_records, Output, Publish, StateRecord, Store, ORDERING,
+    declarations, file_digest, publish_records, Output, Publish, StateRecord, Store,
 };
 use intlang_syntax::ast::{Exportable, Expr, MemberValue, Statement};
 use serde_json::{json, Value};
 
-use crate::checks::{resolve_checks, run_check, CheckDef, CheckRun, RunContext};
+use crate::checks::{
+    resolve_checks, run_check, run_input_digest, CheckDef, CheckRun, Closure, RunContext,
+};
 use crate::error::{AResult, ApplyError};
 use crate::evidence::{requirement_evidence, requirements, Requirement, Verdict};
 use crate::orders::{self, Env, ReviewSubject, Subject};
@@ -1442,46 +1444,15 @@ impl TxRunner<'_> {
         records: &BTreeMap<String, StateRecord>,
         claims: &Claims,
     ) -> AResult<String> {
-        let env = self.env;
-        let decls = declarations(env.graph);
-        let mut files: BTreeMap<String, Value> = BTreeMap::new();
-        if project_scope {
-            let snapshot = c.diff_from_base()?.len();
-            files.insert("*".into(), json!(snapshot));
-            for (_, path) in env.mats.values().flat_map(|m| m.slots.iter()) {
-                files.insert(path.clone(), json!(file_digest(&c.dir, path)?));
-            }
-        } else {
-            let mut todo = vec![address.to_string()];
-            let mut seen = BTreeSet::new();
-            if decls.contains_key("stack") {
-                todo.push("stack".into());
-            }
-            while let Some(a) = todo.pop() {
-                if !seen.insert(a.clone()) {
-                    continue;
-                }
-                for (_, path) in self.outputs_of(&a, records, claims) {
-                    files.insert(path.clone(), json!(file_digest(&c.dir, &path)?));
-                }
-                for e in decls
-                    .get(a.as_str())
-                    .and_then(|d| d["edges"].as_array())
-                    .into_iter()
-                    .flatten()
-                {
-                    let relation = e["relation"].as_str().unwrap_or_default();
-                    if ORDERING.contains(&relation) && relation != "requires" {
-                        if let Some(t) = e["target"].as_str().filter(|t| decls.contains_key(*t)) {
-                            todo.push(t.to_string());
-                        }
-                    }
-                }
-            }
-        }
-        Ok(digest(
-            &json!({ "files": files, "check": def.definition_hash, "profile": self.options.profile }),
-        )?)
+        let outputs_of = |a: &str| self.outputs_of(a, records, claims);
+        let closure = Closure {
+            dir: &c.dir,
+            project: self.env.project,
+            graph: self.env.graph,
+            outputs_of: &outputs_of,
+            profile: &self.options.profile,
+        };
+        run_input_digest(&closure, address, &def.definition_hash, project_scope)
     }
 
     #[allow(clippy::too_many_arguments)]
