@@ -13,6 +13,7 @@ mod commands {
     pub mod graph;
     pub mod hash;
     pub mod parse;
+    pub mod plan;
 }
 
 /// The command-line tool for int lang.
@@ -31,6 +32,8 @@ enum Command {
     Hash(commands::hash::Args),
     /// Lower a project's spec tree to the canonical graph and print it as JSON.
     Graph(commands::graph::Args),
+    /// Plan a change from the spec, the recorded state and the files on disk.
+    Plan(commands::plan::Args),
 }
 
 fn main() -> ExitCode {
@@ -51,6 +54,7 @@ fn main() -> ExitCode {
         Command::Parse(args) => commands::parse::run(args),
         Command::Hash(args) => commands::hash::run(args),
         Command::Graph(args) => commands::graph::run(args),
+        Command::Plan(args) => commands::plan::run(args),
     };
     ExitCode::from(code)
 }

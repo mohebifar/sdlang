@@ -21,6 +21,10 @@ cargo run -p intlang-cli -- hash --graph ../examples/graph.after.json
 cargo run -p intlang-cli -- graph .
 ```
 
+```bash
+cargo run -p intlang-cli -- plan <project> --json
+```
+
 ## Where things are
 
 | Spec | Code |
@@ -29,6 +33,7 @@ cargo run -p intlang-cli -- graph .
 | `spec/cli/` | `crates/cli`: the `spec` binary (clap) and its commands |
 | `spec/canon/` | `crates/canon`: canonical JSON, digests and projection hashes |
 | `spec/graph/` | `crates/graph`: project and package loading, scopes and resolution, kind schemas, selectors, lowering to the canonical graph |
+| `spec/plan/` | `crates/plan`: output materialisation, state records and the applied store, compatibility, the planner |
 
 The checks are the ones the local package declares: `cargo build --locked`, `cargo clippy`
 with warnings denied, and `cargo test`. The syntax crate's corpus test parses every
@@ -48,10 +53,15 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
    canonical graph, reproducing `examples/graph.before.json` and `graph.after.json` from
    `examples/worked/` (lock digest aside); `spec graph [dir]`. `spec graph .` lowers this
    CLI's own spec.
-4. **State and plan**: state records, drift, propagation and transactions; `spec plan`.
+4. **State and plan** (done): state records and the applied store, drift, compatibility,
+   propagation and transactions; `spec plan [dir]`. Planning `examples/worked/after`
+   against a baseline recorded from `examples/worked/before` reproduces
+   `examples/plan.json`, digests aside. State is written only by a library function
+   until phase 5 publishes through it.
 5. **Apply**: work orders, the check protocol, the `nextjs` adapter, transactions; `spec
    apply`. With phases 4 and 5 this is the runner `TRIAL.md` needs, and phase 3 removes
    the trial's hand-written graphs.
 6. `spec check` and `spec import`.
 
-Nothing in `../EXTENSIONS.md` is in scope.
+Nothing in `../EXTENSIONS.md` is in scope, except the two pieces SPEC.md's worked example
+needs: entity reader and writer compatibility, and a `use` binding's outputs and generator.

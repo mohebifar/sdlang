@@ -285,9 +285,13 @@ fn strongly_connected(deps: &BTreeMap<String, Vec<String>>) -> Vec<Vec<String>> 
     s.components
 }
 
-/// Public hashes for every declaration. Mutually recursive type references are hashed
-/// together as one strongly connected component.
-pub fn public_hashes(graph: &Value) -> GResult<BTreeMap<String, String>> {
+/// The public projection documents of every declaration, and the documents of any
+/// recursive components they point to (keyed by digest). Mutually recursive type
+/// references are hashed together as one strongly connected component: each member's
+/// document is the component's digest plus its own address.
+pub fn public_documents(
+    graph: &Value,
+) -> GResult<(BTreeMap<String, Value>, BTreeMap<String, Value>)> {
     let decls = declarations(graph)?;
     let mut raw = BTreeMap::new();
     for (address, decl) in &decls {
@@ -305,12 +309,15 @@ pub fn public_hashes(graph: &Value) -> GResult<BTreeMap<String, String>> {
         })
         .collect();
     let mut hashes = BTreeMap::new();
+    let mut documents = BTreeMap::new();
+    let mut components = BTreeMap::new();
     for component in strongly_connected(&deps) {
         let single = component.len() == 1 && !deps[&component[0]].contains(&component[0]);
         if single {
             let a = &component[0];
-            let hash = digest(&resolve_types(&raw[a], &hashes))?;
-            hashes.insert(a.clone(), hash);
+            let document = resolve_types(&raw[a], &hashes);
+            hashes.insert(a.clone(), digest(&document)?);
+            documents.insert(a.clone(), document);
         } else {
             let outside: BTreeMap<String, String> = hashes
                 .iter()
@@ -321,14 +328,26 @@ pub fn public_hashes(graph: &Value) -> GResult<BTreeMap<String, String>> {
                 .iter()
                 .map(|a| (a.clone(), resolve_types(&raw[a], &outside)))
                 .collect();
-            let component_hash = digest(&Value::Object(members))?;
+            let members = Value::Object(members);
+            let component_hash = digest(&members)?;
+            components.insert(component_hash.clone(), members);
             for a in &component {
-                let hash = digest(&json!({ "component": component_hash, "address": a }))?;
-                hashes.insert(a.clone(), hash);
+                let document = json!({ "component": component_hash, "address": a });
+                hashes.insert(a.clone(), digest(&document)?);
+                documents.insert(a.clone(), document);
             }
         }
     }
-    Ok(hashes)
+    Ok((documents, components))
+}
+
+/// Public hashes for every declaration (see [`public_documents`]).
+pub fn public_hashes(graph: &Value) -> GResult<BTreeMap<String, String>> {
+    let (documents, _) = public_documents(graph)?;
+    documents
+        .into_iter()
+        .map(|(a, d)| Ok((a, digest(&d)?)))
+        .collect()
 }
 
 fn expect_texts(members: &Map<String, Value>, collection: &str, key: &str) -> Value {
@@ -341,8 +360,50 @@ fn expect_texts(members: &Map<String, Value>, collection: &str, key: &str) -> Va
     )
 }
 
+/// The canonical projection documents of one declaration: each projection hash is the
+/// digest of its document.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Documents {
+    pub public: Value,
+    pub behaviour: Value,
+    pub body: Value,
+    pub guidance: Value,
+    pub context: Value,
+    /// Each inherited normative part: its source (`project`, `module:<path>`,
+    /// `rule:<address>`) and the document its context entry hashes.
+    pub context_parts: Vec<(String, Value)>,
+}
+
+impl Documents {
+    pub fn hashes(&self) -> GResult<Projections> {
+        Ok(Projections {
+            public: digest(&self.public)?,
+            behaviour: digest(&self.behaviour)?,
+            body: digest(&self.body)?,
+            guidance: digest(&self.guidance)?,
+            context: digest(&self.context)?,
+        })
+    }
+}
+
+/// Every declaration's projection documents, and the recursive component documents its
+/// public documents point to (keyed by digest).
+pub struct GraphDocuments {
+    pub declarations: BTreeMap<String, Documents>,
+    pub components: BTreeMap<String, Value>,
+}
+
 /// The projection hashes of every declaration, keyed by address.
 pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
+    documents(graph)?
+        .declarations
+        .iter()
+        .map(|(a, d)| Ok((a.clone(), d.hashes()?)))
+        .collect()
+}
+
+/// The projection documents of every declaration in a graph.
+pub fn documents(graph: &Value) -> GResult<GraphDocuments> {
     let decls = declarations(graph)?;
     let modules: BTreeMap<&str, &Value> = graph
         .get("modules")
@@ -351,7 +412,7 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
         .flatten()
         .filter_map(|m| Some((m.get("path")?.as_str()?, m)))
         .collect();
-    let public = public_hashes(graph)?;
+    let (mut public, components) = public_documents(graph)?;
     let project = graph
         .get("declarations")
         .and_then(Value::as_array)
@@ -364,30 +425,29 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
         let fields = obj(decl, "fields");
         let members = obj(decl, "members");
 
-        let mut inherited = Vec::new();
+        let mut parts: Vec<(String, Value)> = Vec::new();
         if let Some(project) = project {
             let project_fields = obj(project, "fields");
             if str_field(project, "address")? != address {
                 if let Some(prompt) = project_fields.get("prompt") {
-                    inherited.push(json!({ "source": "project", "hash": digest(prompt)? }));
+                    parts.push(("project".into(), prompt.clone()));
                 }
             }
         }
         let module = str_field(decl, "module")?;
-        let parts: Vec<&str> = if module.is_empty() {
+        let segments: Vec<&str> = if module.is_empty() {
             vec![]
         } else {
             module.split('.').collect()
         };
-        for i in 1..=parts.len() {
-            let path = parts[..i].join(".");
+        for i in 1..=segments.len() {
+            let path = segments[..i].join(".");
             if let Some(prompt) = modules
                 .get(path.as_str())
                 .and_then(|m| m.get("header"))
                 .and_then(|h| h.get("prompt"))
             {
-                inherited
-                    .push(json!({ "source": format!("module:{path}"), "hash": digest(prompt)? }));
+                parts.push((format!("module:{path}"), prompt.clone()));
             }
         }
         for rule_address in decl
@@ -406,10 +466,12 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
                 "prompt": get_or_null(obj(rule, "fields"), "prompt"),
                 "expect": expect_texts(obj(rule, "members"), "expect", "text"),
             });
-            inherited.push(
-                json!({ "source": format!("rule:{rule_address}"), "hash": digest(&rule_input)? }),
-            );
+            parts.push((format!("rule:{rule_address}"), rule_input));
         }
+        let inherited = parts
+            .iter()
+            .map(|(source, doc)| Ok(json!({ "source": source, "hash": digest(doc)? })))
+            .collect::<GResult<Vec<_>>>()?;
 
         let behaviour = json!({
             "prompt": get_or_null(fields, "prompt"),
@@ -450,21 +512,25 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
             }
         }
 
-        let Some(public_hash) = public.get(address) else {
-            return malformed(format!("{address}: no public hash"));
+        let Some(public_document) = public.remove(address) else {
+            return malformed(format!("{address}: no public projection"));
         };
         out.insert(
             address.clone(),
-            Projections {
-                public: public_hash.clone(),
-                behaviour: digest(&behaviour)?,
-                body: digest(&body)?,
-                guidance: digest(&Value::Object(guidance))?,
-                context: digest(&context)?,
+            Documents {
+                public: public_document,
+                behaviour,
+                body,
+                guidance: Value::Object(guidance),
+                context,
+                context_parts: parts,
             },
         );
     }
-    Ok(out)
+    Ok(GraphDocuments {
+        declarations: out,
+        components,
+    })
 }
 
 #[cfg(test)]

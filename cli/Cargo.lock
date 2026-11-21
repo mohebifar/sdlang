@@ -204,6 +204,7 @@ dependencies = [
  "clap",
  "intlang-canon",
  "intlang-graph",
+ "intlang-plan",
  "intlang-syntax",
  "serde",
  "serde_json",
@@ -217,6 +218,18 @@ dependencies = [
  "intlang-canon",
  "intlang-syntax",
  "serde_json",
+]
+
+[[package]]
+name = "intlang-plan"
+version = "0.1.0"
+dependencies = [
+ "intlang-canon",
+ "intlang-graph",
+ "intlang-syntax",
+ "serde",
+ "serde_json",
+ "walkdir",
 ]
 
 [[package]]

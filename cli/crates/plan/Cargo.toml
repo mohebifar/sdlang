@@ -1,0 +1,20 @@
+[package]
+name = "intlang-plan"
+description = "State records, drift, propagation and transactions: the int lang planner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+intlang-syntax.workspace = true
+intlang-canon.workspace = true
+intlang-graph.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+walkdir.workspace = true
+
+[lints]
+workspace = true

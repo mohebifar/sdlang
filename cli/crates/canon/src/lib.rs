@@ -11,5 +11,8 @@
 pub mod canonical_json;
 pub mod projections;
 
-pub use canonical_json::{canonical, digest, digest_text, CanonError};
-pub use projections::{projections, public_hashes, GraphError, Projections};
+pub use canonical_json::{canonical, digest, digest_bytes, digest_text, CanonError};
+pub use projections::{
+    documents, projections, public_documents, public_hashes, Documents, GraphDocuments, GraphError,
+    Projections,
+};

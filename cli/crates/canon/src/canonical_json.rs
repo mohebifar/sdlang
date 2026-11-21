@@ -50,7 +50,12 @@ pub fn digest(value: &Value) -> Result<String, CanonError> {
 
 /// `sha256:` followed by the lowercase hex sha256 of `text`'s UTF-8 bytes.
 pub fn digest_text(text: &str) -> String {
-    let hash = Sha256::digest(text.as_bytes());
+    digest_bytes(text.as_bytes())
+}
+
+/// `sha256:` and the lowercase hex sha256 of raw bytes (a file's exact contents).
+pub fn digest_bytes(bytes: &[u8]) -> String {
+    let hash = Sha256::digest(bytes);
     let mut out = String::with_capacity(7 + 64);
     out.push_str("sha256:");
     for byte in hash {
