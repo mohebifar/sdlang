@@ -1283,7 +1283,8 @@ outputs are never deleted; leaving the spec requires `detach`.
 ### Brownfield adoption
 
 `spec import <paths>` proposes an ownership mapping for review: paths, proposed owners,
-public entry points, unresolved dependencies and collisions. It claims nothing it was not
+public entry points, test bindings read from the tests' case tags, unresolved dependencies
+and collisions. It claims nothing it was not
 pointed at, and accepted outputs start with exact baselines and `unverified` evidence. For
 a file that serves several would-be declarations it offers three choices, and never
 creates competing claims:
@@ -1312,7 +1313,7 @@ $ spec import src/lib/auth.ts
   proposal: one integration owner (a file serving two would-be actions)
     + lib  auth.auth_lib   outputs.main = src/lib/auth.ts   exports signIn, requestReset   strategy: acquire
     ~ nextjs.page  auth.login, auth.forgot_password   + uses: [auth_lib]   (their imports need a grant)
-  accept with: spec import src/lib/auth.ts --accept  (writes spec/auth/auth_lib.int and a plan)
+  accept with: spec import src/lib/auth.ts --accept  (writes spec/auth/auth_lib.int and .spec/import.json)
 ```
 
 ```spec
@@ -1324,7 +1325,9 @@ export lib auth_lib {
 ```
 
 With `path`, that file is the `lib`'s `main` slot; its `tests` slot has no file yet.
-Applying that plan publishes ownership and the baseline of `src/lib/auth.ts`, and nothing
+A plan binds a commit, so the accepted mapping waits in `.spec/import.json` until it is
+committed; the next `spec plan` reads it and plans each claimed declaration as an
+`acquire`. Applying that plan publishes ownership and the baseline of `src/lib/auth.ts`, and nothing
 else; the next plan's `update` of `auth_lib` writes `tests/lib/auth/auth_lib.test.ts`.
 Extraction is a later spec change:
 declare `action sign_in` and `action request_reset`, make both pages `calls` them, and remove

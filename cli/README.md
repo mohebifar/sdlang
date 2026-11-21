@@ -33,6 +33,10 @@ cargo run -p intlang-cli -- apply <project> --agent "<command>" --reviewer "<com
 cargo run -p intlang-cli -- check <project>
 ```
 
+```bash
+cargo run -p intlang-cli -- import src tests --dir <project> [--accept]
+```
+
 ## Where things are
 
 | Spec | Code |
@@ -85,8 +89,11 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
    - 6a (done): `spec check`, the read-only gate (`crates/gate`): unapplied spec, drift,
      ownership, evidence currency recomputed from input digests, reconcile and
      unspecified, with `--allow`, `--strict`, `--json` and `--rerun`.
-   - 6b: `spec import`, brownfield adoption (`crates/adopt`), and strategy `acquire` in
-     the planner and apply.
+   - 6b (done): `spec import`, brownfield adoption (`crates/adopt`): proposals for
+     existing files (slots, created outputs, new libs, grants, unresolved imports, test
+     bindings from case tags, collisions), `--accept` into `.spec/import.json`, and
+     strategy `acquire` in the planner and apply, whose unverified evidence the next plan
+     obliges.
 
 Nothing in `../EXTENSIONS.md` is in scope, except the two pieces SPEC.md's worked example
 needs: entity reader and writer compatibility, and a `use` binding's outputs and generator.

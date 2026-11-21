@@ -654,6 +654,49 @@ impl TxRunner<'_> {
                 claims.created.insert(address.clone(), created);
             }
         }
+        // An acquired declaration's created outputs and proposed test bindings come from
+        // the plan, since no agent claims them.
+        for e in changed.iter().filter(|e| e["strategy"] == "acquire") {
+            let address = e["address"].as_str().unwrap_or_default();
+            let Some(m) = env.mats.get(address) else {
+                continue;
+            };
+            for (key, o) in e["acquire"]["created"].as_object().into_iter().flatten() {
+                let root = o["root"].as_str().unwrap_or_default();
+                let rel = o["relative_path"].as_str().unwrap_or_default();
+                let Some(dir) = m.roots.get(root) else {
+                    continue;
+                };
+                claims
+                    .created
+                    .entry(address.to_string())
+                    .or_default()
+                    .insert(
+                        key.clone(),
+                        Output {
+                            origin: "created".into(),
+                            path: format!("{dir}{rel}"),
+                            bytes: String::new(),
+                            root: Some(root.into()),
+                            relative_path: Some(rel.into()),
+                        },
+                    );
+            }
+            for (member, ts) in e["acquire"]["tests"].as_object().into_iter().flatten() {
+                let tests = ts
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|t| {
+                        Some((
+                            t["output"].as_str()?.to_string(),
+                            t["case"].as_str()?.to_string(),
+                        ))
+                    })
+                    .collect();
+                claims.tests.insert(member.clone(), tests);
+            }
+        }
         for attempt in 1..=max {
             let mut failures: Vec<Value> = Vec::new();
             let attempt_base = c.freeze(&format!("spec: {} attempt {attempt} base", self.id))?;
@@ -1298,7 +1341,14 @@ impl TxRunner<'_> {
                 continue;
             };
             let outputs = self.outputs_of(address, records, claims);
-            for def in resolve_checks(env.project, decl) {
+            let acquired = entries
+                .iter()
+                .any(|e| e["address"] == json!(address) && e["strategy"] == "acquire");
+            // Acquisition changes no code and claims no conformance: build checks only.
+            for def in resolve_checks(env.project, decl)
+                .into_iter()
+                .filter(|d| !acquired || d.purpose == "build")
+            {
                 let mut plan_runs: Vec<PlannedRun> = Vec::new();
                 match (def.purpose.as_str(), def.scope.as_str()) {
                     (_, "project") => {
@@ -1485,6 +1535,7 @@ impl TxRunner<'_> {
         let coding: BTreeSet<&str> = entries
             .iter()
             .filter(|e| e["change"] != "none" && e["change"] != "delete")
+            .filter(|e| e["strategy"] != "acquire")
             .filter_map(|e| e["address"].as_str())
             .collect();
         for (address, list) in reqs {
@@ -1655,6 +1706,19 @@ impl TxRunner<'_> {
         records: &BTreeMap<String, StateRecord>,
     ) -> AResult<Outcome> {
         let env = self.env;
+        let acquired: BTreeMap<&str, BTreeSet<String>> = entries
+            .iter()
+            .filter(|e| e["strategy"] == "acquire")
+            .filter_map(|e| {
+                let slots = e["acquire"]["slots"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|s| s.as_str().map(String::from))
+                    .collect();
+                Some((e["address"].as_str()?, slots))
+            })
+            .collect();
         let mut unmet = Vec::new();
         let mut evidence: BTreeMap<String, Vec<Value>> = BTreeMap::new();
         for (address, list) in reqs {
@@ -1671,7 +1735,8 @@ impl TxRunner<'_> {
                     })
                     .unwrap_or_default();
                 let (e, met) = requirement_evidence(&r, runs, verdicts.get(&r.member))?;
-                if !met {
+                // Acquired requirements publish unverified; the next plan obliges them.
+                if !met && !acquired.contains_key(address.as_str()) {
                     unmet.push(format!(
                         "{} ({})",
                         r.member,
@@ -1706,6 +1771,10 @@ impl TxRunner<'_> {
             .collect();
         let publish = Publish {
             only: Some(&only),
+            slots: acquired
+                .iter()
+                .map(|(a, s)| (a.to_string(), s.clone()))
+                .collect(),
             sources,
             created: claims.created.clone(),
             evidence,
@@ -1714,6 +1783,11 @@ impl TxRunner<'_> {
             ),
         };
         publish_records(&store, &c.dir, env.graph, env.docs, env.mats, &publish)?;
+        if !acquired.is_empty() {
+            let mut pending = intlang_plan::pending_imports(&c.dir)?;
+            pending.retain(|a, _| !acquired.contains_key(a.as_str()));
+            intlang_plan::write_pending_imports(&c.dir, &pending)?;
+        }
         let names: Vec<&str> = entries
             .iter()
             .filter_map(|e| e["address"].as_str())

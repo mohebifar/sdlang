@@ -1,0 +1,10 @@
+{
+  "name": "@intlang-local/web",
+  "version": "0.1.0",
+  "private": true,
+  "intlang": {
+    "format": 1,
+    "name": "web",
+    "entry": "./spec/index.int"
+  }
+}

@@ -183,6 +183,54 @@
               "none"
             ]
           },
+          "acquire": {
+            "description": "For strategy acquire: the existing files the create claims (slots and created outputs, nothing else) and the test bindings the import proposed.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "slots",
+              "created",
+              "tests"
+            ],
+            "properties": {
+              "slots": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_]*$"
+                }
+              },
+              "created": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "root",
+                    "relative_path"
+                  ],
+                  "properties": {
+                    "root": {
+                      "type": "string"
+                    },
+                    "relative_path": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "tests": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/test"
+                  }
+                }
+              }
+            }
+          },
           "obligations": {
             "type": "array",
             "items": {
@@ -201,7 +249,7 @@
                 },
                 "because": {
                   "type": "string",
-                  "description": "consumed:<target> | observed:<target> | context:<source> | impact:<address> | check:<id> | stale:<subject>"
+                  "description": "consumed:<target> | observed:<target> | context:<source> | impact:<address> | check:<id> | stale:<subject> | unverified:<requirement>"
                 },
                 "compatibility": {
                   "type": "string"

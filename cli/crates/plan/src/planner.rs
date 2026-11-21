@@ -10,7 +10,7 @@ use intlang_graph::loader::Project;
 use serde_json::{json, Map, Value};
 
 use crate::compat::{classify, Compatibility};
-use crate::error::PResult;
+use crate::error::{PResult, PlanError};
 use crate::materialise::{materialise, Materialisation};
 use crate::state::{
     applied_graph_digest, declarations, file_digest, member_hashes, StateRecord, Store, OBSERVING,
@@ -29,13 +29,113 @@ pub struct PlanInputs<'a> {
     pub acquire: Option<&'a BTreeMap<String, Acquisition>>,
 }
 
-/// What an accepted import claims for one new declaration: existing files only.
+/// What an accepted import claims for one new declaration: existing files only. Its JSON
+/// form is the plan entry's `acquire` object; `.spec/import.json` holds one per address
+/// until the declaration publishes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Acquisition {
     /// Slot keys whose existing files become the baseline.
     pub slots: BTreeSet<String>,
     /// Created outputs: key -> (creation root key, path relative to the root).
     pub created: BTreeMap<String, (String, String)>,
+    /// Proposed test bindings: requirement member -> `(test output member, case)`.
+    pub tests: BTreeMap<String, Vec<(String, String)>>,
+}
+
+impl Acquisition {
+    pub fn to_value(&self) -> Value {
+        let created: Map<String, Value> = self
+            .created
+            .iter()
+            .map(|(k, (root, rel))| (k.clone(), json!({ "root": root, "relative_path": rel })))
+            .collect();
+        let tests: Map<String, Value> = self
+            .tests
+            .iter()
+            .map(|(member, ts)| {
+                let list = ts
+                    .iter()
+                    .map(|(o, c)| json!({ "output": o, "case": c }))
+                    .collect();
+                (member.clone(), Value::Array(list))
+            })
+            .collect();
+        json!({ "slots": self.slots, "created": created, "tests": tests })
+    }
+
+    pub fn from_value(v: &Value) -> Acquisition {
+        let text = |v: &Value| v.as_str().unwrap_or_default().to_string();
+        Acquisition {
+            slots: v["slots"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(text)
+                .collect(),
+            created: v["created"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .map(|(k, o)| (k.clone(), (text(&o["root"]), text(&o["relative_path"]))))
+                .collect(),
+            tests: v["tests"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .map(|(m, ts)| {
+                    let list = ts
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|t| (text(&t["output"]), text(&t["case"])))
+                        .collect();
+                    (m.clone(), list)
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Where accepted imports wait for their acquire transaction.
+pub const PENDING_IMPORTS: &str = ".spec/import.json";
+
+/// The accepted imports not yet published, by address; empty when there are none.
+pub fn pending_imports(root: &Path) -> PResult<BTreeMap<String, Acquisition>> {
+    let path = root.join(PENDING_IMPORTS);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(BTreeMap::new());
+    };
+    let v: Value = serde_json::from_str(&text)
+        .map_err(|e| PlanError::new(format!("{PENDING_IMPORTS}: {e}")))?;
+    if v["schema"] != "intlang.import/1" {
+        return Err(PlanError::new(format!(
+            "{PENDING_IMPORTS}: not an import document (schema intlang.import/1)"
+        )));
+    }
+    Ok(v["acquire"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .map(|(a, v)| (a.clone(), Acquisition::from_value(v)))
+        .collect())
+}
+
+/// Writes the pending imports, removing the file when there are none.
+pub fn write_pending_imports(root: &Path, pending: &BTreeMap<String, Acquisition>) -> PResult<()> {
+    let path = root.join(PENDING_IMPORTS);
+    if pending.is_empty() {
+        let _ = std::fs::remove_file(&path);
+        return Ok(());
+    }
+    let acquire: Map<String, Value> = pending
+        .iter()
+        .map(|(a, q)| (a.clone(), q.to_value()))
+        .collect();
+    let doc = json!({ "schema": "intlang.import/1", "acquire": acquire });
+    let text = serde_json::to_string_pretty(&doc).expect("serialisable") + "\n";
+    std::fs::create_dir_all(path.parent().expect("under .spec"))
+        .and_then(|_| std::fs::write(&path, text))
+        .map_err(|e| PlanError::new(format!("{PENDING_IMPORTS}: {e}")))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -78,6 +178,7 @@ struct Entry {
     obligations: BTreeSet<Obligation>,
     /// Changed declarations whose transaction this update joins.
     joins: BTreeSet<String>,
+    acquire: Option<Acquisition>,
 }
 
 impl Entry {
@@ -92,6 +193,7 @@ impl Entry {
             replace: false,
             obligations: BTreeSet::new(),
             joins: BTreeSet::new(),
+            acquire: None,
         }
     }
 
@@ -231,6 +333,32 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
     let records = store.records()?;
     let decls = declarations(graph);
     let managed: Vec<&str> = mats.keys().map(String::as_str).collect();
+    for (address, a) in inputs.acquire.into_iter().flatten() {
+        let Some(m) = mats.get(address) else {
+            return Err(PlanError::new(format!(
+                "cannot acquire {address}: not a managed declaration"
+            )));
+        };
+        if records.contains_key(address) {
+            return Err(PlanError::new(format!(
+                "cannot acquire {address}: it already has a state record"
+            )));
+        }
+        for slot in &a.slots {
+            if !m.slots.contains_key(slot) {
+                return Err(PlanError::new(format!(
+                    "cannot acquire {address}#outputs.{slot}: no such slot"
+                )));
+            }
+        }
+        for (key, (root, _)) in &a.created {
+            if !m.roots.contains_key(root) || m.slots.contains_key(key) {
+                return Err(PlanError::new(format!(
+                    "cannot acquire {address}#outputs.{key} under root {root}"
+                )));
+            }
+        }
+    }
 
     // Identity: moved statements map old addresses to new ones.
     let mut moved_from: BTreeMap<String, String> = BTreeMap::new();
@@ -314,6 +442,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
                 e.identity = "new";
                 e.change = Change::Create;
                 e.causes.insert("new");
+                e.acquire = inputs.acquire.and_then(|a| a.get(address)).cloned();
             }
             Some(r) => {
                 if let Some(from) = moved_from.get(address) {
@@ -451,6 +580,23 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
             if now_parts.get(source) != r.context_parts.get(source) {
                 e.oblige("review", format!("context:{source}"), "", None);
                 e.oblige("verify", format!("context:{source}"), "", None);
+            }
+        }
+        // Evidence that never met its policy (an acquired declaration's, say). Approval
+        // needs a human, so a plan cannot discharge it.
+        for ev in &r.evidence {
+            let policy = &ev["policy"];
+            if ev["summary"] != "unverified" || policy["approval"] == true {
+                continue;
+            }
+            let member = ev["subject"]["requirement"].as_str().unwrap_or_default();
+            let because = format!("unverified:{member}");
+            let tests = policy["tests"] == true;
+            if tests || policy["checks"].as_array().is_some_and(|c| !c.is_empty()) {
+                e.oblige("verify", because.clone(), "", None);
+            }
+            if tests || policy["review"] == true {
+                e.oblige("review", because, "", None);
             }
         }
         entries.insert(address.to_string(), e);
@@ -755,7 +901,9 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
             Change::None => {}
             Change::Delete => out["strategy"] = json!("none"),
             Change::Create | Change::Update => {
-                let strategy = if e.replace {
+                let strategy = if e.acquire.is_some() {
+                    "acquire"
+                } else if e.replace {
                     "replace"
                 } else if mats
                     .get(address)
@@ -767,12 +915,31 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
                     "agent"
                 };
                 out["strategy"] = json!(strategy);
-                let before = record_of(address)
-                    .map(|r| r.members.clone())
-                    .unwrap_or_default();
-                for (member, hash) in member_hashes(decls[address.as_str()])? {
-                    if before.get(&member) != Some(&hash) {
-                        coverage.insert(format!("{address}#{member}"));
+                if let Some(a) = &e.acquire {
+                    // Acquisition claims existing files: bind their bytes; nothing is
+                    // judged until the next plan's obligations.
+                    let m = &mats[address];
+                    for (root, rel) in a.created.values() {
+                        let path = format!("{}{rel}", m.roots[root]);
+                        if let Some(d) = file_digest(inputs.root, &path)? {
+                            fingerprints.insert(path, d);
+                        }
+                    }
+                    for slot in &a.slots {
+                        let path = &m.slots[slot];
+                        if let Some(d) = file_digest(inputs.root, path)? {
+                            fingerprints.insert(path.clone(), d);
+                        }
+                    }
+                    out["acquire"] = a.to_value();
+                } else {
+                    let before = record_of(address)
+                        .map(|r| r.members.clone())
+                        .unwrap_or_default();
+                    for (member, hash) in member_hashes(decls[address.as_str()])? {
+                        if before.get(&member) != Some(&hash) {
+                            coverage.insert(format!("{address}#{member}"));
+                        }
                     }
                 }
             }
@@ -801,6 +968,11 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
         entries_out.push(out);
     }
 
+    if inputs.acquire.is_some_and(|a| !a.is_empty()) {
+        if let Some(d) = file_digest(inputs.root, PENDING_IMPORTS)? {
+            fingerprints.insert(PENDING_IMPORTS.to_string(), d);
+        }
+    }
     let binding = json!({
         "baseline_commit": inputs.baseline_commit,
         "graph_before": applied_graph_digest(&records)?,

@@ -1,0 +1,17 @@
+import web
+
+export web.page login {
+  route: "/login"
+  summary: "Signs a customer in"
+  expect {
+    shows_form: "the page shows an email and password form"
+  }
+}
+
+export web.page forgot_password {
+  route: "/forgot-password"
+  summary: "Requests a password reset email"
+  expect {
+    sends: "submitting an email requests a reset for it"
+  }
+}

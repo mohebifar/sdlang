@@ -128,7 +128,7 @@ export lib engine {
     publish: "on success, state records for the transaction's declarations are written against the new graph, the applied store is extended, and one commit is made"
     journal: "each published transaction appends a receipt with its input and result commits to .spec/journal/<plan>.jsonl"
     mcp_config: "each coding dispatch gets an MCP client configuration naming spec mcp for it, in SPEC_MCP_CONFIG"
-    acquire: "an acquire entry runs no agent and no review: build checks run, its claimed files' current bytes become its baseline, and its requirements publish unverified"
+    acquire: "an acquire entry runs no agent and no review: build checks run, its claimed files' current bytes become its baseline, its requirements publish unverified with the import's test bindings, and it leaves .spec/import.json"
     infrastructure: "a check that fails for infrastructure reasons is rerun once before the transaction fails, and never costs a coding attempt"
   }
 }

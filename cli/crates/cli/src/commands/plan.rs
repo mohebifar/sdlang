@@ -42,7 +42,7 @@ fn civil(days: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-fn today() -> String {
+pub fn today() -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -50,7 +50,7 @@ fn today() -> String {
     civil(secs.div_euclid(86_400))
 }
 
-fn head_commit(dir: &std::path::Path) -> Option<String> {
+pub fn head_commit(dir: &std::path::Path) -> Option<String> {
     let out = Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -88,13 +88,20 @@ pub fn run(args: Args) -> u8 {
         }
     };
     let id = args.id.unwrap_or_else(|| format!("p-{}-01", today()));
+    let pending = match intlang_plan::pending_imports(&args.dir) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 1;
+        }
+    };
     let plan = match intlang_plan::plan(&intlang_plan::PlanInputs {
         root: &args.dir,
         project: &project,
         graph: &graph,
         plan_id: &id,
         baseline_commit: &baseline,
-        acquire: None,
+        acquire: Some(&pending),
     }) {
         Ok(p) => p,
         Err(e) => {

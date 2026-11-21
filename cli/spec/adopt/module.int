@@ -7,7 +7,9 @@ module {
   summary: "Phase 6b: brownfield adoption with spec import"
   prompt: """
     SPEC.md's Brownfield adoption section is the contract. An import proposes; only
-    --accept writes, and then only new .int files for proposed libs and plan.json. It
+    --accept writes, and then only new .int files for proposed libs and the pending
+    acquisitions in .spec/import.json, which the next spec plan reads. No package code
+    runs: exports, imports and test tags are read from the files. It
     claims nothing it was not pointed at and never creates competing claims: a path two
     declarations could own is a collision, and a proposal with a collision cannot be
     accepted. The proposal's text is meant for a human reviewer, so it says what will be
@@ -49,16 +51,18 @@ export lib proposal {
     grants: "a declaration whose files import a proposed lib's file is listed as needing uses on it"
     unresolved: "a relative import of a project file that nothing owns or claims is an unresolved dependency"
     unclaimed: "a slot of a claimed declaration whose file exists but was not pointed at is reported, and claimed by nothing"
+    tests: "a requirement is bound to a claimed test output's case when the file has a [case:<tag>] tag equal to the requirement's key; a tested requirement with none is reported"
   }
 }
 
 export lib accept {
-  summary: "Accepting a proposal: the new lib files and an acquire plan"
+  summary: "Accepting a proposal: the new lib files and the pending acquisitions"
   exports: ["accept"]
   uses: [proposal, plan.planner]
   expect {
     refuses: "a proposal with a collision is not accepted and nothing is written"
     writes: "each proposed lib is written to spec/<module>/<name>.int; an existing file there is an error"
-    plan: "the plan gives every claimed declaration change create with strategy acquire and lists its claimed slots and created outputs"
+    pending: "every claimed declaration and proposed lib is written to .spec/import.json with its claimed slots, created outputs and test bindings, after checking that they plan"
+    rollback: "when the spec no longer compiles or plans with the new files, they are removed and nothing is written"
   }
 }

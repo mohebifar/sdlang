@@ -17,10 +17,17 @@ fn spec(args: &[&str]) -> (Option<i32>, String) {
 fn help_lists_every_command() {
     let (code, stdout) = spec(&["--help"]);
     assert_eq!(code, Some(0));
-    assert!(
-        stdout.contains("parse  Parse .int files and report syntax errors"),
-        "{stdout}"
-    );
+    for command in [
+        "parse", "hash", "graph", "plan", "apply", "mcp", "check", "import",
+    ] {
+        assert!(
+            stdout
+                .lines()
+                .any(|l| l.trim_start().starts_with(&format!("{command} "))),
+            "{command} missing from {stdout}"
+        );
+    }
+    assert!(stdout.contains("Parse .int files and report syntax errors"));
 }
 
 #[test]

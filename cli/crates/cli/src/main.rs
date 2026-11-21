@@ -14,6 +14,7 @@ mod commands {
     pub mod check;
     pub mod graph;
     pub mod hash;
+    pub mod import;
     pub mod mcp;
     pub mod parse;
     pub mod plan;
@@ -43,6 +44,8 @@ enum Command {
     Mcp(commands::mcp::Args),
     /// Report whether the branch is consistent: spec applied, no drift, sound ownership, current evidence.
     Check(commands::check::Args),
+    /// Propose an ownership mapping for existing files; with --accept, write it for the next plan.
+    Import(commands::import::Args),
 }
 
 fn main() -> ExitCode {
@@ -67,6 +70,7 @@ fn main() -> ExitCode {
         Command::Apply(args) => commands::apply::run(args),
         Command::Mcp(args) => commands::mcp::run(args),
         Command::Check(args) => commands::check::run(args),
+        Command::Import(args) => commands::import::run(args),
     };
     ExitCode::from(code)
 }

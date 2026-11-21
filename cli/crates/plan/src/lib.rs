@@ -11,4 +11,6 @@ pub mod planner;
 pub mod state;
 
 pub use error::PlanError;
-pub use planner::{plan, Acquisition, PlanInputs};
+pub use planner::{
+    pending_imports, plan, write_pending_imports, Acquisition, PlanInputs, PENDING_IMPORTS,
+};

@@ -296,6 +296,8 @@ fn hashed_refs(value: &Value, acc: &mut BTreeSet<String>) {
 pub struct Publish<'a> {
     /// Only these declarations; all managed declarations when `None`.
     pub only: Option<&'a BTreeSet<String>>,
+    /// For an acquired declaration, the only slots it records; others are left empty.
+    pub slots: BTreeMap<String, BTreeSet<String>>,
     /// Created outputs per address, as they stand after the transaction.
     pub created: BTreeMap<String, BTreeMap<String, Output>>,
     /// Evidence records per address.
@@ -344,7 +346,11 @@ pub fn publish_records(
         let d = &docs.declarations[address];
         let hashes = d.hashes()?;
         let mut outputs = BTreeMap::new();
+        let claimed = publish.slots.get(address);
         for (slot, path) in &m.slots {
+            if claimed.is_some_and(|c| !c.contains(slot)) {
+                continue;
+            }
             if let Some(bytes) = file_digest(project_root, path)? {
                 outputs.insert(
                     slot.clone(),

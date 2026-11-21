@@ -1,0 +1,35 @@
+// A web-like package for import's tests: pages laid out by route, and libs.
+
+export kind page {
+  fields {
+    route: route_path @interface
+  }
+  outputs {
+    page: "src/app/${route}/page.tsx"
+    tests: "tests/app/${route}/page.test.ts"
+  }
+  creates {
+    parts: "src/app/${route}/_parts/"
+  }
+  checks: [build, test]
+}
+
+export implements lib {
+  outputs {
+    main: "src/lib/${meta.module}/${meta.name}.ts"
+    tests: "tests/lib/${meta.module}/${meta.name}.test.ts"
+  }
+  checks: [build, test]
+}
+
+export check build {
+  purpose: "build"
+  scope: "project"
+  run: ["sh", "./checks/build.sh"]
+}
+
+export check test {
+  purpose: "test"
+  scope: "declaration"
+  run: ["python3", "./checks/test.py"]
+}

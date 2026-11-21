@@ -124,7 +124,7 @@ export rust.command import_command {
   uses: [adopt.proposal, adopt.accept]
   expect {
     proposes: "spec import <paths> prints the proposal and exits 0 without writing anything"
-    accept: "--accept writes the proposed lib files and plan.json, and says how to apply it"
+    accept: "--accept writes the proposed lib files and .spec/import.json, and says to commit them, then plan and apply"
     collision: "a proposal with a collision exits 1 under --accept"
   }
 }

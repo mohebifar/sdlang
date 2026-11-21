@@ -196,6 +196,7 @@ dependencies = [
  "intlang-canon",
  "intlang-graph",
  "intlang-plan",
+ "intlang-syntax",
  "serde",
  "serde_json",
  "walkdir",
@@ -228,6 +229,7 @@ name = "intlang-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "intlang-adopt",
  "intlang-apply",
  "intlang-canon",
  "intlang-gate",
