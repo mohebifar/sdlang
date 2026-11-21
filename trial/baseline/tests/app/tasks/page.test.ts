@@ -35,6 +35,9 @@ function render(node: unknown): { text: string; nodes: Visited[] } {
 
 const open = { id: "a", title: "Buy milk", done: false, created_at: "2026-02-03T09:00:00.000Z" };
 const done = { id: "b", title: "Post letter", done: true, created_at: "2026-02-04T09:00:00.000Z" };
+// list_tasks' items as this page reads them; a field the action adds later does not
+// break the test.
+const tasks = (...items: object[]) => items as Awaited<ReturnType<typeof listTasks>>;
 
 beforeEach(() => {
   vi.mocked(listTasks).mockReset();
@@ -43,7 +46,7 @@ beforeEach(() => {
 });
 
 it("[case:listed] every task is listed with its title and created date", async () => {
-  vi.mocked(listTasks).mockResolvedValue([open, done]);
+  vi.mocked(listTasks).mockResolvedValue(tasks(open, done));
   const { nodes } = render(await TasksPage());
   const rows = nodes.filter((n) => n.tag === "li").map((n) => n.text);
   expect(rows).toHaveLength(2);
@@ -54,7 +57,7 @@ it("[case:listed] every task is listed with its title and created date", async (
 });
 
 it("[case:complete] Complete marks the task done and moves it below the open tasks", async () => {
-  vi.mocked(listTasks).mockResolvedValue([open, done]);
+  vi.mocked(listTasks).mockResolvedValue(tasks(open, done));
   const { nodes } = render(await TasksPage());
   const rows = nodes.filter((n) => n.tag === "li");
   // Open tasks come first, each with a Complete button; done ones have none.
@@ -69,7 +72,7 @@ it("[case:complete] Complete marks the task done and moves it below the open tas
 });
 
 it("[case:empty] with no tasks, the page says 'No tasks yet' and links to the new task page", async () => {
-  vi.mocked(listTasks).mockResolvedValue([]);
+  vi.mocked(listTasks).mockResolvedValue(tasks());
   const { text, nodes } = render(await TasksPage());
   expect(text).toContain("No tasks yet");
   expect(nodes.filter((n) => n.tag === "li")).toHaveLength(0);
@@ -78,7 +81,7 @@ it("[case:empty] with no tasks, the page says 'No tasks yet' and links to the ne
 });
 
 it("[case:footer] the footer links to the about page", async () => {
-  vi.mocked(listTasks).mockResolvedValue([open]);
+  vi.mocked(listTasks).mockResolvedValue(tasks(open));
   const { nodes } = render(await TasksPage());
   expect(nodes.some((n) => n.tag === "a" && n.props.href === "/about" && n.inside.includes("footer"))).toBe(true);
 });

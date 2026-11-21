@@ -1,0 +1,112 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:58:57 -0800
+Subject: [PATCH 05/10] E5
+
+---
+ src/server/tasks/list_tasks.ts           | 11 +++++++++--
+ src/server/tasks/set_task_done.ts        | 10 ++++++----
+ tests/server/tasks/list_tasks.test.ts    |  7 +++++++
+ tests/server/tasks/set_task_done.test.ts | 11 +++++++++--
+ 4 files changed, 31 insertions(+), 8 deletions(-)
+
+diff --git a/src/server/tasks/list_tasks.ts b/src/server/tasks/list_tasks.ts
+index 67945ce..27588ab 100644
+--- a/src/server/tasks/list_tasks.ts
++++ b/src/server/tasks/list_tasks.ts
+@@ -2,11 +2,17 @@ import { all } from "../../lib/tasks/store";
+ 
+ export type TaskStatus = "open" | "done";
+ export type Input = { status?: TaskStatus };
+-export type Task = { id: string; title: string; done: boolean; created_at: string };
++export type Task = {
++  id: string;
++  title: string;
++  done: boolean;
++  created_at: string;
++  done_at: string | null;
++};
+ 
+ /** Lists all tasks, open ones first, each group newest first; with a status, only those. */
+ export default async function listTasks(input: Input = {}): Promise<Task[]> {
+-  const tasks = all<Task>().filter(
++  const tasks = all<Omit<Task, "done_at"> & { done_at?: string | null }>().filter(
+     (t) => input.status === undefined || (input.status === "done") === t.done,
+   );
+   return [...tasks.filter((t) => !t.done), ...tasks.filter((t) => t.done)].map((t) => ({
+@@ -14,5 +20,6 @@ export default async function listTasks(input: Input = {}): Promise<Task[]> {
+     title: t.title,
+     done: t.done,
+     created_at: t.created_at,
++    done_at: t.done ? (t.done_at ?? null) : null,
+   }));
+ }
+diff --git a/src/server/tasks/set_task_done.ts b/src/server/tasks/set_task_done.ts
+index 26fc9ca..f0e1904 100644
+--- a/src/server/tasks/set_task_done.ts
++++ b/src/server/tasks/set_task_done.ts
+@@ -1,9 +1,9 @@
+ import { find, save } from "../../lib/tasks/store";
+ 
+ export type Input = { id: string; done: boolean };
+-export type Output = { id: string; done: boolean };
++export type Output = { id: string; done: boolean; done_at: string | null };
+ 
+-type Task = { id: string; title: string; done: boolean; created_at: string };
++type Task = { id: string; title: string; done: boolean; created_at: string; done_at?: string | null };
+ 
+ /** A declared error: rejects with an Error whose code is the error's key. */
+ function notFound(): Error {
+@@ -16,6 +16,8 @@ export default async function setTaskDone(input: Input): Promise<Output> {
+   if (!task) {
+     throw notFound();
+   }
+-  save({ ...task, done: input.done });
+-  return { id: task.id, done: input.done };
++  // done_at is when the task was marked done; null while it is open.
++  const done_at = input.done ? (task.done && task.done_at ? task.done_at : new Date().toISOString()) : null;
++  save({ ...task, done: input.done, done_at });
++  return { id: task.id, done: input.done, done_at };
+ }
+diff --git a/tests/server/tasks/list_tasks.test.ts b/tests/server/tasks/list_tasks.test.ts
+index eda0201..c059d3f 100644
+--- a/tests/server/tasks/list_tasks.test.ts
++++ b/tests/server/tasks/list_tasks.test.ts
+@@ -28,3 +28,10 @@ it("[case:filter] with a status, only tasks with that status are returned; witho
+   expect((await listTasks({ status: "done" })).map((t) => t.id)).toEqual(["done-1"]);
+   expect((await listTasks({})).map((t) => t.id)).toEqual(["open-1", "done-1"]);
+ });
++
++it("[case:done_at] done_at is set when a task is marked done and null when it is open", async () => {
++  insert({ ...task("open-1", 1, false) });
++  insert({ ...task("done-1", 2, true), done_at: "2026-01-05T10:00:00.000Z" });
++  const byId = Object.fromEntries((await listTasks({})).map((t) => [t.id, t.done_at]));
++  expect(byId).toEqual({ "open-1": null, "done-1": "2026-01-05T10:00:00.000Z" });
++});
+diff --git a/tests/server/tasks/set_task_done.test.ts b/tests/server/tasks/set_task_done.test.ts
+index 6b04c54..68c3661 100644
+--- a/tests/server/tasks/set_task_done.test.ts
++++ b/tests/server/tasks/set_task_done.test.ts
+@@ -9,9 +9,9 @@ const done = (id: string) => find<{ id: string; created_at: string; done: boolea
+ 
+ it("[case:toggles] set_task_done with done false makes a done task open again", async () => {
+   insert({ id: "t1", title: "Buy milk", done: false, created_at: "2026-01-01T10:00:00.000Z" });
+-  expect(await setTaskDone({ id: "t1", done: true })).toEqual({ id: "t1", done: true });
++  expect(await setTaskDone({ id: "t1", done: true })).toMatchObject({ id: "t1", done: true });
+   expect(done("t1")).toBe(true);
+-  expect(await setTaskDone({ id: "t1", done: false })).toEqual({ id: "t1", done: false });
++  expect(await setTaskDone({ id: "t1", done: false })).toMatchObject({ id: "t1", done: false });
+   expect(done("t1")).toBe(false);
+ });
+ 
+@@ -21,3 +21,10 @@ it("[case:not_found] set_task_done fails with not_found exactly when no task has
+     message: "No task has that id",
+   });
+ });
++
++it("[case:done_at] done_at is set when a task is marked done and null when it is open", async () => {
++  insert({ id: "t1", title: "Buy milk", done: false, created_at: "2026-01-01T10:00:00.000Z" });
++  const done = await setTaskDone({ id: "t1", done: true });
++  expect(Number.isNaN(Date.parse(done.done_at ?? ""))).toBe(false);
++  expect((await setTaskDone({ id: "t1", done: false })).done_at).toBeNull();
++});

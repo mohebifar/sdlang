@@ -11,6 +11,7 @@ says where each piece is and how the operator uses it.
 | `acceptance/` | The acceptance tests: Playwright UI tests (`ui/`), Vitest contract tests (`contract/`), the table of when each test is active (`tests.json`, with the route map), the runner (`run.mjs`) and the E8 hand patch (`patches/e8.mjs`). Never copied into an arm. |
 | `profile/Dockerfile` | Profile `trial-v1`: `node:22` pinned by digest, pnpm 10.34.9 and the Chromium that Playwright 1.65.1 drives. |
 | `tools/make-arm.sh` | Makes one arm's workspace for one run. |
+| `reference/` | One implementation of the ten edits, as patches, used to calibrate the acceptance tests. Operator only; never shown to an agent. |
 
 Pinned toolchain, from `baseline/pnpm-lock.yaml`: Next.js 15.5.29, React 19.1.10,
 TypeScript 5.9.3, Vitest 3.2.7; Node.js 22 and pnpm 10.34.9 from the profile.
@@ -55,7 +56,9 @@ discharges the `verify` and `review` obligations that acquisition leaves; afterw
 `spec` must be a Linux build when it runs inside the profile.
 
 After each edit, run the acceptance tests active at that edit against the arm's tree,
-from a copy of `acceptance/` with its own dependencies installed:
+from a copy of `acceptance/` with its own dependencies installed. The runner builds the arm
+in place and removes the build's output afterwards, so the agent never sees a stale
+`.next/`:
 
 ```bash
 node run.mjs /runs/language-1 E3 --out /runs/language-1-E3.json
@@ -76,8 +79,10 @@ and run E8 onwards with `PATCHED_ABOUT` set to that copy.
 - The baseline acceptance tests B1 to B7 pass against the baseline, on the host and in the
   profile.
 - Every edit's acceptance tests fail against the unchanged baseline, except A2.2 and A9.2,
-  which guard behaviour the baseline already has. No arm's output exists yet, so the edit
-  tests have not been run against a correct implementation of any edit.
+  which guard behaviour the baseline already has.
+- Against the reference edits (`reference/`), every test active at each step passes, from
+  7 of 7 at the baseline to 22 of 22 at E10. That shows each test can pass on a correct
+  edit, not that every incorrect edit fails it.
 - The language arm's setup runs end to end with the real adapter: import, acquisition,
   then the obligations discharged by a scripted reviewer, then `spec check` reports
   `consistent`. The trial's own setup uses the pinned model as reviewer instead.

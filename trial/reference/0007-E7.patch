@@ -1,0 +1,131 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:59:46 -0800
+Subject: [PATCH 07/10] E7
+
+---
+ src/app/about/page.tsx                         | 2 +-
+ src/app/tasks/new/page.tsx                     | 2 +-
+ src/app/{tasks => todo}/_parts/done_toggle.tsx | 0
+ src/app/{tasks => todo}/_parts/task_row.tsx    | 0
+ src/app/{tasks => todo}/page.tsx               | 4 ++--
+ tests/app/about/page.test.ts                   | 2 +-
+ tests/app/tasks/new/page.test.ts               | 2 +-
+ tests/app/{tasks => todo}/page.test.ts         | 6 +++---
+ 8 files changed, 9 insertions(+), 9 deletions(-)
+ rename src/app/{tasks => todo}/_parts/done_toggle.tsx (100%)
+ rename src/app/{tasks => todo}/_parts/task_row.tsx (100%)
+ rename src/app/{tasks => todo}/page.tsx (96%)
+ rename tests/app/{tasks => todo}/page.test.ts (97%)
+
+diff --git a/src/app/about/page.tsx b/src/app/about/page.tsx
+index 86fbe51..5fe4f6c 100644
+--- a/src/app/about/page.tsx
++++ b/src/app/about/page.tsx
+@@ -7,7 +7,7 @@ export default function AboutPage() {
+       <p>This is a small task tracker: add tasks, see them listed, and complete them.</p>
+       <p>
+         It keeps tasks in memory, so they are gone after a restart.{" "}
+-        <Link href="/tasks">Back to the tasks</Link>
++        <Link href="/todo">Back to the tasks</Link>
+       </p>
+     </main>
+   );
+diff --git a/src/app/tasks/new/page.tsx b/src/app/tasks/new/page.tsx
+index 0a15b99..8546b2d 100644
+--- a/src/app/tasks/new/page.tsx
++++ b/src/app/tasks/new/page.tsx
+@@ -12,7 +12,7 @@ export default async function NewTaskPage() {
+   async function add(formData: FormData) {
+     "use server";
+     await createTask({ title: String(formData.get("title") ?? "") });
+-    redirect("/tasks");
++    redirect("/todo");
+   }
+ 
+   return (
+diff --git a/src/app/tasks/_parts/done_toggle.tsx b/src/app/todo/_parts/done_toggle.tsx
+similarity index 100%
+rename from src/app/tasks/_parts/done_toggle.tsx
+rename to src/app/todo/_parts/done_toggle.tsx
+diff --git a/src/app/tasks/_parts/task_row.tsx b/src/app/todo/_parts/task_row.tsx
+similarity index 100%
+rename from src/app/tasks/_parts/task_row.tsx
+rename to src/app/todo/_parts/task_row.tsx
+diff --git a/src/app/tasks/page.tsx b/src/app/todo/page.tsx
+similarity index 96%
+rename from src/app/tasks/page.tsx
+rename to src/app/todo/page.tsx
+index 0b644f6..afcf0af 100644
+--- a/src/app/tasks/page.tsx
++++ b/src/app/todo/page.tsx
+@@ -14,13 +14,13 @@ export default async function TasksPage() {
+   async function toggle(formData: FormData) {
+     "use server";
+     await setTaskDone({ id: String(formData.get("id")), done: formData.get("done") === "true" });
+-    redirect("/tasks");
++    redirect("/todo");
+   }
+ 
+   async function remove(formData: FormData) {
+     "use server";
+     await deleteTask({ id: String(formData.get("id")) });
+-    redirect("/tasks");
++    redirect("/todo");
+   }
+ 
+   return (
+diff --git a/tests/app/about/page.test.ts b/tests/app/about/page.test.ts
+index f238419..2b24c16 100644
+--- a/tests/app/about/page.test.ts
++++ b/tests/app/about/page.test.ts
+@@ -29,5 +29,5 @@ function render(node: unknown): { text: string; nodes: Visited[] } {
+ it("[case:explains] the page has the heading 'About' and links to the task list", () => {
+   const { nodes } = render(AboutPage());
+   expect(nodes.filter((n) => n.tag === "h1").map((n) => n.text)).toEqual(["About"]);
+-  expect(nodes.some((n) => n.tag === "a" && n.props.href === "/tasks")).toBe(true);
++  expect(nodes.some((n) => n.tag === "a" && n.props.href === "/todo")).toBe(true);
+ });
+diff --git a/tests/app/tasks/new/page.test.ts b/tests/app/tasks/new/page.test.ts
+index 8ddbee8..f9a4651 100644
+--- a/tests/app/tasks/new/page.test.ts
++++ b/tests/app/tasks/new/page.test.ts
+@@ -56,7 +56,7 @@ it("[case:adds] submitting a title adds the task and shows the list with it", as
+   data.set("title", "Buy milk");
+   await (form?.props.action as (d: FormData) => Promise<void>)(data);
+   expect(createTask).toHaveBeenCalledWith({ title: "Buy milk" });
+-  expect(redirect).toHaveBeenCalledWith("/tasks");
++  expect(redirect).toHaveBeenCalledWith("/todo");
+ });
+ 
+ it("[case:required] the Add button is disabled while the title is empty", async () => {
+diff --git a/tests/app/tasks/page.test.ts b/tests/app/todo/page.test.ts
+similarity index 97%
+rename from tests/app/tasks/page.test.ts
+rename to tests/app/todo/page.test.ts
+index 08a39d7..079e9f6 100644
+--- a/tests/app/tasks/page.test.ts
++++ b/tests/app/todo/page.test.ts
+@@ -1,5 +1,5 @@
+ import Link from "next/link";
+-import TasksPage from "../../../src/app/tasks/page";
++import TasksPage from "../../../src/app/todo/page";
+ import listTasks from "../../../src/server/tasks/list_tasks";
+ import setTaskDone from "../../../src/server/tasks/set_task_done";
+ import deleteTask from "../../../src/server/tasks/delete_task";
+@@ -76,7 +76,7 @@ it("[case:toggle] the checkbox toggles a task between open and done, moving it b
+   expect(setTaskDone).toHaveBeenCalledWith({ id: "a", done: true });
+   await submit("b", "false");
+   expect(setTaskDone).toHaveBeenCalledWith({ id: "b", done: false });
+-  expect(redirect).toHaveBeenCalledWith("/tasks");
++  expect(redirect).toHaveBeenCalledWith("/todo");
+ });
+ 
+ it("[case:empty] with no tasks, the page says 'No tasks yet' and links to the new task page", async () => {
+@@ -104,5 +104,5 @@ it("[case:delete] each row has a Delete button that removes the task from the li
+   data.set("id", "b");
+   await (form?.props.action as (d: FormData) => Promise<void>)(data);
+   expect(deleteTask).toHaveBeenCalledWith({ id: "b" });
+-  expect(redirect).toHaveBeenCalledWith("/tasks");
++  expect(redirect).toHaveBeenCalledWith("/todo");
+ });

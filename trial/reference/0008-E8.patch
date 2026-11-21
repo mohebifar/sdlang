@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 12:00:34 -0800
+Subject: [PATCH 08/10] E8
+
+---
+ src/app/about/page.tsx       | 3 ++-
+ tests/app/about/page.test.ts | 9 +++++++--
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/app/about/page.tsx b/src/app/about/page.tsx
+index 5fe4f6c..2cf13ee 100644
+--- a/src/app/about/page.tsx
++++ b/src/app/about/page.tsx
+@@ -3,7 +3,8 @@ import Link from "next/link";
+ export default function AboutPage() {
+   return (
+     <main>
+-      <h1>About</h1>
++      <h1>About this app</h1>
++      <p>Built for the int lang trial.</p>
+       <p>This is a small task tracker: add tasks, see them listed, and complete them.</p>
+       <p>
+         It keeps tasks in memory, so they are gone after a restart.{" "}
+diff --git a/tests/app/about/page.test.ts b/tests/app/about/page.test.ts
+index 2b24c16..9fe37dd 100644
+--- a/tests/app/about/page.test.ts
++++ b/tests/app/about/page.test.ts
+@@ -26,8 +26,13 @@ function render(node: unknown): { text: string; nodes: Visited[] } {
+   return { text: walk(node, []), nodes };
+ }
+ 
+-it("[case:explains] the page has the heading 'About' and links to the task list", () => {
++it("[case:explains] the page has the heading 'About this app' and links to the task list", () => {
+   const { nodes } = render(AboutPage());
+-  expect(nodes.filter((n) => n.tag === "h1").map((n) => n.text)).toEqual(["About"]);
++  expect(nodes.filter((n) => n.tag === "h1").map((n) => n.text)).toEqual(["About this app"]);
+   expect(nodes.some((n) => n.tag === "a" && n.props.href === "/todo")).toBe(true);
+ });
++
++it("[case:trial_note] the page says 'Built for the int lang trial.'", () => {
++  const { nodes } = render(AboutPage());
++  expect(nodes.some((n) => n.tag === "p" && n.text === "Built for the int lang trial.")).toBe(true);
++});

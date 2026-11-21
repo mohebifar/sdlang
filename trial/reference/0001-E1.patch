@@ -1,0 +1,205 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:58:51 -0800
+Subject: [PATCH 01/10] E1
+
+---
+ src/app/tasks/_parts/task_row.tsx      |  8 +++++++-
+ src/app/tasks/page.tsx                 |  9 ++++++++-
+ src/lib/tasks/store.ts                 |  5 +++++
+ src/server/tasks/delete_task.ts        | 11 +++++++++++
+ tests/app/tasks/page.test.ts           | 18 +++++++++++++++++-
+ tests/lib/tasks/store.test.ts          | 10 +++++++++-
+ tests/server/tasks/delete_task.test.ts | 13 +++++++++++++
+ 7 files changed, 70 insertions(+), 4 deletions(-)
+ create mode 100644 src/server/tasks/delete_task.ts
+ create mode 100644 tests/server/tasks/delete_task.test.ts
+
+diff --git a/src/app/tasks/_parts/task_row.tsx b/src/app/tasks/_parts/task_row.tsx
+index 6e1e3a4..b467342 100644
+--- a/src/app/tasks/_parts/task_row.tsx
++++ b/src/app/tasks/_parts/task_row.tsx
+@@ -2,13 +2,15 @@ import { formatDate } from "../../../lib/tasks/dates";
+ 
+ export type RowTask = { id: string; title: string; done: boolean; created_at: string };
+ 
+-/** One task: its title, its created date and, while open, a Complete button. */
++/** One task: its title, its created date, a Complete button while open, and Delete. */
+ export default function TaskRow({
+   task,
+   complete,
++  remove,
+ }: {
+   task: RowTask;
+   complete: (formData: FormData) => Promise<void>;
++  remove: (formData: FormData) => Promise<void>;
+ }) {
+   return (
+     <li>
+@@ -21,6 +23,10 @@ export default function TaskRow({
+           <button type="submit">Complete</button>
+         </form>
+       )}
++      <form action={remove}>
++        <input type="hidden" name="id" value={task.id} />
++        <button type="submit">Delete</button>
++      </form>
+     </li>
+   );
+ }
+diff --git a/src/app/tasks/page.tsx b/src/app/tasks/page.tsx
+index 19fac5e..ff814ea 100644
+--- a/src/app/tasks/page.tsx
++++ b/src/app/tasks/page.tsx
+@@ -2,6 +2,7 @@ import Link from "next/link";
+ import { redirect } from "next/navigation";
+ import listTasks from "../../server/tasks/list_tasks";
+ import completeTask from "../../server/tasks/complete_task";
++import deleteTask from "../../server/tasks/delete_task";
+ import TaskRow from "./_parts/task_row";
+ 
+ // The list reads the in-memory store, so it renders on every request.
+@@ -16,6 +17,12 @@ export default async function TasksPage() {
+     redirect("/tasks");
+   }
+ 
++  async function remove(formData: FormData) {
++    "use server";
++    await deleteTask({ id: String(formData.get("id")) });
++    redirect("/tasks");
++  }
++
+   return (
+     <main>
+       <h1>Tasks</h1>
+@@ -29,7 +36,7 @@ export default async function TasksPage() {
+       ) : (
+         <ul>
+           {tasks.map((task) => (
+-            <TaskRow key={task.id} task={task} complete={complete} />
++            <TaskRow key={task.id} task={task} complete={complete} remove={remove} />
+           ))}
+         </ul>
+       )}
+diff --git a/src/lib/tasks/store.ts b/src/lib/tasks/store.ts
+index e973e26..07d9596 100644
+--- a/src/lib/tasks/store.ts
++++ b/src/lib/tasks/store.ts
+@@ -49,3 +49,8 @@ export function save<T extends StoredRecord>(record: T): T {
+   }
+   return { ...record };
+ }
++
++/** Removes the record with this id; afterwards find returns null and all omits it. */
++export function remove(id: string): boolean {
++  return state().records.delete(id);
++}
+diff --git a/src/server/tasks/delete_task.ts b/src/server/tasks/delete_task.ts
+new file mode 100644
+index 0000000..4c8f50d
+--- /dev/null
++++ b/src/server/tasks/delete_task.ts
+@@ -0,0 +1,11 @@
++import { find, remove } from "../../lib/tasks/store";
++
++export type Input = { id: string };
++
++/** Deletes a task. */
++export default async function deleteTask(input: Input): Promise<void> {
++  if (!find(input.id)) {
++    throw Object.assign(new Error("No task has that id"), { code: "not_found" });
++  }
++  remove(input.id);
++}
+diff --git a/tests/app/tasks/page.test.ts b/tests/app/tasks/page.test.ts
+index c24a149..fcd0557 100644
+--- a/tests/app/tasks/page.test.ts
++++ b/tests/app/tasks/page.test.ts
+@@ -2,10 +2,12 @@ import Link from "next/link";
+ import TasksPage from "../../../src/app/tasks/page";
+ import listTasks from "../../../src/server/tasks/list_tasks";
+ import completeTask from "../../../src/server/tasks/complete_task";
++import deleteTask from "../../../src/server/tasks/delete_task";
+ import { redirect } from "next/navigation";
+ 
+ vi.mock("../../../src/server/tasks/list_tasks", () => ({ default: vi.fn() }));
+ vi.mock("../../../src/server/tasks/complete_task", () => ({ default: vi.fn() }));
++vi.mock("../../../src/server/tasks/delete_task", () => ({ default: vi.fn() }));
+ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+ 
+ // Renders a server component tree without a DOM: function components are called, host
+@@ -42,6 +44,7 @@ const tasks = (...items: object[]) => items as Awaited<ReturnType<typeof listTas
+ beforeEach(() => {
+   vi.mocked(listTasks).mockReset();
+   vi.mocked(completeTask).mockReset();
++  vi.mocked(deleteTask).mockReset();
+   vi.mocked(redirect).mockReset();
+ });
+ 
+@@ -62,7 +65,7 @@ it("[case:complete] Complete marks the task done and moves it below the open tas
+   const rows = nodes.filter((n) => n.tag === "li");
+   // Open tasks come first, each with a Complete button; done ones have none.
+   expect(rows.map((r) => r.text.includes("Complete"))).toEqual([true, false]);
+-  const form = nodes.find((n) => n.tag === "form");
++  const form = nodes.find((n) => n.tag === "form" && n.text.includes("Complete"));
+   const data = new FormData();
+   data.set("id", "a");
+   await (form?.props.action as (d: FormData) => Promise<void>)(data);
+@@ -85,3 +88,16 @@ it("[case:footer] the footer links to the about page", async () => {
+   const { nodes } = render(await TasksPage());
+   expect(nodes.some((n) => n.tag === "a" && n.props.href === "/about" && n.inside.includes("footer"))).toBe(true);
+ });
++
++it("[case:delete] each row has a Delete button that removes the task from the list", async () => {
++  vi.mocked(listTasks).mockResolvedValue(tasks(open, done));
++  const { nodes } = render(await TasksPage());
++  const rows = nodes.filter((n) => n.tag === "li");
++  expect(rows.every((r) => r.text.includes("Delete"))).toBe(true);
++  const form = nodes.find((n) => n.tag === "form" && n.text.includes("Delete"));
++  const data = new FormData();
++  data.set("id", "b");
++  await (form?.props.action as (d: FormData) => Promise<void>)(data);
++  expect(deleteTask).toHaveBeenCalledWith({ id: "b" });
++  expect(redirect).toHaveBeenCalledWith("/tasks");
++});
+diff --git a/tests/lib/tasks/store.test.ts b/tests/lib/tasks/store.test.ts
+index 74674b8..511d045 100644
+--- a/tests/lib/tasks/store.test.ts
++++ b/tests/lib/tasks/store.test.ts
+@@ -1,4 +1,4 @@
+-import { all, find, insert, save } from "../../../src/lib/tasks/store";
++import { all, find, insert, remove, save } from "../../../src/lib/tasks/store";
+ 
+ beforeEach(() => {
+   delete (globalThis as { __tasksStore?: unknown }).__tasksStore;
+@@ -18,3 +18,11 @@ it("[case:unknown_id] find returns null for an unknown id", () => {
+   expect(find("missing")).toBeNull();
+   expect(find("a")).toEqual({ id: "a", created_at: "2026-01-01T10:00:00.000Z" });
+ });
++
++it("[case:removes] after remove, find returns null and all omits the record", () => {
++  insert({ id: "a", created_at: "2026-01-01T10:00:00.000Z" });
++  insert({ id: "b", created_at: "2026-01-02T10:00:00.000Z" });
++  remove("a");
++  expect(find("a")).toBeNull();
++  expect(all().map((r) => r.id)).toEqual(["b"]);
++});
+diff --git a/tests/server/tasks/delete_task.test.ts b/tests/server/tasks/delete_task.test.ts
+new file mode 100644
+index 0000000..ab22649
+--- /dev/null
++++ b/tests/server/tasks/delete_task.test.ts
+@@ -0,0 +1,13 @@
++import deleteTask from "../../../src/server/tasks/delete_task";
++import { find, insert } from "../../../src/lib/tasks/store";
++
++beforeEach(() => {
++  delete (globalThis as { __tasksStore?: unknown }).__tasksStore;
++});
++
++it("[case:not_found] delete_task fails with not_found exactly when no task has that id", async () => {
++  await expect(deleteTask({ id: "missing" })).rejects.toMatchObject({ code: "not_found" });
++  insert({ id: "t1", created_at: "2026-01-01T10:00:00.000Z" });
++  await deleteTask({ id: "t1" });
++  expect(find("t1")).toBeNull();
++});

@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:58:53 -0800
+Subject: [PATCH 02/10] E2
+
+---
+ src/server/tasks/list_tasks.ts        | 11 +++++++----
+ tests/server/tasks/list_tasks.test.ts |  8 ++++++++
+ 2 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/src/server/tasks/list_tasks.ts b/src/server/tasks/list_tasks.ts
+index 7ca4012..67945ce 100644
+--- a/src/server/tasks/list_tasks.ts
++++ b/src/server/tasks/list_tasks.ts
+@@ -1,11 +1,14 @@
+ import { all } from "../../lib/tasks/store";
+ 
+-export type Input = Record<string, never>;
++export type TaskStatus = "open" | "done";
++export type Input = { status?: TaskStatus };
+ export type Task = { id: string; title: string; done: boolean; created_at: string };
+ 
+-/** Lists all tasks, open ones first, each group newest first. */
+-export default async function listTasks(_input: Input = {}): Promise<Task[]> {
+-  const tasks = all<Task>();
++/** Lists all tasks, open ones first, each group newest first; with a status, only those. */
++export default async function listTasks(input: Input = {}): Promise<Task[]> {
++  const tasks = all<Task>().filter(
++    (t) => input.status === undefined || (input.status === "done") === t.done,
++  );
+   return [...tasks.filter((t) => !t.done), ...tasks.filter((t) => t.done)].map((t) => ({
+     id: t.id,
+     title: t.title,
+diff --git a/tests/server/tasks/list_tasks.test.ts b/tests/server/tasks/list_tasks.test.ts
+index dddf852..eda0201 100644
+--- a/tests/server/tasks/list_tasks.test.ts
++++ b/tests/server/tasks/list_tasks.test.ts
+@@ -20,3 +20,11 @@ it("[case:order] open tasks come before done ones; within each group, newest fir
+   const ids = (await listTasks({})).map((t) => t.id);
+   expect(ids).toEqual(["open-new", "open-old", "done-new", "done-old"]);
+ });
++
++it("[case:filter] with a status, only tasks with that status are returned; without one, all", async () => {
++  insert(task("open-1", 1, false));
++  insert(task("done-1", 2, true));
++  expect((await listTasks({ status: "open" })).map((t) => t.id)).toEqual(["open-1"]);
++  expect((await listTasks({ status: "done" })).map((t) => t.id)).toEqual(["done-1"]);
++  expect((await listTasks({})).map((t) => t.id)).toEqual(["open-1", "done-1"]);
++});

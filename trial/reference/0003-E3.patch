@@ -1,0 +1,273 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:58:54 -0800
+Subject: [PATCH 03/10] E3
+
+---
+ src/app/tasks/_parts/done_toggle.tsx          | 28 +++++++++++++++++
+ src/app/tasks/_parts/task_row.tsx             | 16 +++-------
+ src/app/tasks/page.tsx                        |  8 ++---
+ .../{complete_task.ts => set_task_done.ts}    | 10 +++---
+ tests/app/tasks/page.test.ts                  | 31 +++++++++++--------
+ tests/server/tasks/complete_task.test.ts      | 19 ------------
+ tests/server/tasks/set_task_done.test.ts      | 23 ++++++++++++++
+ 7 files changed, 83 insertions(+), 52 deletions(-)
+ create mode 100644 src/app/tasks/_parts/done_toggle.tsx
+ rename src/server/tasks/{complete_task.ts => set_task_done.ts} (65%)
+ delete mode 100644 tests/server/tasks/complete_task.test.ts
+ create mode 100644 tests/server/tasks/set_task_done.test.ts
+
+diff --git a/src/app/tasks/_parts/done_toggle.tsx b/src/app/tasks/_parts/done_toggle.tsx
+new file mode 100644
+index 0000000..10ccb56
+--- /dev/null
++++ b/src/app/tasks/_parts/done_toggle.tsx
+@@ -0,0 +1,28 @@
++"use client";
++
++/** A checkbox that submits the task's new done state as soon as it changes. */
++export default function DoneToggle({
++  id,
++  title,
++  done,
++  toggle,
++}: {
++  id: string;
++  title: string;
++  done: boolean;
++  toggle: (formData: FormData) => Promise<void>;
++}) {
++  return (
++    <form action={toggle}>
++      <input type="hidden" name="id" value={id} />
++      <input type="hidden" name="done" value={done ? "false" : "true"} />
++      <input
++        key={String(done)}
++        type="checkbox"
++        aria-label={`Done: ${title}`}
++        defaultChecked={done}
++        onChange={(e) => e.currentTarget.form?.requestSubmit()}
++      />
++    </form>
++  );
++}
+diff --git a/src/app/tasks/_parts/task_row.tsx b/src/app/tasks/_parts/task_row.tsx
+index b467342..92b825b 100644
+--- a/src/app/tasks/_parts/task_row.tsx
++++ b/src/app/tasks/_parts/task_row.tsx
+@@ -1,28 +1,22 @@
+ import { formatDate } from "../../../lib/tasks/dates";
++import DoneToggle from "./done_toggle";
+ 
+ export type RowTask = { id: string; title: string; done: boolean; created_at: string };
+ 
+-/** One task: its title, its created date, a Complete button while open, and Delete. */
++/** One task: its title, its created date, a checkbox that toggles done, and Delete. */
+ export default function TaskRow({
+   task,
+-  complete,
++  toggle,
+   remove,
+ }: {
+   task: RowTask;
+-  complete: (formData: FormData) => Promise<void>;
++  toggle: (formData: FormData) => Promise<void>;
+   remove: (formData: FormData) => Promise<void>;
+ }) {
+   return (
+     <li>
++      <DoneToggle id={task.id} title={task.title} done={task.done} toggle={toggle} />
+       <span>{task.title}</span> <time dateTime={task.created_at}>{formatDate(task.created_at)}</time>
+-      {task.done ? (
+-        <span> Done</span>
+-      ) : (
+-        <form action={complete}>
+-          <input type="hidden" name="id" value={task.id} />
+-          <button type="submit">Complete</button>
+-        </form>
+-      )}
+       <form action={remove}>
+         <input type="hidden" name="id" value={task.id} />
+         <button type="submit">Delete</button>
+diff --git a/src/app/tasks/page.tsx b/src/app/tasks/page.tsx
+index ff814ea..6391c0d 100644
+--- a/src/app/tasks/page.tsx
++++ b/src/app/tasks/page.tsx
+@@ -1,7 +1,7 @@
+ import Link from "next/link";
+ import { redirect } from "next/navigation";
+ import listTasks from "../../server/tasks/list_tasks";
+-import completeTask from "../../server/tasks/complete_task";
++import setTaskDone from "../../server/tasks/set_task_done";
+ import deleteTask from "../../server/tasks/delete_task";
+ import TaskRow from "./_parts/task_row";
+ 
+@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
+ export default async function TasksPage() {
+   const tasks = await listTasks({});
+ 
+-  async function complete(formData: FormData) {
++  async function toggle(formData: FormData) {
+     "use server";
+-    await completeTask({ id: String(formData.get("id")) });
++    await setTaskDone({ id: String(formData.get("id")), done: formData.get("done") === "true" });
+     redirect("/tasks");
+   }
+ 
+@@ -36,7 +36,7 @@ export default async function TasksPage() {
+       ) : (
+         <ul>
+           {tasks.map((task) => (
+-            <TaskRow key={task.id} task={task} complete={complete} remove={remove} />
++            <TaskRow key={task.id} task={task} toggle={toggle} remove={remove} />
+           ))}
+         </ul>
+       )}
+diff --git a/src/server/tasks/complete_task.ts b/src/server/tasks/set_task_done.ts
+similarity index 65%
+rename from src/server/tasks/complete_task.ts
+rename to src/server/tasks/set_task_done.ts
+index 06cd31a..26fc9ca 100644
+--- a/src/server/tasks/complete_task.ts
++++ b/src/server/tasks/set_task_done.ts
+@@ -1,6 +1,6 @@
+ import { find, save } from "../../lib/tasks/store";
+ 
+-export type Input = { id: string };
++export type Input = { id: string; done: boolean };
+ export type Output = { id: string; done: boolean };
+ 
+ type Task = { id: string; title: string; done: boolean; created_at: string };
+@@ -10,12 +10,12 @@ function notFound(): Error {
+   return Object.assign(new Error("No task has that id"), { code: "not_found" });
+ }
+ 
+-/** Marks a task done. */
+-export default async function completeTask(input: Input): Promise<Output> {
++/** Marks a task done or open. */
++export default async function setTaskDone(input: Input): Promise<Output> {
+   const task = find<Task>(input.id);
+   if (!task) {
+     throw notFound();
+   }
+-  save({ ...task, done: true });
+-  return { id: task.id, done: true };
++  save({ ...task, done: input.done });
++  return { id: task.id, done: input.done };
+ }
+diff --git a/tests/app/tasks/page.test.ts b/tests/app/tasks/page.test.ts
+index fcd0557..08a39d7 100644
+--- a/tests/app/tasks/page.test.ts
++++ b/tests/app/tasks/page.test.ts
+@@ -1,12 +1,12 @@
+ import Link from "next/link";
+ import TasksPage from "../../../src/app/tasks/page";
+ import listTasks from "../../../src/server/tasks/list_tasks";
+-import completeTask from "../../../src/server/tasks/complete_task";
++import setTaskDone from "../../../src/server/tasks/set_task_done";
+ import deleteTask from "../../../src/server/tasks/delete_task";
+ import { redirect } from "next/navigation";
+ 
+ vi.mock("../../../src/server/tasks/list_tasks", () => ({ default: vi.fn() }));
+-vi.mock("../../../src/server/tasks/complete_task", () => ({ default: vi.fn() }));
++vi.mock("../../../src/server/tasks/set_task_done", () => ({ default: vi.fn() }));
+ vi.mock("../../../src/server/tasks/delete_task", () => ({ default: vi.fn() }));
+ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+ 
+@@ -43,7 +43,7 @@ const tasks = (...items: object[]) => items as Awaited<ReturnType<typeof listTas
+ 
+ beforeEach(() => {
+   vi.mocked(listTasks).mockReset();
+-  vi.mocked(completeTask).mockReset();
++  vi.mocked(setTaskDone).mockReset();
+   vi.mocked(deleteTask).mockReset();
+   vi.mocked(redirect).mockReset();
+ });
+@@ -59,18 +59,23 @@ it("[case:listed] every task is listed with its title and created date", async (
+   expect(rows[1]).toContain("2026-02-04");
+ });
+ 
+-it("[case:complete] Complete marks the task done and moves it below the open tasks", async () => {
++it("[case:toggle] the checkbox toggles a task between open and done, moving it between the groups", async () => {
+   vi.mocked(listTasks).mockResolvedValue(tasks(open, done));
+   const { nodes } = render(await TasksPage());
+-  const rows = nodes.filter((n) => n.tag === "li");
+-  // Open tasks come first, each with a Complete button; done ones have none.
+-  expect(rows.map((r) => r.text.includes("Complete"))).toEqual([true, false]);
+-  const form = nodes.find((n) => n.tag === "form" && n.text.includes("Complete"));
+-  const data = new FormData();
+-  data.set("id", "a");
+-  await (form?.props.action as (d: FormData) => Promise<void>)(data);
+-  expect(completeTask).toHaveBeenCalledWith({ id: "a" });
+-  // The list is shown again, in list_tasks order: the completed task below the open ones.
++  const boxes = nodes.filter((n) => n.tag === "input" && n.props.type === "checkbox");
++  // Rows follow list_tasks order, open first; each checkbox shows the task's state.
++  expect(boxes.map((b) => b.props.defaultChecked)).toEqual([false, true]);
++  const forms = nodes.filter((n) => n.tag === "form" && n.props.action !== undefined && !n.text.includes("Delete"));
++  const submit = async (id: string, next: string) => {
++    const data = new FormData();
++    data.set("id", id);
++    data.set("done", next);
++    await (forms[0].props.action as (d: FormData) => Promise<void>)(data);
++  };
++  await submit("a", "true");
++  expect(setTaskDone).toHaveBeenCalledWith({ id: "a", done: true });
++  await submit("b", "false");
++  expect(setTaskDone).toHaveBeenCalledWith({ id: "b", done: false });
+   expect(redirect).toHaveBeenCalledWith("/tasks");
+ });
+ 
+diff --git a/tests/server/tasks/complete_task.test.ts b/tests/server/tasks/complete_task.test.ts
+deleted file mode 100644
+index 107f113..0000000
+--- a/tests/server/tasks/complete_task.test.ts
++++ /dev/null
+@@ -1,19 +0,0 @@
+-import completeTask from "../../../src/server/tasks/complete_task";
+-import { find, insert } from "../../../src/lib/tasks/store";
+-
+-beforeEach(() => {
+-  delete (globalThis as { __tasksStore?: unknown }).__tasksStore;
+-});
+-
+-it("[case:marks_done] after complete_task the task is done", async () => {
+-  insert({ id: "t1", title: "Buy milk", done: false, created_at: "2026-01-01T10:00:00.000Z" });
+-  expect(await completeTask({ id: "t1" })).toEqual({ id: "t1", done: true });
+-  expect(find<{ id: string; created_at: string; done: boolean }>("t1")?.done).toBe(true);
+-});
+-
+-it("[case:not_found] complete_task fails with not_found exactly when no task has that id", async () => {
+-  await expect(completeTask({ id: "missing" })).rejects.toMatchObject({
+-    code: "not_found",
+-    message: "No task has that id",
+-  });
+-});
+diff --git a/tests/server/tasks/set_task_done.test.ts b/tests/server/tasks/set_task_done.test.ts
+new file mode 100644
+index 0000000..6b04c54
+--- /dev/null
++++ b/tests/server/tasks/set_task_done.test.ts
+@@ -0,0 +1,23 @@
++import setTaskDone from "../../../src/server/tasks/set_task_done";
++import { find, insert } from "../../../src/lib/tasks/store";
++
++beforeEach(() => {
++  delete (globalThis as { __tasksStore?: unknown }).__tasksStore;
++});
++
++const done = (id: string) => find<{ id: string; created_at: string; done: boolean }>(id)?.done;
++
++it("[case:toggles] set_task_done with done false makes a done task open again", async () => {
++  insert({ id: "t1", title: "Buy milk", done: false, created_at: "2026-01-01T10:00:00.000Z" });
++  expect(await setTaskDone({ id: "t1", done: true })).toEqual({ id: "t1", done: true });
++  expect(done("t1")).toBe(true);
++  expect(await setTaskDone({ id: "t1", done: false })).toEqual({ id: "t1", done: false });
++  expect(done("t1")).toBe(false);
++});
++
++it("[case:not_found] set_task_done fails with not_found exactly when no task has that id", async () => {
++  await expect(setTaskDone({ id: "missing", done: true })).rejects.toMatchObject({
++    code: "not_found",
++    message: "No task has that id",
++  });
++});

@@ -1,7 +1,8 @@
 // Runs the acceptance tests active at one edit against one arm's tree (TRIAL.md,
 // Acceptance tests): builds the arm with `next build`, runs the active UI tests
 // (Playwright, a fresh `next start` per file) and contract tests (Vitest), and writes a
-// summary with one outcome per test id.
+// summary with one outcome per test id. Whatever the build generates in the arm's tree is
+// removed afterwards, unless it was there before.
 //
 // Usage: node run.mjs <arm dir> <edit: baseline | E1 ... E10> [--out <summary.json>]
 // Environment: PATCHED_ABOUT for A8.2 (see patches/e8.mjs).
@@ -35,6 +36,11 @@ const bin = (pkg, rel) => path.join(here, "node_modules", pkg, rel);
 const run = (argv, cwd, extra = {}) =>
   spawnSync(process.execPath, argv, { cwd, env: { ...env, ...extra }, stdio: "inherit" });
 
+// The build's output must not outlive the run: in the strong and plain arms the agent works
+// in this tree, and a stale .next/types would show it type errors the run left behind.
+const generated = [".next", "next-env.d.ts", "tsconfig.tsbuildinfo"].filter(
+  (p) => !fs.existsSync(path.join(arm, p)),
+);
 const build = run([path.join(arm, "node_modules/next/dist/bin/next"), "build"], arm);
 const report = path.join(here, "test-results");
 fs.mkdirSync(report, { recursive: true });
@@ -70,6 +76,8 @@ if (contract.length) {
     }
   }
 }
+
+for (const p of generated) fs.rmSync(path.join(arm, p), { recursive: true, force: true });
 
 const summary = { arm, edit, routes, build: build.status === 0 ? "passed" : "failed", results };
 const text = JSON.stringify(summary, null, 2) + "\n";

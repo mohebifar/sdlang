@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 12:01:01 -0800
+Subject: [PATCH 09/10] E9
+
+---
+ src/app/tasks/new/_parts/title_form.tsx | 6 ++++--
+ tests/app/tasks/new/page.test.ts        | 9 +++++++++
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/src/app/tasks/new/_parts/title_form.tsx b/src/app/tasks/new/_parts/title_form.tsx
+index 71016f8..c71a6e1 100644
+--- a/src/app/tasks/new/_parts/title_form.tsx
++++ b/src/app/tasks/new/_parts/title_form.tsx
+@@ -2,15 +2,17 @@
+ 
+ import { useState } from "react";
+ 
+-/** The title field and the Add button, which stays disabled while the title is empty. */
++/** The title field and the Add button, which stays disabled while the title is empty or over 80 characters. */
+ export default function TitleForm({ add }: { add: (formData: FormData) => Promise<void> }) {
+   const [title, setTitle] = useState("");
++  const tooLong = title.length > 80;
+   return (
+     <form action={add}>
+       <label>
+         Title <input name="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+       </label>
+-      <button type="submit" disabled={title === ""}>
++      {tooLong ? <p role="alert">Keep it under 80 characters</p> : null}
++      <button type="submit" disabled={title === "" || tooLong}>
+         Add
+       </button>
+     </form>
+diff --git a/tests/app/tasks/new/page.test.ts b/tests/app/tasks/new/page.test.ts
+index f9a4651..8192b39 100644
+--- a/tests/app/tasks/new/page.test.ts
++++ b/tests/app/tasks/new/page.test.ts
+@@ -65,3 +65,12 @@ it("[case:required] the Add button is disabled while the title is empty", async
+   state.title = "x";
+   expect((await button())?.props.disabled).toBe(false);
+ });
++
++it("[case:too_long] a title over 80 characters shows 'Keep it under 80 characters' under the field and is not submitted", async () => {
++  state.title = "x".repeat(81);
++  const { nodes, text } = render(await NewTaskPage());
++  expect(text).toContain("Keep it under 80 characters");
++  expect(nodes.find((n) => n.tag === "button" && n.text === "Add")?.props.disabled).toBe(true);
++  state.title = "x".repeat(80);
++  expect(render(await NewTaskPage()).text).not.toContain("Keep it under 80 characters");
++});

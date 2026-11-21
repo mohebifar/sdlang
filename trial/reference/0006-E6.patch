@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ref <ref@localhost>
+Date: Sat, 21 Nov 2026 11:59:19 -0800
+Subject: [PATCH 06/10] E6
+
+---
+ src/app/tasks/new/page.tsx       | 10 ++++++++--
+ src/app/tasks/page.tsx           |  2 +-
+ tests/app/tasks/new/page.test.ts | 14 +++++++++-----
+ 3 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/src/app/tasks/new/page.tsx b/src/app/tasks/new/page.tsx
+index 75b5f8b..0a15b99 100644
+--- a/src/app/tasks/new/page.tsx
++++ b/src/app/tasks/new/page.tsx
+@@ -1,8 +1,14 @@
+ import { redirect } from "next/navigation";
+ import createTask from "../../../server/tasks/create_task";
++import listTasks from "../../../server/tasks/list_tasks";
+ import TitleForm from "./_parts/title_form";
+ 
+-export default function NewTaskPage() {
++// The heading counts open tasks, so the page renders on every request.
++export const dynamic = "force-dynamic";
++
++export default async function NewTaskPage() {
++  const open = (await listTasks({ status: "open" })).length;
++
+   async function add(formData: FormData) {
+     "use server";
+     await createTask({ title: String(formData.get("title") ?? "") });
+@@ -11,7 +17,7 @@ export default function NewTaskPage() {
+ 
+   return (
+     <main>
+-      <h1>New task</h1>
++      <h1>New task ({open})</h1>
+       <TitleForm add={add} />
+     </main>
+   );
+diff --git a/src/app/tasks/page.tsx b/src/app/tasks/page.tsx
+index 6391c0d..0b644f6 100644
+--- a/src/app/tasks/page.tsx
++++ b/src/app/tasks/page.tsx
+@@ -25,7 +25,7 @@ export default async function TasksPage() {
+ 
+   return (
+     <main>
+-      <h1>Tasks</h1>
++      <h1>Tasks ({tasks.filter((t) => !t.done).length})</h1>
+       <p>
+         <Link href="/tasks/new">New task</Link>
+       </p>
+diff --git a/tests/app/tasks/new/page.test.ts b/tests/app/tasks/new/page.test.ts
+index 2278c18..8ddbee8 100644
+--- a/tests/app/tasks/new/page.test.ts
++++ b/tests/app/tasks/new/page.test.ts
+@@ -1,11 +1,13 @@
+ import Link from "next/link";
+ import NewTaskPage from "../../../../src/app/tasks/new/page";
+ import createTask from "../../../../src/server/tasks/create_task";
++import listTasks from "../../../../src/server/tasks/list_tasks";
+ import { redirect } from "next/navigation";
+ 
+ const state = { title: "" };
+ 
+ vi.mock("../../../../src/server/tasks/create_task", () => ({ default: vi.fn() }));
++vi.mock("../../../../src/server/tasks/list_tasks", () => ({ default: vi.fn() }));
+ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+ // The title form keeps the title in state; the test sets it.
+ vi.mock("react", async (original) => ({
+@@ -41,12 +43,14 @@ function render(node: unknown): { text: string; nodes: Visited[] } {
+ beforeEach(() => {
+   state.title = "";
+   vi.mocked(createTask).mockReset();
++  vi.mocked(listTasks).mockReset();
++  vi.mocked(listTasks).mockResolvedValue([] as Awaited<ReturnType<typeof listTasks>>);
+   vi.mocked(redirect).mockReset();
+ });
+ 
+ it("[case:adds] submitting a title adds the task and shows the list with it", async () => {
+   state.title = "Buy milk";
+-  const { nodes } = render(NewTaskPage());
++  const { nodes } = render(await NewTaskPage());
+   const form = nodes.find((n) => n.tag === "form");
+   const data = new FormData();
+   data.set("title", "Buy milk");
+@@ -55,9 +59,9 @@ it("[case:adds] submitting a title adds the task and shows the list with it", as
+   expect(redirect).toHaveBeenCalledWith("/tasks");
+ });
+ 
+-it("[case:required] the Add button is disabled while the title is empty", () => {
+-  const button = () => render(NewTaskPage()).nodes.find((n) => n.tag === "button" && n.text === "Add");
+-  expect(button()?.props.disabled).toBe(true);
++it("[case:required] the Add button is disabled while the title is empty", async () => {
++  const button = async () => render(await NewTaskPage()).nodes.find((n) => n.tag === "button" && n.text === "Add");
++  expect((await button())?.props.disabled).toBe(true);
+   state.title = "x";
+-  expect(button()?.props.disabled).toBe(false);
++  expect((await button())?.props.disabled).toBe(false);
+ });
