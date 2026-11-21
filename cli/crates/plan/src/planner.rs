@@ -27,6 +27,8 @@ pub struct PlanInputs<'a> {
     pub baseline_commit: &'a str,
     /// New declarations `spec import --accept` adopts, by address (strategy `acquire`).
     pub acquire: Option<&'a BTreeMap<String, Acquisition>>,
+    /// Drifted files whose edit the operator accepts (resolution `adopt`).
+    pub adopt: Option<&'a BTreeSet<String>>,
 }
 
 /// What an accepted import claims for one new declaration: existing files only. Its JSON
@@ -400,6 +402,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
     // declaration.
     let mut blocked: BTreeMap<String, Value> = BTreeMap::new();
     let mut fingerprints: BTreeMap<String, String> = BTreeMap::new();
+    let mut adopted: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for &address in &managed {
         let decl = decls[address];
         let Some(record) = record_of(address) else {
@@ -415,6 +418,16 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
             if actual.as_deref() == Some(out.bytes.as_str()) {
                 continue;
             }
+            // An adopted edit renews the baseline when this plan publishes; its bytes are bound.
+            if let (Some(a), true) = (&actual, inputs.adopt.is_some_and(|s| s.contains(&out.path)))
+            {
+                fingerprints.insert(out.path.clone(), a.clone());
+                adopted
+                    .entry(address.to_string())
+                    .or_default()
+                    .push(out.path.clone());
+                continue;
+            }
             let mut b = json!({
                 "address": address, "reason": "drift", "path": out.path, "expected": out.bytes,
                 "resolutions": ["adopt", "absorb", "overwrite", "repair"],
@@ -427,6 +440,16 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
             break;
         }
     }
+
+    for path in inputs.adopt.into_iter().flatten() {
+        if !adopted.values().flatten().any(|p| p == path) {
+            return Err(PlanError::new(format!(
+                "cannot adopt {path}: it is not a drifted output of a managed declaration"
+            )));
+        }
+    }
+    // A declaration with another, unadopted drifted output stays blocked.
+    adopted.retain(|a, _| !blocked.contains_key(a));
 
     // Own changes, identity and paths.
     let mut entries: BTreeMap<String, Entry> = BTreeMap::new();
@@ -529,7 +552,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
                     e.update("aggregate");
                     e.joins.insert(target.clone());
                 }
-                (relation, "public") if ORDERING.contains(&relation) => {
+                (relation, "public") if ORDERING.contains(&relation) || relation == "mentions" => {
                     let verdict = match store.applied(&c.hash)? {
                         Some(old) => classify(&old, now, relation),
                         None => Compatibility::Incompatible,
@@ -603,6 +626,26 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
     }
     freeze(&mut entries, &mut blocked);
 
+    // Adoption (SPEC.md, Hashes and drift): the edited bytes become the baseline, so a
+    // change to the declaration's own text is reviewed against them, not written again.
+    // Any other cause still updates it, from the adopted bytes.
+    for (address, paths) in &adopted {
+        let Some(e) = entries.get_mut(address) else {
+            continue;
+        };
+        if e.change == Change::Update
+            && !e.replace
+            && e.causes.iter().all(|c| *c == "own_projection")
+        {
+            e.change = Change::None;
+            e.causes.clear();
+        }
+        for path in paths {
+            e.oblige("verify", format!("adopt:{path}"), "", None);
+            e.oblige("review", format!("adopt:{path}"), "", None);
+        }
+    }
+
     // Implementation impact: every create or update gives verify to its transitive
     // dependents over ordering relations.
     let mut dependents: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
@@ -618,7 +661,9 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
     }
     let changed_now: Vec<String> = entries
         .iter()
-        .filter(|(_, e)| matches!(e.change, Change::Create | Change::Update))
+        .filter(|(a, e)| {
+            matches!(e.change, Change::Create | Change::Update) || adopted.contains_key(*a)
+        })
         .map(|(a, _)| a.clone())
         .collect();
     for source in &changed_now {

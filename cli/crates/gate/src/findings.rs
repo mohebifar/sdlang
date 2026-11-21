@@ -176,6 +176,7 @@ fn unapplied(options: &CheckOptions, loaded: &Loaded) -> GResult<Vec<Finding>> {
         plan_id: "check",
         baseline_commit: "git:check",
         acquire: None,
+        adopt: None,
     })?;
     let mut out = Vec::new();
     for e in plan["entries"].as_array().into_iter().flatten() {

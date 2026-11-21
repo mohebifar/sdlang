@@ -66,6 +66,7 @@ fn run(root: &Path) -> Value {
         plan_id: "p-2026-11-18-01",
         baseline_commit: "git:2fb0bc6f21fcbd443db01e91e32dc8b13f8e767c",
         acquire: None,
+        adopt: None,
     })
     .unwrap()
 }
@@ -356,4 +357,49 @@ fn empty_slot_schedules_an_update() {
     let got = run(&root);
     assert_eq!(summary(&got), [s("auth.login", "update", "tx-1")]);
     assert_eq!(got["entries"][0]["causes"], json!(["convention"]));
+}
+
+#[test]
+fn adopting_a_drifted_file_reviews_it_instead_of_blocking() {
+    let root = baseline("adopt");
+    let signup = root.join("src/app/signup/page.tsx");
+    let mut text = fs::read_to_string(&signup).unwrap();
+    text.push_str("// edited by hand\n");
+    fs::write(&signup, text).unwrap();
+    let project = intlang_graph::loader::load(&root).unwrap();
+    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let plan_with = |adopt: &[&str]| {
+        let adopt: std::collections::BTreeSet<String> =
+            adopt.iter().map(|s| s.to_string()).collect();
+        plan(&PlanInputs {
+            root: &root,
+            project: &project,
+            graph: &graph,
+            plan_id: "p-adopt-01",
+            baseline_commit: "git:2fb0bc6f21fcbd443db01e91e32dc8b13f8e767c",
+            acquire: None,
+            adopt: Some(&adopt),
+        })
+    };
+    let blocked = plan_with(&[]).unwrap();
+    assert_eq!(blocked["blocked"][0]["address"], "auth.signup");
+    let adopted = plan_with(&["src/app/signup/page.tsx"]).unwrap();
+    assert_eq!(adopted["blocked"], json!([]));
+    let e = adopted["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["address"] == "auth.signup")
+        .unwrap();
+    assert_eq!(e["change"], "none");
+    assert_eq!(
+        e["obligations"],
+        json!([
+            { "kind": "review", "because": "adopt:src/app/signup/page.tsx" },
+            { "kind": "verify", "because": "adopt:src/app/signup/page.tsx" }
+        ])
+    );
+    assert!(adopted["binding"]["fingerprints"]["src/app/signup/page.tsx"].is_string());
+    let err = plan_with(&["src/app/login/page.tsx"]).unwrap_err();
+    assert!(err.to_string().contains("not a drifted output"), "{err}");
 }

@@ -249,7 +249,7 @@
                 },
                 "because": {
                   "type": "string",
-                  "description": "consumed:<target> | observed:<target> | context:<source> | impact:<address> | check:<id> | stale:<subject> | unverified:<requirement>"
+                  "description": "consumed:<target> | observed:<target> | context:<source> | impact:<address> | check:<id> | stale:<subject> | unverified:<requirement> | adopt:<path>"
                 },
                 "compatibility": {
                   "type": "string"

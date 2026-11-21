@@ -15,7 +15,7 @@ pub struct Args {
     #[arg(default_value = ".")]
     pub dir: PathBuf,
 
-    /// The plan id; defaults to p-<UTC date>-01.
+    /// The plan id; defaults to p-<UTC date>-<nn>, the day's first number not yet applied.
     #[arg(long)]
     pub id: Option<String>,
 
@@ -26,6 +26,11 @@ pub struct Args {
     /// Print the plan document to stdout instead of writing it.
     #[arg(long)]
     pub json: bool,
+
+    /// Resolve a drifted file with `adopt`: its edited bytes become the baseline and the
+    /// declaration is verified and reviewed against them (repeatable).
+    #[arg(long, value_name = "PATH")]
+    pub adopt: Vec<String>,
 }
 
 /// `YYYY-MM-DD` for days since the Unix epoch (Howard Hinnant's civil-from-days).
@@ -87,7 +92,16 @@ pub fn run(args: Args) -> u8 {
             return 1;
         }
     };
-    let id = args.id.unwrap_or_else(|| format!("p-{}-01", today()));
+    // The default id is the day's first number whose plan has not been applied, so a
+    // second plan on one day never resumes the first one's journal.
+    let id = args.id.unwrap_or_else(|| {
+        let day = today();
+        (1..)
+            .map(|n| format!("p-{day}-{n:02}"))
+            .find(|id| !args.dir.join(format!(".spec/journal/{id}.jsonl")).exists())
+            .expect("an unused number")
+    });
+    let adopt: std::collections::BTreeSet<String> = args.adopt.iter().cloned().collect();
     let pending = match intlang_plan::pending_imports(&args.dir) {
         Ok(p) => p,
         Err(e) => {
@@ -102,6 +116,7 @@ pub fn run(args: Args) -> u8 {
         plan_id: &id,
         baseline_commit: &baseline,
         acquire: Some(&pending),
+        adopt: Some(&adopt),
     }) {
         Ok(p) => p,
         Err(e) => {

@@ -77,9 +77,10 @@ export rust.command plan_command {
   expect {
     writes: "given a project directory, it writes plan.json, prints the summary and exits 0"
     json: "with --json it prints the plan document to stdout instead of writing it"
-    id: "--id sets the plan id; the default is p-<UTC date>-01"
+    id: "--id sets the plan id; the default is p-<UTC date>-<nn>, the first number of the day with no journal"
     baseline: "the baseline commit is the project's git HEAD; outside a git work tree it exits 2"
     error: "a graph error exits 1 with its location"
+    adopt: "--adopt <path> resolves that drifted file with adopt; a path that is not drifted exits 1"
   }
 }
 

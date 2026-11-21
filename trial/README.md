@@ -11,6 +11,7 @@ says where each piece is and how the operator uses it.
 | `acceptance/` | The acceptance tests: Playwright UI tests (`ui/`), Vitest contract tests (`contract/`), the table of when each test is active (`tests.json`, with the route map), the runner (`run.mjs`) and the E8 hand patch (`patches/e8.mjs`). Never copied into an arm. |
 | `profile/Dockerfile` | Profile `trial-v1`: `node:22` pinned by digest, pnpm 10.34.9 and the Chromium that Playwright 1.65.1 drives. |
 | `tools/make-arm.sh` | Makes one arm's workspace for one run. |
+| `tools/spec_edit.py` | Applies one edit's spec change to the language arm, as `TRIAL.md` states it. |
 | `reference/` | One implementation of the ten edits, as patches, used to calibrate the acceptance tests. Operator only; never shown to an agent. |
 
 Pinned toolchain, from `baseline/pnpm-lock.yaml`: Next.js 15.5.29, React 19.1.10,
@@ -55,6 +56,24 @@ discharges the `verify` and `review` obligations that acquisition leaves; afterw
 `spec check` reports `consistent`. The root layout stays unmanaged, as a kind input.
 `spec` must be a Linux build when it runs inside the profile.
 
+Each edit in the language arm is: the spec change, a commit, a plan to compare with
+`TRIAL.md`'s expected plan, and the apply:
+
+```bash
+python3 tools/spec_edit.py E3 /runs/language-1
+```
+
+```bash
+git add -A spec && git commit -m "spec: E3"
+```
+
+```bash
+spec plan && spec apply --agent "<agent command>" --reviewer "<reviewer command>"
+```
+
+Before E8, apply the hand patch (below) and commit only the page; then, after E8's spec
+change, plan with `spec plan --adopt src/app/about/page.tsx`.
+
 After each edit, run the acceptance tests active at that edit against the arm's tree,
 from a copy of `acceptance/` with its own dependencies installed. The runner builds the arm
 in place and removes the build's output afterwards, so the agent never sees a stale
@@ -83,6 +102,11 @@ and run E8 onwards with `PATCHED_ABOUT` set to that copy.
 - Against the reference edits (`reference/`), every test active at each step passes, from
   7 of 7 at the baseline to 22 of 22 at E10. That shows each test can pass on a correct
   edit, not that every incorrect edit fails it.
+- The language arm's whole procedure, adoption and all ten edits, runs with a
+  deterministic agent and reviewer that copy and compare the reference
+  (`reference/tools/`): every plan matches `TRIAL.md`'s expected plan, every transaction
+  publishes, `spec check` is `consistent` after each edit and every active acceptance test
+  passes. It says nothing about how a real agent does.
 - The language arm's setup runs end to end with the real adapter: import, acquisition,
   then the obligations discharged by a scripted reviewer, then `spec check` reports
   `consistent`. The trial's own setup uses the pinned model as reviewer instead.

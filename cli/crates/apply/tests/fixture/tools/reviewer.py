@@ -9,9 +9,20 @@ if bad == "once":
     mark = os.environ["REVIEW_MARK"]
     bad = "" if os.path.exists(mark) else "always"
     open(mark, "a").close()
+# REVIEW_ESCALATE=<address> finds that address nonconforming in its first review only
+# (REVIEW_MARK records it), so the obligation escalates and the next review conforms.
+escalate = os.environ.get("REVIEW_ESCALATE", "")
+first = False
+if escalate and any(s["subject"]["target"] == escalate for s in order["subjects"]):
+    mark = os.environ["REVIEW_MARK"]
+    first = not os.path.exists(mark)
+    open(mark, "a").close()
 subjects = []
 for s in order["subjects"]:
-    v = {"id": s["subject"]["requirement"] if bad == "always" else s["id"], "conformance": {"verdict": os.environ.get("REVIEW_VERDICT", "conforms"), "reason": "scripted"}}
+    verdict = os.environ.get("REVIEW_VERDICT", "conforms")
+    if first and s["subject"]["target"] == escalate:
+        verdict = "does_not_conform"
+    v = {"id": s["subject"]["requirement"] if bad == "always" else s["id"], "conformance": {"verdict": verdict, "reason": "scripted"}}
     if "coverage" in s["assess"]:
         v["coverage"] = [{"candidate": c["id"], "verdict": "sufficient", "reason": "scripted"}
                          for c in s.get("coverage_candidates", [])]

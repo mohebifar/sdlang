@@ -86,6 +86,7 @@ pub fn accept(root: &Path, p: &Proposal) -> AdResult<Accepted> {
             plan_id: "import",
             baseline_commit: "git:import",
             acquire: Some(&pending),
+            adopt: None,
         })?;
         Ok(pending)
     };

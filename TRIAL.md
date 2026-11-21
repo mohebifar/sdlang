@@ -220,8 +220,9 @@ and in `tasks_index`, `calls: [list_tasks, complete_task, delete_task]` and
 - Plain: "Add a Delete button to each task row; deleting removes the task for good."
 - Tests: create, a compatible `lib` export addition, a caller's authored change.
 - Expected plan: `update store`; `create delete_task` after it; `update tasks_index` after
-  that. `create_task`, `list_tasks` and `complete_task` get `verify` (implementation
-  impact from `store`).
+  that. `create_task`, `list_tasks` and `complete_task` get `verify` (a compatible change
+  to `store`'s contract), and `new_task` gets `verify` (implementation impact through
+  `create_task`).
 - Concerns: `store`, `delete_task`, `tasks_index` (with `_parts/`).
 - Acceptance: A1.1, A1.2.
 
@@ -232,7 +233,8 @@ and in `tasks_index`, `calls: [list_tasks, complete_task, delete_task]` and
   tasks; with no status it returns all."
 - Tests: a compatible change to a consumed projection gives the caller `verify`, not
   `update`.
-- Expected plan: `update list_tasks`; `tasks_index` gets `verify`.
+- Expected plan: `update list_tasks`; `tasks_index` gets `verify`, and `review` because it
+  observes `list_tasks`' changed behaviour.
 - Concerns: `list_tasks`.
 - Trap: adding a filter control to the index page.
 - Acceptance: A2.1, A2.2.
@@ -284,7 +286,7 @@ marked done and null when it is open"` on both.
 - Tests: two compatible changes with one caller. Under the rule in `SPEC.md`, Transactions,
   the caller is verified in each transaction; the trial measures what that costs.
 - Expected plan: two transactions, `update list_tasks` and `update set_task_done`, with
-  `tasks_index` `verify` in each.
+  `tasks_index` `verify` and `review` in each.
 - Concerns: `list_tasks`, `set_task_done`.
 - Acceptance: A5.1, A5.2.
 
@@ -314,7 +316,8 @@ marked done and null when it is open"` on both.
 arm: the About heading becomes "About this app" and a paragraph "Built for the int lang
 trial." is added. The spec change: `explains` says "the heading 'About this app'" and
 `trial_note: "the page says 'Built for the int lang trial.'"` is added. In the language
-arm the operator resolves the drift with `adopt`.
+arm the operator resolves the drift with `adopt` (`spec plan --adopt
+src/app/about/page.tsx`).
 - Plain: "The About page was edited by hand and is right as it is; make sure its tests
   cover the new heading and note."
 - Tests: drift is adopted without an agent rewriting the file; evidence goes stale and is
@@ -339,7 +342,7 @@ arm the operator resolves the drift with `adopt`.
 from `pages.int`.
 - Plain: "Remove the About page and the footer link to it."
 - Tests: delete, with a referencing caller updated first.
-- Expected plan: `update tasks_index`, then `delete about`.
+- Expected plan: one transaction, `update tasks_index`, then `delete about`.
 - Concerns: `tasks_index`, `about`.
 - Acceptance: A10.1, A10.2. Retires B6, B7, A7.3, A8.1, A8.2.
 

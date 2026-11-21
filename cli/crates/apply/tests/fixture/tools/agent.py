@@ -31,4 +31,6 @@ if log:
     with open(log, "a") as f:
         f.write(json.dumps({"dispatch": order["dispatch"], "attempt": order["attempt"]["number"],
                             "previous": len(order["attempt"]["previous"]),
+                            "subjects": [{"address": s["address"], "causes": [c["kind"] for c in s["causes"]]}
+                                         for s in order["subjects"]],
                             "order": os.environ["SPEC_WORK_ORDER"]}) + "\n")

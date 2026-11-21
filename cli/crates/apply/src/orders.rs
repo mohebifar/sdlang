@@ -339,6 +339,33 @@ fn allowed_imports(env: &Env, decl: &Value) -> Vec<Value> {
     out
 }
 
+/// Where a declaration's recorded outputs live now: `(key, recorded path, current path)` for
+/// every slot whose template gives a new path (a move, a route change) and every created
+/// output whose creation root moved. Created outputs keep their path relative to the root.
+pub fn output_moves(record: &StateRecord, m: &Materialisation) -> Vec<(String, String, String)> {
+    let mut out = Vec::new();
+    for (key, o) in &record.outputs {
+        let now = if o.origin == "created" {
+            match (
+                o.root.as_ref().and_then(|r| m.roots.get(r)),
+                &o.relative_path,
+            ) {
+                (Some(dir), Some(rel)) => format!("{dir}{rel}"),
+                _ => continue,
+            }
+        } else {
+            match m.slots.get(key) {
+                Some(p) => p.clone(),
+                None => continue,
+            }
+        };
+        if now != o.path {
+            out.push((key.clone(), o.path.clone(), now));
+        }
+    }
+    out
+}
+
 /// The write envelope of one declaration in the candidate at `dir`.
 pub fn envelope(
     env: &Env,
@@ -354,15 +381,32 @@ pub fn envelope(
         .cloned()
         .unwrap_or(Value::Null);
     let m = env.mats.get(address).cloned().unwrap_or_default();
+    let moves: BTreeMap<String, (String, String)> = record
+        .map(|r| output_moves(r, &m))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, from, to)| (k, (from, to)))
+        .collect();
     let mut write: BTreeMap<String, Value> = BTreeMap::new();
-    for (key, path) in &m.slots {
+    let mut add = |key: &str, path: &str| -> AResult<()> {
         let expected = file_digest(dir, path)?.unwrap_or_else(|| "absent".into());
-        write.insert(path.clone(), json!({ "output": format!("{address}#outputs.{key}"), "path": path, "expected": expected }));
+        let mut w = json!({ "output": format!("{address}#outputs.{key}"), "path": path, "expected": expected });
+        if let Some((from, _)) = moves.get(key) {
+            w["move_from"] = json!(from);
+        }
+        write.insert(path.to_string(), w);
+        Ok(())
+    };
+    for (key, path) in &m.slots {
+        add(key, path)?;
     }
     for (key, out) in record.map(|r| &r.outputs).into_iter().flatten() {
         if out.origin == "created" {
-            let expected = file_digest(dir, &out.path)?.unwrap_or_else(|| "absent".into());
-            write.insert(out.path.clone(), json!({ "output": format!("{address}#outputs.{key}"), "path": out.path, "expected": expected }));
+            let path = moves
+                .get(key)
+                .map(|(_, to)| to.as_str())
+                .unwrap_or(&out.path);
+            add(key, path)?;
         }
     }
     let create_under: Vec<Value> = m

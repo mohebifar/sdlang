@@ -67,6 +67,7 @@ fn applied(name: &str) -> PathBuf {
         plan_id: "p-test-01",
         baseline_commit: &head,
         acquire: None,
+        adopt: None,
     })
     .unwrap();
     fs::write(root.join("plan.json"), plan.to_string()).unwrap();

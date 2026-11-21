@@ -72,6 +72,7 @@ fn plan(root: &Path, id: &str) -> Value {
         plan_id: id,
         baseline_commit: &head,
         acquire: Some(&pending),
+        adopt: None,
     })
     .unwrap();
     fs::write(root.join("plan.json"), plan.to_string()).unwrap();

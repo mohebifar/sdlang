@@ -313,6 +313,9 @@ fn receipts_base(_journal: &Path, repo: &Repo) -> AResult<String> {
     repo.head()
 }
 
+/// Evidence records per address.
+type EvidenceMap = BTreeMap<String, Vec<Value>>;
+
 struct TxRunner<'a> {
     env: &'a Env<'a>,
     options: &'a ApplyOptions,
@@ -602,6 +605,22 @@ impl TxRunner<'_> {
                 }
             }
         }
+        // Moved outputs (a moved declaration, a route change) move before any agent runs,
+        // so an update edits them in place instead of writing them again.
+        for e in changed.iter().filter(|e| e["change"] == "update") {
+            let address = e["address"].as_str().unwrap_or_default();
+            let (Some(r), Some(m)) = (record_of(e), env.mats.get(address)) else {
+                continue;
+            };
+            for (_, from, to) in orders::output_moves(r, m) {
+                let (src, dst) = (c.dir.join(&from), c.dir.join(&to));
+                if src.exists() && !dst.exists() {
+                    fs::create_dir_all(dst.parent().expect("a file path"))
+                        .and_then(|_| fs::rename(&src, &dst))
+                        .map_err(|err| ApplyError::new(format!("moving {from} to {to}: {err}")))?;
+                }
+            }
+        }
         let mut by_generator: BTreeMap<String, Vec<&Value>> = BTreeMap::new();
         for e in changed
             .iter()
@@ -644,11 +663,26 @@ impl TxRunner<'_> {
         let mut previous: Vec<Value> = Vec::new();
         let mut claims = Claims::default();
         for (address, r) in &records {
+            // Created outputs at their current paths: a moved root takes them along.
+            let moves: BTreeMap<String, String> = env
+                .mats
+                .get(address)
+                .map(|m| orders::output_moves(r, m))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(k, _, to)| (k, to))
+                .collect();
             let created: BTreeMap<String, Output> = r
                 .outputs
                 .iter()
                 .filter(|(_, o)| o.origin == "created")
-                .map(|(k, o)| (k.clone(), o.clone()))
+                .map(|(k, o)| {
+                    let mut o = o.clone();
+                    if let Some(to) = moves.get(k) {
+                        o.path = to.clone();
+                    }
+                    (k.clone(), o)
+                })
                 .collect();
             if !created.is_empty() {
                 claims.created.insert(address.clone(), created);
@@ -697,10 +731,20 @@ impl TxRunner<'_> {
                 claims.tests.insert(member.clone(), tests);
             }
         }
+        // Obligated declarations a review found nonconforming join the transaction as
+        // updates inside their contingent envelope (SPEC.md, Apply, step 4).
+        let mut escalated: Vec<Value> = Vec::new();
         for attempt in 1..=max {
             let mut failures: Vec<Value> = Vec::new();
             let attempt_base = c.freeze(&format!("spec: {} attempt {attempt} base", self.id))?;
-            for e in &agent_entries {
+            let coding: Vec<&Value> = agent_entries
+                .iter()
+                .copied()
+                .chain(escalated.iter())
+                .collect();
+            let changed_now: Vec<&Value> =
+                changed.iter().copied().chain(escalated.iter()).collect();
+            for e in &coding {
                 let address = e["address"].as_str().unwrap_or_default();
                 let dispatch = next_dispatch();
                 match self.run_agent(
@@ -730,25 +774,45 @@ impl TxRunner<'_> {
             // Envelope and ownership on the frozen diff, then checks.
             if failures.is_empty() {
                 if let Some(f) =
-                    self.check_envelope(c, &snapshot, attempt, &changed, &records, &claims)?
+                    self.check_envelope(c, &snapshot, attempt, &changed_now, &records, &claims)?
                 {
                     failures.push(f);
                 }
             }
             if failures.is_empty() {
                 if let Some(f) =
-                    self.check_import_rule(c, &snapshot, attempt, &changed, &records, &claims)?
+                    self.check_import_rule(c, &snapshot, attempt, &changed_now, &records, &claims)?
                 {
                     failures.push(f);
                 }
             }
             let mut runs = Vec::new();
             if failures.is_empty() {
-                let (r, f) = self.run_checks(
+                let (r, f, failed) = self.run_checks(
                     c, &snapshot, attempt, &entries, &obligated, &reqs, &claims, &records,
                 )?;
                 runs = r;
                 failures.extend(f);
+                // A check that fails for an obligated declaration confirms a violation:
+                // it escalates to an update inside its contingent envelope.
+                let escalate: Vec<&String> = failed
+                    .iter()
+                    .filter(|a| {
+                        obligated.contains(a)
+                            && !escalated.iter().any(|e| e["address"] == json!(a))
+                            && decls
+                                .get(a.as_str())
+                                .is_some_and(|d| d["lifecycle"] != "frozen")
+                    })
+                    .collect();
+                if self.options.agent.is_some() && attempt < max {
+                    for a in escalate {
+                        escalated.push(json!({
+                            "address": a, "identity": "same", "change": "update",
+                            "strategy": "agent", "causes": ["escalation"], "transaction": self.id,
+                        }));
+                    }
+                }
             }
             if failures
                 .iter()
@@ -782,8 +846,29 @@ impl TxRunner<'_> {
                     }
                     Ok(Ok(v)) => verdicts = v,
                     Ok(Err(nonconforming)) => {
-                        if nonconforming.iter().any(|(a, _)| obligated.contains(a)) {
-                            return Ok(Outcome::Failed { reason: format!("review found nonconformance in an obligated declaration, which needs an amended plan: {}", nonconforming.iter().map(|(a, r)| format!("{a}: {r}")).collect::<Vec<_>>().join("; ")) });
+                        let mut escalate: BTreeSet<String> = BTreeSet::new();
+                        for (a, _) in &nonconforming {
+                            let obliged = obligated.contains(a)
+                                && !escalated.iter().any(|e| e["address"] == json!(a));
+                            if obliged {
+                                escalate.insert(a.clone());
+                            }
+                        }
+                        let frozen = escalate.iter().any(|a| {
+                            decls
+                                .get(a.as_str())
+                                .is_some_and(|d| d["lifecycle"] == "frozen")
+                        });
+                        if !escalate.is_empty()
+                            && (self.options.agent.is_none() || frozen || attempt == max)
+                        {
+                            return Ok(Outcome::Failed { reason: format!("review found nonconformance in an obligated declaration it cannot update here ({}), which needs an amended plan: {}", if frozen { "frozen" } else if self.options.agent.is_none() { "no agent" } else { "no attempt left" }, nonconforming.iter().map(|(a, r)| format!("{a}: {r}")).collect::<Vec<_>>().join("; ")) });
+                        }
+                        for a in &escalate {
+                            escalated.push(json!({
+                                "address": a, "identity": "same", "change": "update",
+                                "strategy": "agent", "causes": ["escalation"], "transaction": self.id,
+                            }));
                         }
                         for (a, reason) in nonconforming {
                             failures.push(failure(
@@ -799,11 +884,44 @@ impl TxRunner<'_> {
                 }
             }
             if failures.is_empty() {
-                return self.publish(
-                    c, &entries, &obligated, &reqs, &claims, &runs, &verdicts, &records,
-                );
+                // An obligated declaration whose policy is not met (tests that do not
+                // cover a requirement, say) escalates like a nonconforming one.
+                let (_, unmet) =
+                    self.evidence(&entries, &reqs, &claims, &runs, &verdicts, &records)?;
+                let escalate: BTreeSet<String> = unmet
+                    .iter()
+                    .filter(|(a, _)| {
+                        obligated.contains(a)
+                            && !escalated.iter().any(|e| e["address"] == json!(a))
+                            && decls
+                                .get(a.as_str())
+                                .is_some_and(|d| d["lifecycle"] != "frozen")
+                    })
+                    .map(|(a, _)| a.clone())
+                    .collect();
+                if escalate.is_empty() || self.options.agent.is_none() || attempt == max {
+                    return self.publish(
+                        c, &entries, &obligated, &reqs, &claims, &runs, &verdicts, &records,
+                    );
+                }
+                for a in &escalate {
+                    escalated.push(json!({
+                        "address": a, "identity": "same", "change": "update",
+                        "strategy": "agent", "causes": ["escalation"], "transaction": self.id,
+                    }));
+                }
+                for (a, m) in unmet.iter().filter(|(a, _)| escalate.contains(a)) {
+                    failures.push(failure(
+                        attempt,
+                        &snapshot,
+                        "policy_unmet",
+                        "test",
+                        &format!("{a}: policy not met: {m}"),
+                        None,
+                    ));
+                }
             }
-            if agent_entries.is_empty() || attempt == max {
+            if (agent_entries.is_empty() && escalated.is_empty()) || attempt == max {
                 let why: Vec<&str> = failures
                     .iter()
                     .filter_map(|f| f["excerpt"].as_str())
@@ -1313,9 +1431,10 @@ impl TxRunner<'_> {
         reqs: &BTreeMap<String, Vec<Requirement>>,
         claims: &Claims,
         records: &BTreeMap<String, StateRecord>,
-    ) -> AResult<(Vec<CheckRun>, Vec<Value>)> {
+    ) -> AResult<(Vec<CheckRun>, Vec<Value>, BTreeSet<String>)> {
         let env = self.env;
         let decls = declarations(env.graph);
+        let mut failed_subjects: BTreeSet<String> = BTreeSet::new();
         let area = c.dir.join(format!(
             ".spec/run/{}/r{}/{}",
             self.plan_id, self.revision, self.id
@@ -1430,6 +1549,9 @@ impl TxRunner<'_> {
                         }
                     }
                     if !run.passed {
+                        if !project_scope && run.classification != Some("infrastructure") {
+                            failed_subjects.insert(address.clone());
+                        }
                         let classification = run.classification.unwrap_or("implementation");
                         let mut f = failure(
                             attempt,
@@ -1453,7 +1575,7 @@ impl TxRunner<'_> {
                 }
             }
         }
-        Ok((runs, failures))
+        Ok((runs, failures, failed_subjects))
     }
 
     /// `(member, path)` of a declaration's outputs in the candidate.
@@ -1693,6 +1815,52 @@ impl TxRunner<'_> {
         )))
     }
 
+    /// Every requirement's evidence, and the requirements whose policy is not met as
+    /// `(address, "<member> (<label>)")`. Acquired requirements publish unverified.
+    #[allow(clippy::too_many_arguments)]
+    fn evidence(
+        &self,
+        entries: &[&Value],
+        reqs: &BTreeMap<String, Vec<Requirement>>,
+        claims: &Claims,
+        runs: &[CheckRun],
+        verdicts: &BTreeMap<String, Verdict>,
+        records: &BTreeMap<String, StateRecord>,
+    ) -> AResult<(EvidenceMap, Vec<(String, String)>)> {
+        let acquired: BTreeSet<&str> = entries
+            .iter()
+            .filter(|e| e["strategy"] == "acquire")
+            .filter_map(|e| e["address"].as_str())
+            .collect();
+        let mut unmet = Vec::new();
+        let mut evidence: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+        for (address, list) in reqs {
+            for r in list {
+                let mut r = r.clone();
+                r.tests = claims
+                    .tests
+                    .get(&r.member)
+                    .cloned()
+                    .or_else(|| {
+                        records
+                            .get(address)
+                            .map(|rec| previous_tests(rec, &r.member))
+                    })
+                    .unwrap_or_default();
+                let (e, met) = requirement_evidence(&r, runs, verdicts.get(&r.member))?;
+                // Acquired requirements publish unverified; the next plan obliges them.
+                if !met && !acquired.contains(address.as_str()) {
+                    unmet.push((
+                        address.clone(),
+                        format!("{} ({})", r.member, e["summary"].as_str().unwrap_or("")),
+                    ));
+                }
+                evidence.entry(address.clone()).or_default().push(e);
+            }
+        }
+        Ok((evidence, unmet))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn publish(
         &self,
@@ -1719,33 +1887,8 @@ impl TxRunner<'_> {
                 Some((e["address"].as_str()?, slots))
             })
             .collect();
-        let mut unmet = Vec::new();
-        let mut evidence: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-        for (address, list) in reqs {
-            for r in list {
-                let mut r = r.clone();
-                r.tests = claims
-                    .tests
-                    .get(&r.member)
-                    .cloned()
-                    .or_else(|| {
-                        records
-                            .get(address)
-                            .map(|rec| previous_tests(rec, &r.member))
-                    })
-                    .unwrap_or_default();
-                let (e, met) = requirement_evidence(&r, runs, verdicts.get(&r.member))?;
-                // Acquired requirements publish unverified; the next plan obliges them.
-                if !met && !acquired.contains_key(address.as_str()) {
-                    unmet.push(format!(
-                        "{} ({})",
-                        r.member,
-                        e["summary"].as_str().unwrap_or("")
-                    ));
-                }
-                evidence.entry(address.clone()).or_default().push(e);
-            }
-        }
+        let (evidence, unmet) = self.evidence(entries, reqs, claims, runs, verdicts, records)?;
+        let unmet: Vec<String> = unmet.into_iter().map(|(_, m)| m).collect();
         if !unmet.is_empty() {
             return Ok(Outcome::Failed {
                 reason: format!("policy not met: {}", unmet.join(", ")),
@@ -1924,6 +2067,7 @@ fn c_existed_at_base(c: &Candidate, path: &str) -> bool {
             "-e",
             &format!("{}:{path}", crate::workspace::untagged(&c.base)),
         ])
+        .stderr(std::process::Stdio::null())
         .status()
         .map(|s| s.success())
         .unwrap_or(false)

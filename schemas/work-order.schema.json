@@ -800,6 +800,7 @@
             "result_missing",
             "binding_mismatch",
             "review_nonconforming",
+            "policy_unmet",
             "blocker_rejected",
             "timeout"
           ]

@@ -98,6 +98,8 @@ export lib planner {
     coverage: "every new or changed expect or errors member of a created or updated declaration is a coverage review subject"
     binding: "the plan binds the baseline commit, the applied and new graph digests, the lock digest, the state digest and the bytes of every file it plans to touch or found drifted"
     evidence: "a recorded requirement whose evidence is unverified or failed gives verify and review when its policy needs tests, checks or review, with because unverified:<requirement> or failed:<requirement>; these share the obligation-only transaction"
+    adopt: "an adopted drifted file unblocks its declaration: a change to its own text becomes verify and review obligations against the adopted bytes, which are bound, and its dependents get impact verify"
+    mentions: "a mention consumes the target's public projection: a changed interface field makes the mention holder an update in the target's transaction"
     acquire: "given an acquisition for a new declaration, its create has strategy acquire and lists the claimed slots, created outputs and test bindings; acquired members are not coverage subjects, and the claimed files' bytes and .spec/import.json are bound"
   }
 }

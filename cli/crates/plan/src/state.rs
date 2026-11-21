@@ -237,7 +237,9 @@ pub fn consumed_for(decl: &Value, docs: &GraphDocuments) -> PResult<Vec<Consumed
             continue;
         };
         let mut projections: Vec<(&str, &Value)> = Vec::new();
-        if ORDERING.contains(&relation) || relation == "collects" {
+        // `mentions` consumes the public projection too (SPEC.md, Edges and relations):
+        // a mentioned route that moves makes the mention holder's link stale.
+        if ORDERING.contains(&relation) || relation == "collects" || relation == "mentions" {
             projections.push(("public", &target_docs.public));
         }
         if OBSERVING.contains(&relation) {

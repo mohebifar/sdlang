@@ -63,6 +63,10 @@ fn setup(name: &str) -> PathBuf {
 }
 
 fn write_plan(root: &Path) -> Value {
+    write_plan_as(root, "p-test-01")
+}
+
+fn write_plan_as(root: &Path, id: &str) -> Value {
     let project = intlang_graph::loader::load(root).unwrap();
     let graph = intlang_graph::lower::lower_project(&project).unwrap();
     let head = format!("git:{}", git(root, &["rev-parse", "HEAD"]).trim());
@@ -70,9 +74,10 @@ fn write_plan(root: &Path) -> Value {
         root,
         project: &project,
         graph: &graph,
-        plan_id: "p-test-01",
+        plan_id: id,
         baseline_commit: &head,
         acquire: None,
+        adopt: None,
     })
     .unwrap();
     fs::write(
@@ -400,4 +405,171 @@ fn a_candidate_links_the_installed_dependencies_and_git_ignores_the_link() {
     );
     assert!(!tree.lines().any(|l| l == "node_modules"), "{tree}");
     repo.remove_candidate(&c);
+}
+
+/// Applies the fixture (after `before`), commits a spec edit, and returns the new plan.
+fn applied_then_edited_from(
+    name: &str,
+    before: impl Fn(&str) -> String,
+    edit: impl Fn(&str) -> String,
+) -> (PathBuf, Value) {
+    let root = setup(name);
+    let app = root.join("spec/app.int");
+    fs::write(&app, before(&fs::read_to_string(&app).unwrap())).unwrap();
+    git(&root, &["add", "-A", "spec"]);
+    git(&root, &["commit", "-q", "--allow-empty", "-m", "before"]);
+    write_plan(&root);
+    let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
+    assert!(report.all_published(), "{:?}", report.transactions);
+    let app = root.join("spec/app.int");
+    fs::write(&app, edit(&fs::read_to_string(&app).unwrap())).unwrap();
+    git(&root, &["add", "-A", "spec"]);
+    git(&root, &["commit", "-q", "-m", "edit"]);
+    let plan = write_plan_as(&root, "p-test-02");
+    (root, plan)
+}
+
+fn applied_then_edited(name: &str, edit: impl Fn(&str) -> String) -> (PathBuf, Value) {
+    applied_then_edited_from(name, |s| s.to_string(), edit)
+}
+
+fn entry<'p>(plan: &'p Value, address: &str) -> &'p Value {
+    plan["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["address"] == address)
+        .unwrap_or_else(|| panic!("no entry for {address}: {plan}"))
+}
+
+#[test]
+fn a_moved_declaration_takes_its_files_along() {
+    let (root, plan) = applied_then_edited("move", |s| {
+        s.replace(
+            "export toy.note hello {",
+            "moved hello -> greeting\n\nexport toy.note greeting {",
+        )
+        .replace("uses: [hello]", "uses: [greeting]")
+    });
+    assert_eq!(entry(&plan, "greeting")["identity"], "moved");
+    let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
+    assert!(report.all_published(), "{:?}", report.transactions);
+    assert!(root.join("notes/greeting.txt").is_file());
+    assert!(!root.join("notes/hello.txt").exists());
+    assert!(!root.join("tests/hello.json").exists());
+}
+
+#[test]
+fn a_changed_interface_updates_the_declarations_that_mention_it() {
+    // `later` only mentions hello: no ordering edge, no import grant.
+    let (_, plan) = applied_then_edited_from(
+        "mentions",
+        |s| {
+            format!(
+                "{s}\nexport toy.note later {{\n  title: \"Later\"\n  summary: \"Points back to @{{hello}}\"\n}}\n"
+            )
+        },
+        |s| s.replace("title: \"Hello\"", "title: \"Hi\""),
+    );
+    let later = entry(&plan, "later");
+    assert_eq!(later["change"], "update", "{plan}");
+    assert_eq!(
+        later["causes"],
+        serde_json::json!(["consumed_incompatible"])
+    );
+    assert_eq!(later["transaction"], entry(&plan, "hello")["transaction"]);
+}
+
+#[test]
+fn a_nonconforming_obligation_escalates_inside_the_transaction() {
+    let (root, plan) = applied_then_edited("escalate", |s| {
+        s.replace(
+            "verify: \"tested\"",
+            "verify: \"tested\"\n  prompt: \"\"\"Every note is one line.\"\"\"",
+        )
+    });
+    // Only inherited context changed: hello and bye are obliged, nothing changes.
+    assert!(plan["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|e| e["change"] == "none"));
+    let mark = root.parent().unwrap().join("escalate.review-mark");
+    let _ = fs::remove_file(&mark);
+    let log = root.parent().unwrap().join("escalate.agent-log");
+    let _ = fs::remove_file(&log);
+    let o = options(
+        &root,
+        &format!("AGENT_MODE=good AGENT_LOG={}", log.display()),
+        &format!("REVIEW_ESCALATE=hello REVIEW_MARK={}", mark.display()),
+    );
+    let report = apply(&o).unwrap();
+    assert!(report.all_published(), "{:?}", report.transactions);
+    let dispatches: Vec<Value> = fs::read_to_string(&log)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(
+        dispatches.len(),
+        1,
+        "one escalated coding dispatch: {dispatches:?}"
+    );
+    assert_eq!(
+        dispatches[0]["subjects"],
+        serde_json::json!([{ "address": "hello", "causes": ["escalation"] }])
+    );
+    assert_eq!(
+        dispatches[0]["previous"], 1,
+        "the review's finding is inline"
+    );
+}
+
+#[test]
+fn an_adopted_edit_whose_check_fails_escalates_and_is_repaired() {
+    let root = setup("adopt-escalate");
+    let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
+    assert!(report.all_published(), "{:?}", report.transactions);
+    // A hand edit that breaks hello's test, adopted by the operator.
+    fs::write(
+        root.join("tests/hello.json"),
+        r#"{"cases": {"greets": "failed"}}"#,
+    )
+    .unwrap();
+    git(&root, &["add", "-A", "tests"]);
+    git(&root, &["commit", "-q", "-m", "hand edit"]);
+    let project = intlang_graph::loader::load(&root).unwrap();
+    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let head = format!("git:{}", git(&root, &["rev-parse", "HEAD"]).trim());
+    let adopt: std::collections::BTreeSet<String> = ["tests/hello.json".to_string()].into();
+    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+        root: &root,
+        project: &project,
+        graph: &graph,
+        plan_id: "p-test-02",
+        baseline_commit: &head,
+        acquire: None,
+        adopt: Some(&adopt),
+    })
+    .unwrap();
+    assert_eq!(entry(&plan, "hello")["change"], "none");
+    fs::write(root.join("plan.json"), plan.to_string()).unwrap();
+    let log = root.parent().unwrap().join("adopt-escalate.agent-log");
+    let _ = fs::remove_file(&log);
+    let o = options(
+        &root,
+        &format!("AGENT_MODE=good AGENT_LOG={}", log.display()),
+        "",
+    );
+    let report = apply(&o).unwrap();
+    assert!(report.all_published(), "{:?}", report.transactions);
+    let dispatch: Value =
+        serde_json::from_str(fs::read_to_string(&log).unwrap().lines().next().unwrap()).unwrap();
+    assert_eq!(
+        dispatch["subjects"],
+        serde_json::json!([{ "address": "hello", "causes": ["escalation"] }])
+    );
+    assert!(fs::read_to_string(root.join("tests/hello.json"))
+        .unwrap()
+        .contains("passed"));
 }
