@@ -84,20 +84,18 @@ fn write_plan(root: &Path) -> Value {
 
 fn options(root: &Path, agent_env: &str, review_env: &str) -> ApplyOptions {
     let tools = fixture("tools");
-    ApplyOptions {
-        root: root.to_path_buf(),
-        plan_path: root.join("plan.json"),
-        agent: Some(format!(
-            "{agent_env} python3 {}",
-            tools.join("agent.py").display()
-        )),
-        reviewer: Some(format!(
-            "{review_env} python3 {}",
-            tools.join("reviewer.py").display()
-        )),
-        profile: "local".into(),
-        max_attempts: 3,
-    }
+    let mut o = ApplyOptions::new(root.to_path_buf(), root.join("plan.json"));
+    o.agent = Some(format!(
+        "{agent_env} python3 {}",
+        tools.join("agent.py").display()
+    ));
+    o.reviewer = Some(format!(
+        "{review_env} python3 {}",
+        tools.join("reviewer.py").display()
+    ));
+    o.agent_timeout = std::time::Duration::from_secs(60);
+    o.check_timeout = std::time::Duration::from_secs(60);
+    o
 }
 
 fn outcomes(report: &intlang_apply::ApplyReport) -> Vec<(String, &'static str)> {
@@ -320,4 +318,54 @@ fn an_interface_change_updates_its_consumer_in_the_same_transaction() {
         .contains("+  title: \"Hello there\""));
     assert!(root.join(".spec/run/p-test-01/r1/tx-1/1/order.md").exists());
     assert_eq!(write_plan(&root)["entries"], serde_json::json!([]));
+}
+
+#[test]
+fn an_agent_past_its_time_limit_is_stopped() {
+    let root = setup("timeout");
+    let mut o = options(&root, "AGENT_MODE=good", "");
+    o.agent = Some("sleep 30".into());
+    o.agent_timeout = std::time::Duration::from_secs(1);
+    o.max_attempts = 1;
+    let start = std::time::Instant::now();
+    let report = apply(&o).unwrap();
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+    let Outcome::Failed { reason } = &report.transactions[1].1 else {
+        panic!("{report:?}")
+    };
+    assert!(reason.contains("did not finish within 1s"), "{reason}");
+}
+
+#[test]
+fn an_invalid_verdict_is_asked_again_then_fails_only_its_transaction() {
+    let root = setup("verdict-once");
+    let mark = root.parent().unwrap().join("verdict-once.mark");
+    let _ = fs::remove_file(&mark);
+    let report = apply(&options(
+        &root,
+        "AGENT_MODE=good",
+        &format!("REVIEW_BAD=once REVIEW_MARK={}", mark.display()),
+    ))
+    .unwrap();
+    assert!(report.all_published(), "{report:?}");
+    let md = fs::read_to_string(root.join(".spec/run/p-test-01/r1/tx-2/3/order.md")).unwrap();
+    assert!(
+        md.contains("Your previous verdict was rejected") && md.contains("expected \"s1\""),
+        "{md}"
+    );
+
+    let root = setup("verdict-always");
+    let report = apply(&options(&root, "AGENT_MODE=good", "REVIEW_BAD=always")).unwrap();
+    assert_eq!(
+        outcomes(&report),
+        ids(&[
+            ("tx-1", "published"),
+            ("tx-2", "failed"),
+            ("tx-3", "skipped")
+        ])
+    );
+    let Outcome::Failed { reason } = &report.transactions[1].1 else {
+        panic!()
+    };
+    assert!(reason.contains("invalid twice"), "{reason}");
 }

@@ -13,6 +13,7 @@ mod commands {
     pub mod apply;
     pub mod graph;
     pub mod hash;
+    pub mod mcp;
     pub mod parse;
     pub mod plan;
 }
@@ -37,6 +38,8 @@ enum Command {
     Plan(commands::plan::Args),
     /// Apply plan.json transaction by transaction with an agent and a reviewer.
     Apply(commands::apply::Args),
+    /// Serve the MCP tools of one dispatch on stdio (started by an agent).
+    Mcp(commands::mcp::Args),
 }
 
 fn main() -> ExitCode {
@@ -59,6 +62,7 @@ fn main() -> ExitCode {
         Command::Graph(args) => commands::graph::run(args),
         Command::Plan(args) => commands::plan::run(args),
         Command::Apply(args) => commands::apply::run(args),
+        Command::Mcp(args) => commands::mcp::run(args),
     };
     ExitCode::from(code)
 }

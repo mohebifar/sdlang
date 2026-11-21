@@ -86,3 +86,77 @@ fn plan_then_apply() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("binding mismatch"));
 }
+
+#[test]
+fn agents_use_the_mcp_server() {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cli-apply-mcp");
+    let _ = fs::remove_dir_all(&root);
+    copy_dir(&fixture("project"), &root);
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "-q", "-m", "baseline"]);
+    assert_eq!(
+        spec(&root, &["plan", "--id", "p-mcp-01"]).status.code(),
+        Some(0)
+    );
+    let log = root.parent().unwrap().join("cli-apply-mcp.log");
+    let _ = fs::remove_file(&log);
+    let agent = format!(
+        "MCP_LOG={} python3 {}",
+        log.display(),
+        fixture("tools/mcp_agent.py").display()
+    );
+    let reviewer = format!("python3 {}", fixture("tools/reviewer.py").display());
+    let out = spec(
+        &root,
+        &["apply", "--agent", &agent, "--reviewer", &reviewer],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{stdout}{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let sessions: Vec<serde_json::Value> = fs::read_to_string(&log)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(
+        sessions.len(),
+        2,
+        "one session per coding dispatch (hello, bye)"
+    );
+    let hello = sessions
+        .iter()
+        .find(|s| s["get_task"]["subjects"][0]["address"] == "hello")
+        .unwrap();
+    assert_eq!(hello["tools"].as_array().unwrap().len(), 6);
+    assert_eq!(hello["initialize"]["serverInfo"]["name"], "spec");
+    assert_eq!(
+        hello["get_task"]["subjects"][0]["obligations"],
+        serde_json::json!(["verify", "review"])
+    );
+    assert!(hello["own_public"]["hash"]
+        .as_str()
+        .unwrap()
+        .starts_with("sha256:"));
+    assert_eq!(hello["missing"]["error"], "not_found");
+    assert_eq!(hello["validate"]["valid"], true, "{}", hello["validate"]);
+    assert_eq!(hello["validate_with_rogue"]["valid"], false);
+    assert_eq!(
+        hello["validate_with_rogue"]["problems"][0]["stage"],
+        "envelope"
+    );
+    assert_eq!(
+        hello["self_check"]["result"], "passed",
+        "{}",
+        hello["self_check"]
+    );
+    assert_eq!(hello["self_check"]["advisory"], true);
+    assert!(hello["not_a_check"]["tool_error"].is_string());
+    let calls =
+        fs::read_to_string(root.join(".spec/run/p-mcp-01/r1/tx-2/1/mcp-calls.jsonl")).unwrap();
+    assert!(calls.contains("\"tool\":\"validate_result\""), "{calls}");
+}

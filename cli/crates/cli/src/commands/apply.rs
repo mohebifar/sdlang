@@ -1,6 +1,7 @@
 //! `spec apply`: applies plan.json transaction by transaction.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use intlang_apply::{apply, ApplyOptions, Outcome};
 
@@ -31,6 +32,14 @@ pub struct Args {
     /// Coding attempts per transaction.
     #[arg(long, default_value_t = 3)]
     pub max_attempts: u32,
+
+    /// Seconds an agent or reviewer may run before its process group is stopped.
+    #[arg(long, default_value_t = 1800)]
+    pub agent_timeout: u64,
+
+    /// Seconds a check or generator may run.
+    #[arg(long, default_value_t = 900)]
+    pub check_timeout: u64,
 }
 
 pub fn run(args: Args) -> u8 {
@@ -38,17 +47,22 @@ pub fn run(args: Args) -> u8 {
         eprintln!("error: no such directory: {}", args.dir.display());
         return 2;
     }
-    let options = ApplyOptions {
-        plan_path: args
-            .plan
-            .clone()
-            .unwrap_or_else(|| args.dir.join("plan.json")),
-        root: args.dir,
-        agent: args.agent,
-        reviewer: args.reviewer,
-        profile: args.profile,
-        max_attempts: args.max_attempts,
-    };
+    // Agents start the MCP server with this same binary.
+    let spec = std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "spec".into());
+    let plan = args
+        .plan
+        .clone()
+        .unwrap_or_else(|| args.dir.join("plan.json"));
+    let mut options = ApplyOptions::new(args.dir.clone(), plan);
+    options.agent = args.agent;
+    options.reviewer = args.reviewer;
+    options.profile = args.profile;
+    options.max_attempts = args.max_attempts;
+    options.spec_command = vec![spec, "mcp".into(), "--dispatch".into()];
+    options.agent_timeout = Duration::from_secs(args.agent_timeout);
+    options.check_timeout = Duration::from_secs(args.check_timeout);
     let report = match apply(&options) {
         Ok(r) => r,
         Err(e) => {

@@ -88,10 +88,13 @@ export check build {
   run: ["pnpm", "exec", "next", "build"]
 }
 
+// Runs Vitest on one test output and reports per case. A test names its case in its
+// title: "[case:valid_credentials]", or "[case:generic_error:wrong_password]" for one
+// instance of a parameterised case.
 export check test {
   purpose: "test"
   scope: "declaration"
-  run: ["pnpm", "exec", "vitest", "run", "--reporter", "./checks/vitest-cases.js"]
+  run: ["node", "./checks/test.js"]
 }
 
 // Conformance rules. page_default_export: the page slot's module has a default export

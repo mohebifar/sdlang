@@ -31,6 +31,16 @@ pub struct Env<'a> {
     pub plan_hash: String,
     pub graph_hash: String,
     pub lock_hash: String,
+    /// How an agent starts the MCP server: `[<spec binary>, "mcp", "--dispatch"]`.
+    pub spec_command: Vec<String>,
+}
+
+impl Env<'_> {
+    fn mcp(&self, dispatch: &str) -> Value {
+        let mut command = self.spec_command.clone();
+        command.push(dispatch.to_string());
+        json!({ "mcp": { "transport": "stdio", "command": command, "protocol": "2025-06-18" } })
+    }
 }
 
 /// Sets `binding.order_hash` (or the top-level one, for a generator input) to the digest of
@@ -497,7 +507,7 @@ pub fn work_order(
         },
         "checks": checks,
         "result_path": format!(".spec/run/{dispatch}/result.json"),
-        "tools": { "mcp": { "transport": "stdio", "command": ["spec", "mcp", "--dispatch", dispatch], "protocol": "2025-06-18" } },
+        "tools": env.mcp(dispatch),
         "limits": { "timeout_seconds": 1800, "result_max_bytes": 65536 },
     });
     let mut order = order;
@@ -569,7 +579,7 @@ pub fn review_order(
         "subjects": values,
         "context": { "inherited": context.0, "references": context.1, "manifest": [] },
         "verdict_path": format!(".spec/run/{dispatch}/verdict.json"),
-        "tools": { "mcp": { "transport": "stdio", "command": ["spec", "mcp", "--dispatch", dispatch], "protocol": "2025-06-18" } },
+        "tools": env.mcp(dispatch),
     }))
 }
 
@@ -802,7 +812,7 @@ pub fn render_work_order(order: &Value) -> String {
          file you created under a creation root ({{\"op\": \"create\", \"owner\": <address>, \"key\": <snake_case key>, \"root\": <root>, \
          \"relative_path\": <path under the root>}}), and \"tests\" binding each requirement to the test cases that cover it \
          ({{\"subject\": {{\"target\", \"requirement\"}}, \"tests\": [{{\"output\", \"case\"}}]}}). Tag each test case with a stable snake_case \
-         case name the test reporter reports. The full order is the JSON file in $SPEC_WORK_ORDER. MCP tools are not available in this version.",
+         case name the test reporter reports. The full order is the JSON file in $SPEC_WORK_ORDER. The MCP server named in tools.mcp ($SPEC_MCP_CONFIG holds a client configuration for it) serves get_task, get_declaration, read_context, get_diagnostic, run_self_check and validate_result; run validate_result on your draft before writing it.",
         order["result_path"].as_str().unwrap_or(""),
         order["dispatch"].as_str().unwrap_or(""),
         order["binding"]["order_hash"].as_str().unwrap_or("")
@@ -822,9 +832,10 @@ pub fn render_review_order(order: &Value) -> String {
     for subj in order["subjects"].as_array().into_iter().flatten() {
         let _ = writeln!(
             s,
-            "## {} `{}`\n\n{}\n",
+            "## Subject `{}`: requirement `{}`\n\nAnswer it with `\"id\": \"{}\"`.\n\n> {}\n",
             subj["id"].as_str().unwrap_or(""),
             subj["subject"]["requirement"].as_str().unwrap_or(""),
+            subj["id"].as_str().unwrap_or(""),
             subj["text"].as_str().unwrap_or("")
         );
         let _ = writeln!(s, "Assess: {}. Code: {}.\n", subj["assess"], subj["code"]);
@@ -852,7 +863,7 @@ pub fn render_review_order(order: &Value) -> String {
     let _ = writeln!(
         s,
         "Write the verdict to `{}` (also $SPEC_VERDICT): {{\"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{}\", \"order_hash\": \"{}\", \
-         \"subjects\": [{{\"id\", \"conformance\": {{\"verdict\": \"conforms\"|\"does_not_conform\"|\"cannot_determine\", \"reason\"}}, \
+         \"subjects\": [{{\"id\": the subject id (s1, s2, ...), \"conformance\": {{\"verdict\": \"conforms\"|\"does_not_conform\"|\"cannot_determine\", \"reason\"}}, \
          \"coverage\": [{{\"candidate\", \"verdict\": \"sufficient\"|\"insufficient\"|\"cannot_determine\", \"reason\"}}]}}]}}. Answer every subject and every assessment exactly once.",
         order["verdict_path"].as_str().unwrap_or(""),
         order["dispatch"].as_str().unwrap_or(""),

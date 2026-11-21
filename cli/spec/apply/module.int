@@ -15,14 +15,14 @@ module {
     Agents, reviewers, generators and checks are external commands. The CLI never trusts
     their claims: it derives the diff, enforces envelopes and ownership, runs checks from
     the package's definitions and computes evidence itself.
-    Phase 5a has no MCP server, no context packing beyond the inline part and no import
-    resolver; work orders say so rather than pretending.
+    Agents and checks run in their own process groups with a time limit; the whole group
+    is stopped when they exit or time out.
   """
 }
 
 export rust.crate apply {
   summary: "The intlang-apply crate"
-  uses: [workspace, orders, checks, evidence, engine]
+  uses: [workspace, process, orders, checks, evidence, imports, mcp, engine]
   expect {
     end_to_end: "a plan for a small project with a local package applies with a scripted agent, reviewer, generator and checks: one commit per transaction, state and evidence published, journal written"
     envelope: "an agent that writes outside its envelope fails its attempt with envelope_violation, and nothing publishes when attempts run out"
@@ -41,6 +41,41 @@ export lib workspace {
     freeze: "freezing commits the candidate's whole tree and names the snapshot by its commit"
     diff: "the frozen diff lists every added, modified and deleted path against the transaction's base"
     publish: "publishing fast-forwards the user's branch to the transaction commit and refuses if the branch moved"
+  }
+}
+
+export lib process {
+  summary: "Running external commands in their own process group, with stdin, captured output and a time limit"
+  exports: ["run", "Finished"]
+  expect {
+    timeout: "a command still running at its limit is stopped with its whole process group and reported as timed out"
+    tree: "processes a command left running are stopped when it exits"
+  }
+}
+
+export lib imports {
+  summary: "The allowed-import rule for TypeScript and JavaScript outputs (SPEC.md, Conformance)"
+  exports: ["specifiers", "check_imports"]
+  expect {
+    scan: "import, export-from, dynamic import and require specifiers are found; comments and other strings are ignored"
+    own: "a relative or @/ import of the declaration's own outputs is allowed"
+    edges: "an import of an output that an edge target exports is allowed; mentions grant nothing"
+    ambient: "a bare import is allowed when the kind lists it exactly as ambient"
+    packages: "a bare import of a package is allowed when an edge reaches one of its declarations or its use"
+    violation: "anything else is an import_violation naming the file and the specifier"
+  }
+}
+
+export lib mcp {
+  summary: "The MCP tool server for one dispatch, over stdio JSON-RPC (PROTOCOL.md, MCP tools)"
+  exports: ["serve"]
+  expect {
+    tools: "it lists get_task, get_declaration, read_context, get_diagnostic, run_self_check and validate_result, each with its input schema"
+    visibility: "get_declaration serves the subjects, what their edges reach and exported declarations, and answers not_visible otherwise"
+    resources: "read_context serves a manifest resource in pages whose bytes match its digest"
+    self_check: "run_self_check runs a self_check check on the current tree and marks its receipt advisory"
+    validate: "validate_result reports schema, binding, envelope, ownership and import problems of a draft against the current tree"
+    no_writes: "no tool writes state, widens the envelope or records evidence"
   }
 }
 
@@ -82,7 +117,7 @@ export lib evidence {
 export lib engine {
   summary: "The transaction loop: binding, tasks, freeze, checks, reviews, retries, publish and journal"
   exports: ["apply", "ApplyOptions", "ApplyReport"]
-  uses: [workspace, orders, checks, evidence]
+  uses: [workspace, process, orders, checks, evidence, imports]
   expect {
     binding: "the baseline commit, graph, lock, state digest and every fingerprint must equal the plan's binding"
     serial: "transactions run in plan order; a transaction whose after list names a failed or skipped one is skipped"
@@ -91,5 +126,7 @@ export lib engine {
     retries: "a failed attempt is retried up to attempt.max with every earlier failure inline; a generator failure is never retried by an agent"
     publish: "on success, state records for the transaction's declarations are written against the new graph, the applied store is extended, and one commit is made"
     journal: "each published transaction appends a receipt with its input and result commits to .spec/journal/<plan>.jsonl"
+    mcp_config: "each coding dispatch gets an MCP client configuration naming spec mcp for it, in SPEC_MCP_CONFIG"
+    infrastructure: "a check that fails for infrastructure reasons is rerun once before the transaction fails, and never costs a coding attempt"
   }
 }

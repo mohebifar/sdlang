@@ -69,9 +69,12 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
      results, envelope enforcement, build, test and conformance checks, review orders and
      verdicts, evidence, retries, one commit per transaction and the journal. Tested on a
      toy project with scripted agent, reviewer, generator and checks.
-   - 5b: the MCP tool server (`spec mcp`), context packing and resource serving, the
-     TypeScript import rule, timeouts, the `@intlang/nextjs` adapter's checks, test
-     reporter and generators, and a run with a real agent.
+   - 5b (done): the MCP tool server (`spec mcp`) and resource serving, the TypeScript
+     import rule, process groups and timeouts, infrastructure reruns, and the
+     `@intlang/nextjs` adapter's checks, test reporter and install generator
+     (`../adapters/nextjs`). Context packing beyond the inline part is still a fixed
+     budget record. A real agent (`claude -p`) has applied the toy project end to end
+     (DECISIONS.md C.17).
 6. `spec check` and `spec import`.
 
 Nothing in `../EXTENSIONS.md` is in scope, except the two pieces SPEC.md's worked example

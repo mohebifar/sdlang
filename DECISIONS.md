@@ -365,4 +365,30 @@ passes.
     - infrastructure reruns (an infrastructure failure fails the transaction);
     - evaluating blocked claims (any `blocked` result stops the transaction);
     - repair, approvals (always unmet), amended plans and created-output relocation.
+- C.15 [built] Phase 5b:
+  - **`spec mcp --dispatch <id>`.** The MCP tool server, over stdio JSON-RPC, serving all six tools. A scripted MCP client exercises every tool in a test, and the outputs validate against `schemas/mcp-tools.schema.json`.
+  - **Process groups and timeouts.** Agents, reviewers, checks and generators run in their own process group, which is stopped when they exit or time out (`--agent-timeout`, `--check-timeout`).
+  - **Infrastructure reruns.** An infrastructure failure is rerun once.
+  - **Logs.** Full check logs are kept, so `get_diagnostic` can serve them.
+  - **The TypeScript and JavaScript allowed-import rule**, applied to the frozen candidate and in `validate_result`.
+  - **`adapters/nextjs/`.** The adapter's executable parts: `checks/conformance.js` (`page_default_export`, `no_client_secrets`), `checks/test.js` with `checks/vitest-cases.js`, `gen/install.js` and an `app_router` skill. They have node tests, run from `cargo test` when Node is installed, and one run against a real Vitest whose result and input validate against `schemas/check.schema.json`.
+- C.16 [choices, phase 5b only, not yet in SPEC.md or PROTOCOL.md]
+  - **MCP context.** The engine writes a dispatch context, `.spec/run/<dispatch>/mcp.json`, beside the order, and the server reads only that and the bound graph. Each dispatch also gets an MCP client configuration, passed as `SPEC_MCP_CONFIG`. `tools.mcp.command` uses the absolute path of the running `spec`.
+  - **Tools.**
+    - `get_declaration` serves the subjects, what their edges reach, exported declarations and the subject's own module, and answers `not_found` for `catalog`.
+    - `read_context` serves copies of the pre-edit bytes, so they keep their digest.
+    - `run_self_check` runs in the candidate on the current tree, which it names by a git tree id built in a temporary index. It is isolated only by its process group and time limit.
+  - **Timeouts.** An agent that times out without a result fails its attempt with `timeout` (classification `protocol`). If it wrote a result, the result still counts as a claim.
+  - **Import rule.** It resolves imports to files, not exports, and leaves exports to the typechecker. Path aliases come from `tsconfig.json`. Unowned local files are not importable, and Node built-ins are importable only if the kind lists them as ambient, as SPEC.md's rule says. A package is granted by an edge to one of its declarations or to its `use`.
+  - **Adapter.** `adapters/nextjs/spec/index.int` is a symlink to `examples/nextjs-adapter.int`, so there is one source.
+    - The `test` check's argv is now `node ./checks/test.js`. A check must read the protocol input on stdin and write the result on stdout, and `vitest run --reporter` can do neither.
+    - Tests name their case in the title, as `[case:<case>]` or `[case:<case>:<key>]`. The oracle digest is coarse: the test file plus the Vitest configuration.
+    - `gen/install.js` reports `unsupported`, because installing dependencies needs the network and runs package scripts, which the generator protocol forbids.
+    - Both conformance rules are static heuristics, as the adapter comment says.
+- C.17 [run, 2026-11-21] The first real-agent runs of `spec apply`, on the toy project from the apply tests: one generator transaction and two coding transactions, each needing a test plus a coverage review. Agent and reviewer were `claude -p` with `claude-opus-5-5`, chosen by the user. The agent could edit and use the spec MCP tools but had no shell. The reviewer was read-only except for its verdict file.
+  - **Run 1.** The generator transaction published. The agent did `hello` correctly: a note, a test case, the binding, checks passed and the result was valid. The reviewer's judgement was right, but it answered with the requirement name as the subject id instead of `s1`. That exposed two defects, both now fixed:
+    - The rendered review order did not say which id to echo. It now does, per subject.
+    - An invalid verdict aborted the whole run with exit 2. It is now rejected, the review is asked once more with the problem stated, and a second invalid verdict fails only that transaction. Tests cover both cases.
+  - **Run 2**, on a fresh copy. All three transactions published, with one commit each. State and evidence show `hello#expect.greets` as `tested`, with a sufficient coverage verdict. A fresh plan afterwards is empty. Every protocol document validates against its schema. Both coding agents called the MCP server; the server now also logs which tools were called (`mcp-calls.jsonl`), which run 2 did not yet record.
+  - **What this does not show.** These runs were a smoke test on a toy package, not the trial: one model, one run each, and no Next.js project. Whether `update` works as a scoped edit is the milestone question, and it is still unanswered.
 

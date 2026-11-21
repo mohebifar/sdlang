@@ -2,9 +2,7 @@
 //! packages, and build, test and conformance runs.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use intlang_canon::digest;
 use intlang_graph::loader::{Package, Project};
@@ -16,7 +14,7 @@ use serde_json::{json, Value};
 use crate::error::AResult;
 
 /// A check definition as its package declares it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CheckDef {
     /// `<package import name>.<check name>`.
     pub id: String,
@@ -155,6 +153,8 @@ pub struct CheckRun {
     pub excerpt: String,
     pub cases: BTreeMap<String, CaseOutcome>,
     pub rules: BTreeMap<String, String>,
+    /// The run's full output, for get_diagnostic.
+    pub log: String,
 }
 
 /// Everything a run needs besides the definition.
@@ -174,6 +174,7 @@ pub struct RunContext<'a> {
     /// Expected cases and instance keys (empty keys: any instances).
     pub expected_cases: BTreeMap<String, Vec<String>>,
     pub inputs: String,
+    pub timeout: std::time::Duration,
 }
 
 fn excerpt(bytes: &[u8]) -> String {
@@ -190,35 +191,25 @@ fn exec(
     cwd: &Path,
     stdin: Option<&str>,
     package_root: &Path,
+    timeout: std::time::Duration,
 ) -> AResult<(i32, Vec<u8>, Vec<u8>)> {
-    if argv.is_empty() {
-        return Ok((127, vec![], b"empty run argv".to_vec()));
+    let f = crate::process::run(
+        crate::process::Program::Argv(argv),
+        cwd,
+        stdin.unwrap_or(""),
+        &[(
+            "SPEC_PACKAGE_ROOT",
+            package_root.to_string_lossy().into_owned(),
+        )],
+        timeout,
+        true,
+    )?;
+    if f.timed_out {
+        let mut err = f.stderr;
+        err.extend_from_slice(format!("\ntimed out after {}s", timeout.as_secs()).as_bytes());
+        return Ok((124, f.stdout, err));
     }
-    let mut child = match Command::new(&argv[0])
-        .args(&argv[1..])
-        .current_dir(cwd)
-        .env("SPEC_PACKAGE_ROOT", package_root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            return Ok((
-                127,
-                vec![],
-                format!("cannot run {}: {e}", argv[0]).into_bytes(),
-            ))
-        }
-    };
-    if let Some(mut pipe) = child.stdin.take() {
-        let _ = pipe.write_all(stdin.unwrap_or("").as_bytes());
-    }
-    let out = child
-        .wait_with_output()
-        .map_err(|e| crate::error::ApplyError::new(format!("{}: {e}", argv[0])))?;
-    Ok((out.status.code().unwrap_or(-1), out.stdout, out.stderr))
+    Ok((f.code, f.stdout, f.stderr))
 }
 
 /// Runs one check. Infrastructure problems are reported in the outcome, never as `Err`.
@@ -235,6 +226,7 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         excerpt: String::new(),
         cases: BTreeMap::new(),
         rules: BTreeMap::new(),
+        log: String::new(),
     };
     // Paths relative to the package root resolve there; plain commands come from PATH.
     let mut argv = def.run.clone();
@@ -257,9 +249,12 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         }
     }
     if def.purpose == "build" {
-        let (code, stdout, stderr) = exec(&argv, ctx.workdir, None, &def.package_root)?;
+        let (code, stdout, stderr) =
+            exec(&argv, ctx.workdir, None, &def.package_root, ctx.timeout)?;
+        run.log = String::from_utf8_lossy(&[stdout.clone(), stderr.clone()].concat()).into_owned();
         run.passed = code == 0;
         if !run.passed {
+            // A missing program is infrastructure; a build that hangs is the code's fault.
             run.classification = Some(if code == 127 {
                 "infrastructure"
             } else {
@@ -311,7 +306,9 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         &def.package_root,
         Some(&input.to_string()),
         &def.package_root,
+        ctx.timeout,
     )?;
+    run.log = String::from_utf8_lossy(&[stdout.clone(), stderr.clone()].concat()).into_owned();
     let infra = |run: &mut CheckRun, why: String| {
         run.classification = Some("infrastructure");
         run.excerpt = why;

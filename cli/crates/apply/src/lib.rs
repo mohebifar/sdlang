@@ -7,7 +7,10 @@ pub mod checks;
 pub mod engine;
 pub mod error;
 pub mod evidence;
+pub mod imports;
+pub mod mcp;
 pub mod orders;
+pub mod process;
 pub mod workspace;
 
 pub use engine::{apply, ApplyOptions, ApplyReport, Outcome};

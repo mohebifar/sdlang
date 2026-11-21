@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use intlang_canon::{digest, documents, GraphDocuments};
 use intlang_graph::loader::Project;
@@ -32,6 +32,28 @@ pub struct ApplyOptions {
     pub reviewer: Option<String>,
     pub profile: String,
     pub max_attempts: u32,
+    /// How agents start the MCP server, without the dispatch id:
+    /// `[<spec binary>, "mcp", "--dispatch"]`.
+    pub spec_command: Vec<String>,
+    pub agent_timeout: Duration,
+    pub check_timeout: Duration,
+}
+
+impl ApplyOptions {
+    /// Options with the defaults `spec apply` uses.
+    pub fn new(root: PathBuf, plan_path: PathBuf) -> ApplyOptions {
+        ApplyOptions {
+            root,
+            plan_path,
+            agent: None,
+            reviewer: None,
+            profile: "local".into(),
+            max_attempts: 3,
+            spec_command: vec!["spec".into(), "mcp".into(), "--dispatch".into()],
+            agent_timeout: Duration::from_secs(1800),
+            check_timeout: Duration::from_secs(900),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,22 +100,21 @@ fn failure(
     v
 }
 
-fn run_command(command: &str, dir: &Path, stdin: &str, env: &[(&str, String)]) -> AResult<i32> {
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(dir)
-        .envs(env.iter().map(|(k, v)| (*k, v.as_str())))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|e| ApplyError::new(format!("cannot run `{command}`: {e}")))?;
-    if let Some(mut pipe) = child.stdin.take() {
-        let _ = pipe.write_all(stdin.as_bytes());
-    }
-    let status = child.wait().map_err(|e| ApplyError::new(e.to_string()))?;
-    Ok(status.code().unwrap_or(-1))
+fn run_command(
+    command: &str,
+    dir: &Path,
+    stdin: &str,
+    env: &[(&str, String)],
+    timeout: Duration,
+) -> AResult<crate::process::Finished> {
+    crate::process::run(
+        crate::process::Program::Shell(command),
+        dir,
+        stdin,
+        env,
+        timeout,
+        false,
+    )
 }
 
 fn write_json(path: &Path, v: &Value) -> AResult<()> {
@@ -222,6 +243,7 @@ pub fn apply(options: &ApplyOptions) -> AResult<ApplyReport> {
         plan_hash: digest(&plan)?,
         graph_hash,
         lock_hash: digest(&loaded.project.lock)?,
+        spec_command: options.spec_command.clone(),
     };
     let mut report = ApplyReport {
         transactions: vec![],
@@ -312,6 +334,198 @@ impl TxRunner<'_> {
         format!("{}/r{}/{}/{n}", self.plan_id, self.revision, self.id)
     }
 
+    /// The transaction's protocol area inside the candidate.
+    fn tx_area(&self, c: &Candidate) -> PathBuf {
+        c.dir.join(self.tx_area_rel())
+    }
+
+    fn tx_area_rel(&self) -> String {
+        format!(".spec/run/{}/r{}/{}", self.plan_id, self.revision, self.id)
+    }
+
+    /// Writes the dispatch's MCP context and client configuration; returns the latter.
+    #[allow(clippy::too_many_arguments)]
+    fn write_mcp_context(
+        &self,
+        c: &Candidate,
+        dispatch: &str,
+        order: &Value,
+        base: &str,
+        entry: &Value,
+        record: Option<&StateRecord>,
+        reqs: &[Requirement],
+        claims: &Claims,
+    ) -> AResult<PathBuf> {
+        let env = self.env;
+        let area_rel = format!(".spec/run/{dispatch}");
+        let area = c.dir.join(&area_rel);
+        let address = entry["address"].as_str().unwrap_or_default();
+        let decls = declarations(env.graph);
+        // Resources keep the pre-edit bytes of each manifest item, so they match its digest.
+        let mut resources = BTreeMap::new();
+        for item in order["context"]["manifest"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let (Some(id), Some(hash)) = (item["resource"].as_str(), item["hash"].as_str()) else {
+                continue;
+            };
+            let output = item["id"]
+                .as_str()
+                .unwrap_or_default()
+                .trim_start_matches("code:");
+            let path = order["subjects"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .flat_map(|s| s["envelope"]["write"].as_array().into_iter().flatten())
+                .find(|w| w["output"] == output)
+                .and_then(|w| w["path"].as_str());
+            if let Some(path) = path {
+                if let Ok(bytes) = fs::read(c.dir.join(path)) {
+                    let rel = format!("{area_rel}/resources/{}", &id[id.len() - 12..]);
+                    let _ = fs::create_dir_all(c.dir.join(&rel).parent().unwrap());
+                    let _ = fs::write(c.dir.join(&rel), bytes);
+                    resources.insert(id.to_string(), (rel, hash.to_string()));
+                }
+            }
+        }
+        let mut records = BTreeMap::new();
+        if let Some(r) = record {
+            records.insert(address.to_string(), r.clone());
+        }
+        let outputs = self.outputs_of(address, &records, claims);
+        let own: BTreeSet<String> = outputs.iter().map(|(_, p)| p.clone()).collect();
+        let decl = decls.get(address).copied().unwrap_or(&Value::Null);
+        let module = decl["module"].as_str().unwrap_or_default();
+        let mut visible: BTreeSet<String> = decls
+            .values()
+            .filter(|d| d["exported"] == true || d["module"] == module)
+            .filter_map(|d| d["address"].as_str().map(String::from))
+            .collect();
+        visible.insert(address.to_string());
+        for e in decl["edges"].as_array().into_iter().flatten() {
+            if let Some(t) = e["target"].as_str().filter(|t| decls.contains_key(*t)) {
+                visible.insert(t.to_string());
+            }
+        }
+        let mut expected: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+        for r in reqs {
+            for (o, case) in &r.tests {
+                expected
+                    .entry(o.clone())
+                    .or_default()
+                    .entry(case.clone())
+                    .or_default();
+            }
+        }
+        let exports: Vec<String> = kind_body(env.project, decl)
+            .into_iter()
+            .flat_map(|b| b.members.iter())
+            .filter(|m| m.name.text == "exports")
+            .flat_map(|m| match &m.value {
+                MemberValue::Section(s) => s.members.iter().map(|e| e.name.text.clone()).collect(),
+                _ => vec![],
+            })
+            .collect();
+        let mut obligations = vec!["verify".to_string()];
+        if reqs.iter().any(|r| r.policy.review || r.policy.tests) {
+            obligations.push("review".into());
+        }
+        let subject = crate::mcp::McpSubject {
+            address: address.to_string(),
+            kind: decl["kind"].as_str().unwrap_or_default().to_string(),
+            obligations,
+            outputs,
+            exports,
+            roots: env
+                .mats
+                .get(address)
+                .map(|m| m.roots.clone())
+                .unwrap_or_default(),
+            requirements: reqs.iter().map(|r| r.member.clone()).collect(),
+            imports: crate::imports::policy_for(
+                env.project,
+                env.graph,
+                env.mats,
+                own,
+                address,
+                &c.dir,
+            ),
+            expected_cases: expected,
+        };
+        let context = crate::mcp::McpContext {
+            dispatch: dispatch.to_string(),
+            order: format!("{area_rel}/order.json"),
+            graph: format!("{}/graph.json", self.tx_area_rel()),
+            logs: format!("{}/logs", self.tx_area_rel()),
+            base: base.to_string(),
+            resources,
+            visible,
+            subjects: vec![subject],
+            checks: resolve_checks(env.project, decl)
+                .into_iter()
+                .map(|d| (address.to_string(), d))
+                .collect(),
+            profile: self.options.profile.clone(),
+            check_timeout_seconds: self.options.check_timeout.as_secs(),
+        };
+        write_json(
+            &area.join("mcp.json"),
+            &serde_json::to_value(&context).expect("serialisable"),
+        )?;
+        let mut command = env.spec_command.clone();
+        command.push(dispatch.to_string());
+        let config = json!({ "mcpServers": { "spec": { "type": "stdio", "command": command[0], "args": command[1..] } } });
+        let path = area.join("mcp-config.json");
+        write_json(&path, &config)?;
+        Ok(path)
+    }
+
+    /// The allowed-import rule on the frozen candidate.
+    fn check_import_rule(
+        &self,
+        c: &Candidate,
+        snapshot: &str,
+        attempt: u32,
+        changed: &[&Value],
+        records: &BTreeMap<String, StateRecord>,
+        claims: &Claims,
+    ) -> AResult<Option<Value>> {
+        let env = self.env;
+        let diff: BTreeSet<String> = c
+            .diff_from_base()?
+            .into_iter()
+            .filter(|ch| !matches!(ch, Change::Deleted(_)))
+            .map(|ch| ch.path().to_string())
+            .collect();
+        let mut violations = Vec::new();
+        for e in changed.iter().filter(|e| e["change"] != "delete") {
+            let address = e["address"].as_str().unwrap_or_default();
+            let own: BTreeSet<String> = self
+                .outputs_of(address, records, claims)
+                .into_iter()
+                .map(|(_, p)| p)
+                .collect();
+            let files: Vec<String> = diff.iter().filter(|p| own.contains(*p)).cloned().collect();
+            let policy =
+                crate::imports::policy_for(env.project, env.graph, env.mats, own, address, &c.dir);
+            violations.extend(crate::imports::check_imports(&policy, &c.dir, &files));
+        }
+        if violations.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(failure(
+            attempt,
+            snapshot,
+            "import_violation",
+            "implementation",
+            &violations.join("; "),
+            None,
+        )))
+    }
+
     fn entries(&self) -> Vec<&Value> {
         self.env.plan["entries"]
             .as_array()
@@ -373,6 +587,7 @@ impl TxRunner<'_> {
             dispatch_n += 1;
             self.dispatch(dispatch_n)
         };
+        write_json(&self.tx_area(c).join("graph.json"), env.graph)?;
         let input_snapshot = c.freeze(&format!("spec: {} input", self.id))?;
 
         // Deletions and generators run once; generator failures are never retried by agents.
@@ -475,6 +690,13 @@ impl TxRunner<'_> {
                     failures.push(f);
                 }
             }
+            if failures.is_empty() {
+                if let Some(f) =
+                    self.check_import_rule(c, &snapshot, attempt, &changed, &records, &claims)?
+                {
+                    failures.push(f);
+                }
+            }
             let mut runs = Vec::new();
             if failures.is_empty() {
                 let (r, f) = self.run_checks(
@@ -507,9 +729,14 @@ impl TxRunner<'_> {
                     &claims,
                     &runs,
                     &records,
-                )? {
-                    Ok(v) => verdicts = v,
-                    Err(nonconforming) => {
+                ) {
+                    Err(e) => {
+                        return Ok(Outcome::Failed {
+                            reason: format!("review: {e}"),
+                        })
+                    }
+                    Ok(Ok(v)) => verdicts = v,
+                    Ok(Err(nonconforming)) => {
                         if nonconforming.iter().any(|(a, _)| obligated.contains(a)) {
                             return Ok(Outcome::Failed { reason: format!("review found nonconformance in an obligated declaration, which needs an amended plan: {}", nonconforming.iter().map(|(a, r)| format!("{a}: {r}")).collect::<Vec<_>>().join("; ")) });
                         }
@@ -595,21 +822,30 @@ impl TxRunner<'_> {
                 *a = package.root.join(rest).to_string_lossy().into_owned();
             }
         }
-        let mut child = Command::new(&argv[0])
-            .args(&argv[1..])
-            .current_dir(&c.dir)
-            .env("SPEC_PACKAGE_ROOT", &package.root)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(|e| format!("cannot run {}: {e}", argv[0]))?;
-        if let Some(mut pipe) = child.stdin.take() {
-            let _ = pipe.write_all(input.to_string().as_bytes());
+        let out = crate::process::run(
+            crate::process::Program::Argv(&argv),
+            &c.dir,
+            &input.to_string(),
+            &[(
+                "SPEC_PACKAGE_ROOT",
+                package.root.to_string_lossy().into_owned(),
+            )],
+            self.options.check_timeout,
+            true,
+        )
+        .map_err(|e| e.message)?;
+        if out.timed_out {
+            return Err(format!(
+                "timed out after {}s",
+                self.options.check_timeout.as_secs()
+            ));
         }
-        let out = child.wait_with_output().map_err(|e| e.to_string())?;
-        if !out.status.success() {
-            return Err(format!("exited {}", out.status.code().unwrap_or(-1)));
+        if out.code != 0 {
+            return Err(format!(
+                "exited {}: {}",
+                out.code,
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
         }
         let output: Value =
             serde_json::from_slice(&out.stdout).map_err(|e| format!("invalid output: {e}"))?;
@@ -708,7 +944,9 @@ impl TxRunner<'_> {
             .map(|d| resolve_checks(env.project, d))
             .unwrap_or_default()
             .iter()
-            .map(|d| json!({ "id": d.id, "definition_hash": d.definition_hash, "self_check": false }))
+            .map(
+                |d| json!({ "id": d.id, "definition_hash": d.definition_hash, "self_check": true }),
+            )
             .collect();
         let mut bound = reqs.to_vec();
         for r in &mut bound {
@@ -745,7 +983,19 @@ impl TxRunner<'_> {
         let command = self.options.agent.clone().unwrap_or_default();
         let markdown = orders::render_work_order(&order);
         let _ = fs::write(area.join("order.md"), &markdown);
-        run_command(
+        let mcp_config = self
+            .write_mcp_context(
+                c,
+                dispatch,
+                &order,
+                input_snapshot,
+                entry,
+                record,
+                &bound,
+                claims,
+            )
+            .map_err(AgentStop::Error)?;
+        let finished = run_command(
             &command,
             &c.dir,
             &markdown,
@@ -753,9 +1003,24 @@ impl TxRunner<'_> {
                 ("SPEC_WORK_ORDER", order_path.to_string_lossy().into_owned()),
                 ("SPEC_RESULT", result_path.to_string_lossy().into_owned()),
                 ("SPEC_DISPATCH", dispatch.to_string()),
+                ("SPEC_MCP_CONFIG", mcp_config.to_string_lossy().into_owned()),
             ],
+            self.options.agent_timeout,
         )
         .map_err(AgentStop::Error)?;
+        if finished.timed_out && !result_path.exists() {
+            return Ok(Some(failure(
+                attempt,
+                input_snapshot,
+                "timeout",
+                "protocol",
+                &format!(
+                    "{address}: the agent did not finish within {}s",
+                    self.options.agent_timeout.as_secs()
+                ),
+                None,
+            )));
+        }
         // The protocol area is never part of the candidate's diff.
         let snapshot = input_snapshot;
         let Some(result) = read_json(&result_path) else {
@@ -1011,7 +1276,6 @@ impl TxRunner<'_> {
             self.plan_id, self.revision, self.id
         ));
         let graph_path = area.join("graph.json");
-        write_json(&graph_path, env.graph)?;
         let scratch = area.join("scratch");
         let _ = fs::create_dir_all(&scratch);
         let mut subjects: Vec<String> = entries
@@ -1100,21 +1364,38 @@ impl TxRunner<'_> {
                         test_output,
                         expected_cases: expected,
                         inputs,
+                        timeout: self.options.check_timeout,
                     };
-                    let run = run_check(&def, &ctx)?;
+                    let mut run = run_check(&def, &ctx)?;
                     if c.changed_since_freeze()? {
                         c.restore()?;
                     }
+                    // Infrastructure failures are rerun once and never cost a coding attempt.
+                    if !run.passed && run.classification == Some("infrastructure") {
+                        run = run_check(&def, &ctx)?;
+                        if c.changed_since_freeze()? {
+                            c.restore()?;
+                        }
+                    }
                     if !run.passed {
                         let classification = run.classification.unwrap_or("implementation");
-                        failures.push(failure(
+                        let mut f = failure(
                             attempt,
                             snapshot,
                             "check_failed",
                             classification,
                             &format!("{} on {}: {}", def.id, address, run.excerpt),
                             Some((&def.id, &def.definition_hash)),
-                        ));
+                        );
+                        if !run.log.is_empty() {
+                            let hex =
+                                intlang_canon::digest_bytes(run.log.as_bytes())[7..19].to_string();
+                            let logs = area.join("logs");
+                            let _ = fs::create_dir_all(&logs);
+                            let _ = fs::write(logs.join(format!("{hex}.log")), &run.log);
+                            f["diagnostics"] = json!(format!("ctx:log:{hex}"));
+                        }
+                        failures.push(f);
                     }
                     runs.push(run);
                 }
@@ -1310,7 +1591,6 @@ impl TxRunner<'_> {
         let Some(command) = &self.options.reviewer else {
             return Ok(Ok(verdicts));
         };
-        let dispatch = next_dispatch();
         let addresses: BTreeSet<&String> = subjects.iter().map(|(a, _)| a).collect();
         let mut inherited = Vec::new();
         let mut references = Vec::new();
@@ -1329,112 +1609,66 @@ impl TxRunner<'_> {
             })
             .collect();
         let snapshot_digest = digest(&json!(snapshot))?;
-        let order = orders::review_order(
-            env,
-            &dispatch,
-            &snapshot_digest,
-            &review_subjects,
-            (inherited, references),
-        )?;
-        let area = c.dir.join(format!(".spec/run/{dispatch}"));
-        let order_path = area.join("order.json");
-        write_json(&order_path, &order)?;
-        let verdict_path = c
-            .dir
-            .join(order["verdict_path"].as_str().unwrap_or_default());
-        run_command(
-            command,
-            &c.dir,
-            &orders::render_review_order(&order),
-            &[
-                (
-                    "SPEC_REVIEW_ORDER",
-                    order_path.to_string_lossy().into_owned(),
-                ),
-                ("SPEC_VERDICT", verdict_path.to_string_lossy().into_owned()),
-                ("SPEC_DISPATCH", dispatch.clone()),
-            ],
-        )?;
-        if c.changed_since_freeze()? {
-            c.restore()?;
-            return Err(ApplyError::new(
-                "the reviewer changed the candidate; reviews have no write authority",
-            ));
-        }
-        let verdict = read_json(&verdict_path).ok_or_else(|| {
-            ApplyError::new(format!(
-                "reviewer wrote no valid verdict at {}",
-                order["verdict_path"]
-            ))
-        })?;
-        if verdict["schema"] != "intlang.review-verdict/1"
-            || verdict["dispatch"] != json!(dispatch)
-            || verdict["order_hash"] != order["binding"]["order_hash"]
-        {
-            return Err(ApplyError::new(
-                "the verdict does not echo the review order's dispatch and order_hash",
-            ));
-        }
-        let answers: Vec<&Value> = verdict["subjects"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .collect();
-        let mut nonconforming = Vec::new();
-        for (i, (address, s)) in subjects.iter().enumerate() {
-            let id = format!("s{}", i + 1);
-            let matching: Vec<&&Value> = answers.iter().filter(|a| a["id"] == json!(id)).collect();
-            if matching.len() != 1 {
-                return Err(ApplyError::new(format!(
-                    "the verdict must answer {id} exactly once"
-                )));
-            }
-            let a = matching[0];
-            let conformance = a["conformance"]["verdict"].as_str().map(String::from);
-            if conformance.is_none() {
-                return Err(ApplyError::new(format!(
-                    "the verdict lacks a conformance assessment for {id}"
-                )));
-            }
-            let coverage = a["coverage"]
-                .as_array()
-                .and_then(|c| c.iter().find(|x| x["candidate"] == "c1"))
-                .and_then(|x| x["verdict"].as_str())
-                .map(String::from);
-            if s.coverage.is_some() && coverage.is_none() {
-                return Err(ApplyError::new(format!(
-                    "the verdict lacks a coverage assessment for {id}"
-                )));
-            }
-            if conformance.as_deref() == Some("does_not_conform") {
-                nonconforming.push((
-                    address.clone(),
-                    format!(
-                        "{}: {}",
-                        s.requirement.member,
-                        a["conformance"]["reason"].as_str().unwrap_or("")
-                    ),
+        // An invalid verdict is rejected and the review asked once more, with the problem
+        // stated; a second invalid verdict fails the transaction.
+        let mut rejected: Option<String> = None;
+        for _ in 0..2 {
+            let dispatch = next_dispatch();
+            let order = orders::review_order(
+                env,
+                &dispatch,
+                &snapshot_digest,
+                &review_subjects,
+                (inherited.clone(), references.clone()),
+            )?;
+            let area = c.dir.join(format!(".spec/run/{dispatch}"));
+            let order_path = area.join("order.json");
+            write_json(&order_path, &order)?;
+            let verdict_path = c
+                .dir
+                .join(order["verdict_path"].as_str().unwrap_or_default());
+            let mut markdown = orders::render_review_order(&order);
+            if let Some(why) = &rejected {
+                markdown.push_str(&format!(
+                    "\n## Your previous verdict was rejected\n\n{why}\n"
                 ));
             }
-            verdicts.insert(
-                s.requirement.member.clone(),
-                Verdict {
-                    dispatch: dispatch.clone(),
-                    conformance,
-                    coverage,
-                    reason: a["conformance"]["reason"].as_str().unwrap_or("").into(),
-                },
-            );
+            let _ = fs::write(area.join("order.md"), &markdown);
+            run_command(
+                command,
+                &c.dir,
+                &markdown,
+                &[
+                    (
+                        "SPEC_REVIEW_ORDER",
+                        order_path.to_string_lossy().into_owned(),
+                    ),
+                    ("SPEC_VERDICT", verdict_path.to_string_lossy().into_owned()),
+                    ("SPEC_DISPATCH", dispatch.clone()),
+                ],
+                self.options.agent_timeout,
+            )?;
+            if c.changed_since_freeze()? {
+                c.restore()?;
+                return Err(ApplyError::new(
+                    "the reviewer changed the candidate; reviews have no write authority",
+                ));
+            }
+            match read_verdict(&verdict_path, &order, &dispatch, &subjects) {
+                Ok((found, nonconforming)) => {
+                    verdicts.extend(found);
+                    if !nonconforming.is_empty() {
+                        return Ok(Err(nonconforming));
+                    }
+                    return Ok(Ok(verdicts));
+                }
+                Err(why) => rejected = Some(why),
+            }
         }
-        if answers.len() != subjects.len() {
-            return Err(ApplyError::new(
-                "the verdict answers subjects that were not requested",
-            ));
-        }
-        if !nonconforming.is_empty() {
-            return Ok(Err(nonconforming));
-        }
-        Ok(Ok(verdicts))
+        Err(ApplyError::new(format!(
+            "the reviewer's verdict was invalid twice: {}",
+            rejected.unwrap_or_default()
+        )))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1536,6 +1770,85 @@ type PlannedRun = (
 
 /// Verdicts by requirement member, or the nonconforming `(address, reason)` pairs.
 type ReviewOutcome = Result<BTreeMap<String, Verdict>, Vec<(String, String)>>;
+
+/// Reads and validates a verdict against its review order: verdicts by requirement member,
+/// and the nonconforming `(address, reason)` pairs.
+type ReadVerdict = (BTreeMap<String, Verdict>, Vec<(String, String)>);
+
+fn read_verdict(
+    path: &Path,
+    order: &Value,
+    dispatch: &str,
+    subjects: &[(String, ReviewSubject)],
+) -> Result<ReadVerdict, String> {
+    let verdict = read_json(path)
+        .ok_or_else(|| format!("no valid JSON verdict at {}", order["verdict_path"]))?;
+    if verdict["schema"] != "intlang.review-verdict/1"
+        || verdict["dispatch"] != json!(dispatch)
+        || verdict["order_hash"] != order["binding"]["order_hash"]
+    {
+        return Err(format!(
+            "the verdict must carry \"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{dispatch}\" and \"order_hash\": {}",
+            order["binding"]["order_hash"]
+        ));
+    }
+    let answers: Vec<&Value> = verdict["subjects"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .collect();
+    let mut verdicts = BTreeMap::new();
+    let mut nonconforming = Vec::new();
+    for (i, (address, s)) in subjects.iter().enumerate() {
+        let id = format!("s{}", i + 1);
+        let matching: Vec<&&Value> = answers.iter().filter(|a| a["id"] == json!(id)).collect();
+        if matching.len() != 1 {
+            let ids: Vec<String> = answers.iter().map(|a| a["id"].to_string()).collect();
+            return Err(format!("each subject must be answered exactly once by its id: expected \"{id}\" (for {}), found ids [{}]", s.requirement.member, ids.join(", ")));
+        }
+        let a = matching[0];
+        let conformance = a["conformance"]["verdict"].as_str().map(String::from);
+        if !matches!(
+            conformance.as_deref(),
+            Some("conforms" | "does_not_conform" | "cannot_determine")
+        ) {
+            return Err(format!("{id} needs a conformance verdict of conforms, does_not_conform or cannot_determine"));
+        }
+        let coverage = a["coverage"]
+            .as_array()
+            .and_then(|c| c.iter().find(|x| x["candidate"] == "c1"))
+            .and_then(|x| x["verdict"].as_str())
+            .map(String::from);
+        if s.coverage.is_some() && coverage.is_none() {
+            return Err(format!(
+                "{id} needs a coverage assessment for candidate \"c1\""
+            ));
+        }
+        if conformance.as_deref() == Some("does_not_conform") {
+            nonconforming.push((
+                address.clone(),
+                format!(
+                    "{}: {}",
+                    s.requirement.member,
+                    a["conformance"]["reason"].as_str().unwrap_or("")
+                ),
+            ));
+        }
+        verdicts.insert(
+            s.requirement.member.clone(),
+            Verdict {
+                dispatch: dispatch.to_string(),
+                conformance,
+                coverage,
+                reason: a["conformance"]["reason"].as_str().unwrap_or("").into(),
+            },
+        );
+    }
+    if answers.len() != subjects.len() {
+        return Err("the verdict answers subjects that were not requested".into());
+    }
+    Ok((verdicts, nonconforming))
+}
 
 enum AgentStop {
     Blocked(String),
