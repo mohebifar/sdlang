@@ -1,0 +1,18 @@
+[package]
+name = "intlang-syntax"
+description = "Lexer and parser for int lang (.int) source"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+logos.workspace = true
+serde.workspace = true
+codespan-reporting.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

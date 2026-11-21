@@ -1,0 +1,11 @@
+{
+  "name": "@intlang-local/rust",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["spec/"],
+  "intlang": {
+    "format": 1,
+    "name": "rust",
+    "entry": "./spec/index.int"
+  }
+}

@@ -1,0 +1,17 @@
+module {
+  summary: "Phase 1: lexing and parsing .int source into a syntax tree"
+  prompt: """
+    Follow GRAMMAR.ebnf exactly. The Python reference parser in tools/check_examples.py
+    must agree with this crate on every input in the corpus: a file one accepts, the
+    other accepts. No I/O: functions take &str and return values.
+  """
+}
+
+export rust.crate syntax {
+  summary: "The intlang-syntax crate"
+  uses: [lexer, strings, ast, parser, diagnostics]
+  expect {
+    corpus: "every spec block in SPEC.md, PROTOCOL.md, EXTENSIONS.md and TRIAL.md, and every .int file under examples/ and cli/, parses"
+    grammar_cases: "the reference checker's negative grammar cases are rejected and its positive cases accepted"
+  }
+}

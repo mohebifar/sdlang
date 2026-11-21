@@ -1,0 +1,26 @@
+import package "./spec-packages/rust" as rust
+
+project intlang_cli {
+  summary: "The spec command-line tool for int lang"
+  verify: "tested"
+  prompt: """
+    Rust 2021 on the stable toolchain, with no unsafe code. Library crates never print
+    or exit; only the binary does. Every error carries a byte span into the source it
+    came from.
+    The design documents in the repository root are the source of truth: SPEC.md,
+    GRAMMAR.ebnf, PROTOCOL.md and schemas/. Where this spec and they disagree, stop and
+    ask rather than choosing.
+  """
+}
+
+stack {
+  language: { name: "rust", edition: "2021" }
+  package_manager: { name: "cargo" }
+}
+
+use "logos" for lexing
+use "clap" for arguments
+use "serde" for serialization
+use "serde_json" for json
+use "codespan-reporting" for diagnostics
+use "walkdir" for file_walking

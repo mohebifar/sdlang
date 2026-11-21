@@ -1,0 +1,23 @@
+module {
+  summary: "Phase 3: resolving a spec tree and lowering it to the canonical graph"
+  prompt: """
+    Output must validate against schemas/graph.schema.json. examples/graph.before.json
+    and examples/graph.after.json are the reference: lowering the worked example's
+    source must reproduce them.
+  """
+}
+
+export rust.crate graph {
+  summary: "The intlang-graph crate"
+  uses: [resolve, lower]
+}
+
+export lib resolve {
+  summary: "Module discovery, imports, scoping and reference resolution"
+  exports: ["resolve", "ResolveError"]
+}
+
+export lib lower {
+  summary: "Lowering resolved declarations to the canonical graph and its projections"
+  exports: ["lower"]
+}

@@ -1,0 +1,20 @@
+module {
+  summary: "Phase 2: canonical JSON and hashing, byte for byte as SPEC.md specifies"
+  prompt: """
+    Port tools/canon.py. examples/hash-vectors.json is the contract: every vector must
+    reproduce exactly.
+  """
+}
+
+export rust.crate canon {
+  summary: "The intlang-canon crate"
+  uses: [canonical_json]
+  expect {
+    vectors: "every vector in examples/hash-vectors.json reproduces its expected bytes and digest"
+  }
+}
+
+export lib canonical_json {
+  summary: "Canonical JSON (NFC strings, sorted keys, no insignificant whitespace) and sha256 digests"
+  exports: ["canonical", "digest"]
+}

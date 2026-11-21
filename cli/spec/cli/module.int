@@ -1,0 +1,35 @@
+import syntax
+
+module {
+  summary: "The spec binary: argument parsing and commands"
+  prompt: """
+    One clap derive struct per command. Exit 0 on success, 1 when the input is wrong
+    (parse errors, findings), 2 for usage or internal errors. Machine output (--json)
+    goes to stdout; diagnostics go to stderr.
+  """
+}
+
+export rust.binary spec {
+  summary: "The spec binary's entry point"
+  uses: [parse]
+  expect {
+    help: "spec --help lists every command with a one-line description"
+    version: "spec --version prints the crate version"
+  }
+}
+
+export rust.command parse {
+  name: "parse"
+  summary: "Parses .int files and reports syntax errors"
+  uses: [syntax.parser, syntax.diagnostics]
+  prompt: """
+    Takes files and directories, recursing into directories for *.int files in a
+    stable order. Stops reporting a file at its first error but checks every file.
+  """
+  expect {
+    ok: "when every file parses, it exits 0 and prints 'parsed N files'"
+    error: "a syntax error exits 1 and prints the file, line, column, what was expected and what was found"
+    json: "with --json it prints one JSON object per line: the file path and either its tree or its error"
+    missing: "a path that does not exist exits 2"
+  }
+}

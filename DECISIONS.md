@@ -311,3 +311,9 @@ passes.
 - T.3 [change] The stop rule no longer counts out-of-scope writes: the language arm's envelope refuses them by construction, so "retained behaviour or out-of-scope writes" let the language win by definition. Regressions decide, with intended behaviour no worse, a minimum strong-arm regression count (4) so the comparison can show a difference, and cost bounds (tokens 2×, human minutes 1.5×).
 - T.4 [fix] The milestone's test check runs the project's own tests; acceptance tests stay outside the runner, so no arm gets feedback from them. `action` lists `uses` among its fields, as the `lib` section already assumed.
 - O.7 [partly resolved by T.1] `TRIAL.md` has a core-only baseline spec that parses; its graph JSON is written at trial setup, not here.
+
+## CLI implementation (editor, at the user's request)
+
+- C.1 [change of order] The user asked for the CLI to be built now, in Rust (logos, clap), ahead of the trial that `SPEC.md` puts first. The parser is the first phase; the runner the trial needs follows as phases 4 and 5 (`cli/README.md`).
+- C.2 [dogfood] The CLI's own plan is written in int lang (`cli/spec/`), with a local package `cli/spec-packages/rust/` that maps modules to crates, `lib` to Rust module files and a `command` kind to clap subcommands. It is the first spec outside the web stack; it needed no new language concept.
+- C.3 [built] Phase 1: `crates/syntax` (logos lexer, string scanner with prose dedent, syntax tree with spans and JSON output, recursive-descent parser, codespan diagnostics) and `crates/cli` (`spec parse [--json] <paths>`). It accepts every spec block in the design documents and every `.int` file in the repository, and agrees with `tools/check_examples.py` on its 23 grammar cases; a test keeps the two case tables in step. 38 tests; clippy clean with warnings denied.
