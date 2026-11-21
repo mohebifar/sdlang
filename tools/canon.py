@@ -2,9 +2,8 @@
 """Reference canonicaliser for spec graphs (schemas/graph.schema.json).
 
 Computes the four declaration projections and their hashes exactly as SPEC.md
-"Projections and hashes" describes, for the kinds used by the worked example. A real
-implementation reads interface fields from kind definitions; this reference keeps them
-in KIND_INTERFACE.
+"Projections and hashes" describes. Which fields are interface comes from the graph's
+`kinds` table, which the frontend fills from kind definitions.
 
 Also derives a plan's change set from two graphs (diff_graphs), which the checker
 compares with examples/plan.json.
@@ -14,19 +13,9 @@ import json
 import math
 import unicodedata
 
-# Fields that form the public projection, per kind. Everything else that is not
-# summary, behaviour or guidance is body.
-KIND_INTERFACE = {
-    "core:project": [],
-    "core:stack": ["language", "runtime", "framework", "package_manager"],
-    "core:use": ["package", "capability", "options"],
-    "core:rule": ["applies_to"],
-    "core:entity": [],
-    "core:action": ["input", "output"],
-    "core:lib": ["exports"],
-    "npm:@intlang/nextjs::page": ["route"],
-}
 BEHAVIOUR_FIELDS = {"prompt"}
+# Core declaration fields: never interface, even for a kind whose interface is "all".
+CORE_FIELDS = {"summary", "prompt", "hint", "uses", "skills", "lifecycle"}
 GUIDANCE_FIELDS = {"hint", "skills"}
 SET_FIELDS = {"uses", "calls", "reads", "writes", "requires", "skills"}
 CONSUMING = {"calls", "reads", "writes", "uses", "types", "requires"}
@@ -135,11 +124,23 @@ def _named_refs(value, acc):
     return acc
 
 
-def _raw_public(decl):
+def interface_fields(graph, decl):
+    """The fields of a declaration that form its public projection, from the graph's
+    kinds table; everything else that is not summary, behaviour or guidance is body."""
+    kind = decl["kind"]
+    if kind not in graph.get("kinds", {}):
+        raise ValueError(f"{decl['address']}: kind {kind} is missing from the graph's kinds")
+    listed = graph["kinds"][kind]["interface"]
+    if listed == "all":
+        return [f for f in decl["fields"] if f not in CORE_FIELDS]
+    return listed
+
+
+def _raw_public(graph, decl):
     kind = decl["kind"]
     fields = decl["fields"]
     iface = {f: _sorted_set(fields[f]) if f in SET_FIELDS else fields[f]
-             for f in KIND_INTERFACE.get(kind, []) if f in fields}
+             for f in interface_fields(graph, decl) if f in fields}
     members = decl.get("members", {})
     pub_members = {}
     if kind == "core:action" and "errors" in members:
@@ -155,7 +156,7 @@ def public_hashes(graph):
     """Public hashes for every declaration; mutually recursive type references are
     hashed together as one strongly connected component (Tarjan)."""
     decls = {d["address"]: d for d in graph["declarations"]}
-    raw = {a: _raw_public(d) for a, d in decls.items()}
+    raw = {a: _raw_public(graph, d) for a, d in decls.items()}
     deps = {a: sorted(x for x in _named_refs(raw[a], set()) if x in decls) for a in decls}
     index, low, stack, on, sccs, counter = {}, {}, [], set(), [], [0]
 
@@ -222,7 +223,7 @@ def projections(graph):
             "errors": {k: v.get("summary") for k, v in members.get("errors", {}).items()},
         }
         context = {"normative": inherited}
-        iface = set(KIND_INTERFACE.get(d["kind"], []))
+        iface = set(interface_fields(graph, d))
         body = {
             "fields": {f: (_sorted_set(v) if f in SET_FIELDS else v) for f, v in fields.items()
                        if f not in iface and f not in BEHAVIOUR_FIELDS and f not in GUIDANCE_FIELDS

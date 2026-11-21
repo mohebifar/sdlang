@@ -55,3 +55,31 @@ fn errors_exit_one_with_a_location() {
     assert!(stderr.contains("spec/app.int:2:10"), "{stderr}");
     assert!(stderr.contains("'nowhere' is not bound here"), "{stderr}");
 }
+
+#[test]
+fn own_spec_graph_hashes_with_nothing_but_the_graph() {
+    // The CLI's own plan uses package kinds (rust.crate, rust.command); hashing its graph
+    // must need only the graph's kinds table.
+    let out = spec_in(&repo("cli"), &["graph"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let graph: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("own-spec-graph.json");
+    fs::write(&path, &out.stdout).unwrap();
+    let hashed = spec_in(&repo("."), &["hash", "--graph", path.to_str().unwrap()]);
+    assert_eq!(
+        hashed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&hashed.stderr)
+    );
+    let hashes: serde_json::Value = serde_json::from_slice(&hashed.stdout).unwrap();
+    for decl in graph["declarations"].as_array().unwrap() {
+        let address = decl["address"].as_str().unwrap();
+        assert!(hashes.get(address).is_some(), "no hashes for {address}");
+    }
+}

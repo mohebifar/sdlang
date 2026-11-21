@@ -523,5 +523,35 @@
       }
     }
   ],
-  "moves": []
+  "moves": [],
+  "kinds": {
+    "core:action": {
+      "interface": [
+        "input",
+        "output"
+      ]
+    },
+    "core:entity": {
+      "interface": []
+    },
+    "core:project": {
+      "interface": []
+    },
+    "core:rule": {
+      "interface": [
+        "applies_to"
+      ]
+    },
+    "core:stack": {
+      "interface": "all"
+    },
+    "core:use": {
+      "interface": "all"
+    },
+    "npm:@intlang/nextjs::page": {
+      "interface": [
+        "route"
+      ]
+    }
+  }
 }

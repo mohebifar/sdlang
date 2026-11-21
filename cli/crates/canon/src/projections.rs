@@ -1,8 +1,6 @@
 //! The projection hashes of every declaration in a canonical graph
-//! (`schemas/graph.schema.json`), ported from `tools/canon.py`.
-//!
-//! Until phase 3 reads interface fields from kind definitions, the interface table is
-//! the reference's fixed `KIND_INTERFACE`.
+//! (`schemas/graph.schema.json`), ported from `tools/canon.py`. Which fields are
+//! interface comes from the graph's own `kinds` table, so hashing reads nothing else.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -11,21 +9,10 @@ use serde_json::{json, Map, Value};
 
 use crate::canonical_json::{canonical, digest, CanonError};
 
-/// Fields that form the public projection, per kind (the reference's KIND_INTERFACE).
-fn interface_fields(kind: &str) -> &'static [&'static str] {
-    match kind {
-        "core:stack" => &["language", "runtime", "framework", "package_manager"],
-        "core:use" => &["package", "capability", "options"],
-        "core:rule" => &["applies_to"],
-        "core:action" => &["input", "output"],
-        "core:lib" => &["exports"],
-        "npm:@intlang/nextjs::page" => &["route"],
-        _ => &[],
-    }
-}
-
 const BEHAVIOUR_FIELDS: &[&str] = &["prompt"];
 const GUIDANCE_FIELDS: &[&str] = &["hint", "skills"];
+/// Core declaration fields: never interface, even for a kind whose interface is "all".
+const CORE_FIELDS: &[&str] = &["summary", "prompt", "hint", "uses", "skills", "lifecycle"];
 const SET_FIELDS: &[&str] = &["uses", "calls", "reads", "writes", "requires", "skills"];
 
 /// The five projection hashes of one declaration.
@@ -99,6 +86,32 @@ fn get_or_null(map: &Map<String, Value>, key: &str) -> Value {
     map.get(key).cloned().unwrap_or(Value::Null)
 }
 
+/// The fields of `decl` that form its public projection, from the graph's `kinds` table.
+fn interface_fields<'a>(graph: &'a Value, decl: &'a Value) -> GResult<Vec<&'a str>> {
+    let kind = str_field(decl, "kind")?;
+    let Some(entry) = graph.get("kinds").and_then(|k| k.get(kind)) else {
+        let address = decl.get("address").and_then(Value::as_str).unwrap_or("?");
+        return malformed(format!("{address}: kind {kind} is missing from 'kinds'"));
+    };
+    match entry.get("interface") {
+        Some(Value::String(all)) if all == "all" => Ok(obj(decl, "fields")
+            .keys()
+            .map(String::as_str)
+            .filter(|f| !CORE_FIELDS.contains(f))
+            .collect()),
+        Some(Value::Array(names)) => names
+            .iter()
+            .map(|n| match n.as_str() {
+                Some(n) => Ok(n),
+                None => malformed(format!("kinds.{kind}.interface: not a string")),
+            })
+            .collect(),
+        _ => malformed(format!(
+            "kinds.{kind}: 'interface' must be a list or \"all\""
+        )),
+    }
+}
+
 /// A set-valued array sorted by the canonical JSON of its elements; other values unchanged.
 fn sorted_set(value: &Value) -> GResult<Value> {
     let Value::Array(items) = value else {
@@ -159,11 +172,11 @@ fn named_refs(value: &Value, acc: &mut BTreeSet<String>) {
     }
 }
 
-fn raw_public(decl: &Value) -> GResult<Value> {
+fn raw_public(graph: &Value, decl: &Value) -> GResult<Value> {
     let kind = str_field(decl, "kind")?;
     let fields = obj(decl, "fields");
     let mut interface = Map::new();
-    for &name in interface_fields(kind) {
+    for name in interface_fields(graph, decl)? {
         if let Some(v) = fields.get(name) {
             interface.insert(name.to_string(), field_value(name, v)?);
         }
@@ -278,7 +291,7 @@ pub fn public_hashes(graph: &Value) -> GResult<BTreeMap<String, String>> {
     let decls = declarations(graph)?;
     let mut raw = BTreeMap::new();
     for (address, decl) in &decls {
-        raw.insert(address.clone(), raw_public(decl)?);
+        raw.insert(address.clone(), raw_public(graph, decl)?);
     }
     let deps: BTreeMap<String, Vec<String>> = raw
         .iter()
@@ -405,8 +418,7 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
         });
         let context = json!({ "normative": inherited });
 
-        let kind = str_field(decl, "kind")?;
-        let interface = interface_fields(kind);
+        let interface = interface_fields(graph, decl)?;
         let mut body_fields = Map::new();
         for (name, value) in fields {
             let name = name.as_str();
@@ -459,6 +471,21 @@ pub fn projections(graph: &Value) -> GResult<BTreeMap<String, Projections>> {
 mod tests {
     use super::*;
 
+    fn kinds() -> Value {
+        json!({
+            "core:project": { "interface": [] },
+            "core:type": { "interface": [] },
+            "core:lib": { "interface": ["exports"] },
+            "core:action": { "interface": ["input", "output"] },
+            "core:stack": { "interface": "all" },
+            "x::page": { "interface": ["route"] },
+        })
+    }
+
+    fn graph(declarations: Vec<Value>) -> Value {
+        json!({ "kinds": kinds(), "modules": [], "declarations": declarations })
+    }
+
     fn decl(address: &str, kind: &str, fields: Value) -> Value {
         json!({
             "address": address, "module": "m", "kind": kind, "sort": "managed",
@@ -468,18 +495,22 @@ mod tests {
 
     #[test]
     fn set_fields_are_sorted() {
-        let a = json!({ "modules": [], "declarations": [decl("m.a", "core:lib", json!({ "uses": ["b", "a"] }))] });
-        let b = json!({ "modules": [], "declarations": [decl("m.a", "core:lib", json!({ "uses": ["a", "b"] }))] });
+        let a = graph(vec![decl("m.a", "core:lib", json!({ "uses": ["b", "a"] }))]);
+        let b = graph(vec![decl("m.a", "core:lib", json!({ "uses": ["a", "b"] }))]);
         assert_eq!(projections(&a).unwrap(), projections(&b).unwrap());
     }
 
     #[test]
     fn type_refs_carry_the_public_hash() {
         let typed = |summary: &str| {
-            json!({ "modules": [], "declarations": [
+            graph(vec![
                 decl("m.t", "core:type", json!({ "summary": summary })),
-                decl("m.f", "core:action", json!({ "input": { "$type": "named", "name": "m.t" } })),
-            ]})
+                decl(
+                    "m.f",
+                    "core:action",
+                    json!({ "input": { "$type": "named", "name": "m.t" } }),
+                ),
+            ])
         };
         let one = public_hashes(&typed("one")).unwrap();
         let two = public_hashes(&typed("two")).unwrap();
@@ -491,10 +522,18 @@ mod tests {
 
     #[test]
     fn recursive_types_hash_as_a_component() {
-        let g = json!({ "modules": [], "declarations": [
-            decl("m.a", "core:action", json!({ "input": { "$type": "named", "name": "m.b" } })),
-            decl("m.b", "core:action", json!({ "input": { "$type": "named", "name": "m.a" } })),
-        ]});
+        let g = graph(vec![
+            decl(
+                "m.a",
+                "core:action",
+                json!({ "input": { "$type": "named", "name": "m.b" } }),
+            ),
+            decl(
+                "m.b",
+                "core:action",
+                json!({ "input": { "$type": "named", "name": "m.a" } }),
+            ),
+        ]);
         let h = public_hashes(&g).unwrap();
         assert_ne!(h["m.a"], h["m.b"]);
         assert!(h["m.a"].starts_with("sha256:"));
@@ -503,6 +542,7 @@ mod tests {
     #[test]
     fn inherited_context_order() {
         let g = json!({
+            "kinds": kinds(),
             "modules": [
                 { "path": "m", "header": { "prompt": "outer" } },
                 { "path": "m.n", "header": { "prompt": "inner" } }
@@ -523,5 +563,46 @@ mod tests {
             projections(&g).unwrap()["m.n.x"].context,
             digest(&expected).unwrap()
         );
+    }
+
+    #[test]
+    fn interface_fields_come_from_the_kinds_table() {
+        let page = |route: &str, layout: &str| {
+            projections(&graph(vec![decl(
+                "m.p",
+                "x::page",
+                json!({ "route": route, "layout": layout }),
+            )]))
+            .unwrap()["m.p"]
+                .clone()
+        };
+        let base = page("/a", "one");
+        let moved = page("/b", "one");
+        let relaid = page("/a", "two");
+        assert_ne!(base.public, moved.public, "route is interface");
+        assert_eq!(base.body, moved.body, "an interface field is not body");
+        assert_eq!(base.public, relaid.public, "layout is not interface");
+        assert_ne!(base.body, relaid.body, "layout is body");
+    }
+
+    #[test]
+    fn interface_all_takes_every_non_core_field() {
+        let stack = |runner: &str| {
+            projections(&graph(vec![decl(
+                "stack",
+                "core:stack",
+                json!({ "test_runner": runner, "hint": "h" }),
+            )]))
+            .unwrap()["stack"]
+                .clone()
+        };
+        assert_ne!(stack("a").public, stack("b").public);
+        assert_eq!(stack("a").body, stack("b").body);
+    }
+
+    #[test]
+    fn a_kind_missing_from_the_table_is_an_error() {
+        let g = graph(vec![decl("m.q", "y::other", json!({}))]);
+        assert!(matches!(projections(&g), Err(GraphError::Malformed(m)) if m.contains("y::other")));
     }
 }

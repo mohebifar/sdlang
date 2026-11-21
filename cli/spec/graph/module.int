@@ -76,5 +76,6 @@ export lib lower {
     types: "a named type in a signature or entity field gives a types edge"
     sorted: "declarations are sorted by address, modules by path, and set-valued arrays and edges by canonical JSON"
     bindings: "a use whose provider defines a binding with outputs is managed and collects what the binding's selector matches"
+    kinds_table: "the graph's kinds table lists exactly the kinds its declarations use, each with its interface fields sorted, or all for the stack and use"
   }
 }

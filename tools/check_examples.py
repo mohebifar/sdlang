@@ -638,6 +638,10 @@ def check_graphs(before, after, plan):
     failures = []
     for label, g in (("before", before), ("after", after)):
         addrs = {x["address"] for x in g["declarations"]}
+        used = {x["kind"] for x in g["declarations"]}
+        if used != set(g["kinds"]):
+            failures.append(f"graph.{label}: kinds must list exactly the kinds declarations use "
+                            f"(missing {sorted(used - set(g['kinds']))}, unused {sorted(set(g['kinds']) - used)})")
         for x in g["declarations"]:
             for e in x["edges"]:
                 if "::" not in e["target"] and e["target"] not in addrs:

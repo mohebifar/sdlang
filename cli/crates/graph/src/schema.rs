@@ -86,6 +86,29 @@ pub struct KindSchema {
     pub open_records: bool,
 }
 
+impl KindSchema {
+    /// The kind's entry in the graph's `kinds` table: its interface fields, sorted, or
+    /// `"all"` for a kind whose fields are open (the stack).
+    pub fn interface_entry(&self) -> serde_json::Value {
+        if self.open_records {
+            return serde_json::json!({ "interface": "all" });
+        }
+        let names: Vec<&str> = self
+            .fields
+            .iter()
+            .filter(|(_, f)| f.interface)
+            .map(|(n, _)| n.as_str())
+            .collect();
+        serde_json::json!({ "interface": names })
+    }
+}
+
+/// The `kinds` entry of `core:use`, which has no field schema: all its fields
+/// (package, capability, options) are interface.
+pub fn use_interface_entry() -> serde_json::Value {
+    serde_json::json!({ "interface": "all" })
+}
+
 fn field(ty: FieldType) -> FieldSchema {
     FieldSchema {
         ty,
@@ -318,6 +341,17 @@ mod tests {
             k.fields.contains_key("summary"),
             "core fields are always present"
         );
+    }
+
+    #[test]
+    fn interface_entries() {
+        let entry = |k: &str| core_kind(k).unwrap().interface_entry();
+        assert_eq!(
+            entry("action"),
+            serde_json::json!({ "interface": ["input", "output"] })
+        );
+        assert_eq!(entry("stack"), serde_json::json!({ "interface": "all" }));
+        assert_eq!(entry("entity"), serde_json::json!({ "interface": [] }));
     }
 
     #[test]

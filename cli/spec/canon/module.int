@@ -38,14 +38,14 @@ export lib projections {
   exports: ["projections", "public_hashes", "Projections"]
   uses: [canonical_json]
   prompt: """
-    Port tools/canon.py's projections and public_hashes. Until phase 3 reads interface
-    fields from kind definitions, the interface table is the same fixed table as the
-    reference's KIND_INTERFACE.
+    Port tools/canon.py's projections and public_hashes. Which fields are interface comes
+    only from the graph's kinds table; there is no built-in table.
   """
   expect {
     set_fields: "set-valued fields (uses, calls, reads, writes, requires, skills) are sorted by the canonical JSON of their elements"
     type_refs: "a named type reference inside a public projection carries the referenced declaration's public hash"
     recursive_types: "mutually recursive declarations are hashed together as one strongly connected component, each member's hash being the component hash plus its address"
+    kinds_table: "a declaration's public projection holds the fields its kind's kinds entry lists, or every non-core field when the entry is all; a kind missing from the table is an error"
     inherited_context: "the context hash lists the project prompt, then ancestor module prompts outermost first, then matching rules"
   }
 }

@@ -213,7 +213,8 @@ of the plan, and the checker confirms that `examples/plan.json` (schema
 
 Which fields are `@interface` comes from the kind: package kinds mark them, and core kinds
 fix them (`action`: `input`, `output` and error codes; `lib`: `exports`; `entity`: its `fields` members;
-`stack` and `use`: all their fields; `rule`: `applies_to`). Inherited normative context is
+`stack` and `use`: all their fields; `rule`: `applies_to`). The graph's `kinds` table
+records each used kind's list, so hashing reads nothing outside the graph. Inherited normative context is
 kept out of `behaviour` on purpose: an edit the author made to this declaration and an edit
 made to a module above it have different consequences (see Propagation).
 

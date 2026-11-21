@@ -42,7 +42,8 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
 1. **Syntax** (done): `spec parse [--json] <paths>`.
 2. **Canon** (done): canonical JSON, digests and projection hashes, reproducing
    `examples/hash-vectors.json` and `examples/hashes.json`; `spec hash [--canonical |
-   --graph] <file>`.
+   --graph] <file>`. Interface fields come from the graph's `kinds` table, so a graph
+   alone is enough to hash.
 3. **Graph** (done): module discovery, packages, imports, resolution and lowering to the
    canonical graph, reproducing `examples/graph.before.json` and `graph.after.json` from
    `examples/worked/` (lock digest aside); `spec graph [dir]`. `spec graph .` lowers this

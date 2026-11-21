@@ -1067,9 +1067,28 @@ impl<'p> Lowerer<'p> {
 
         let lock = intlang_canon::digest(&project.lock)
             .map_err(|e| GraphError::plain(format!("spec.lock: {e}")))?;
+        let mut kinds = Map::new();
+        for l in decls.values() {
+            if kinds.contains_key(&l.kind) {
+                continue;
+            }
+            let entry = match l.kind.strip_prefix("core:") {
+                Some("use") => schema::use_interface_entry(),
+                Some(core) => schema::core_kind(core)
+                    .ok_or_else(|| GraphError::plain(format!("unknown core kind {core}")))?
+                    .interface_entry(),
+                None => self
+                    .kinds
+                    .get(&l.kind)
+                    .ok_or_else(|| GraphError::plain(format!("no schema for kind {}", l.kind)))?
+                    .interface_entry(),
+            };
+            kinds.insert(l.kind.clone(), entry);
+        }
         Ok(json!({
             "schema": "intlang.graph/1",
             "lock": lock,
+            "kinds": kinds,
             "modules": modules_out,
             "declarations": decls.into_values().map(|l| Value::Object(l.value)).collect::<Vec<_>>(),
             "moves": moves,

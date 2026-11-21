@@ -138,6 +138,20 @@ _before = {
 _before["modules"].sort(key=lambda m: m["path"])
 GRAPH_BEFORE = _before
 
+# Interface fields per kind, as the frontend writes them into the graph: core kinds fix
+# theirs (SPEC.md, Projections and hashes); the nextjs page kind marks `route` @interface.
+KIND_INTERFACE = {
+    "core:project": [], "core:stack": "all", "core:use": "all", "core:rule": ["applies_to"],
+    "core:entity": [], "core:action": ["input", "output"], "core:lib": ["exports"],
+    "core:type": [], NEXT: ["route"],
+}
+
+
+def _with_kinds(g):
+    g["kinds"] = {k: {"interface": KIND_INTERFACE[k]}
+                  for k in sorted({x["kind"] for x in g["declarations"]})}
+    return g
+
 
 def _after():
     g = copy.deepcopy(_before)
@@ -177,8 +191,9 @@ def _after():
     return g
 
 
-GRAPH_AFTER = _after()
+GRAPH_AFTER = _with_kinds(_after())
 GRAPH_BEFORE["declarations"].sort(key=lambda x: x["address"])
+_with_kinds(GRAPH_BEFORE)
 
 
 def plan_fixture():

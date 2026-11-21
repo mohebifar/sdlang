@@ -8,6 +8,7 @@
   "required": [
     "schema",
     "lock",
+    "kinds",
     "modules",
     "declarations",
     "moves"
@@ -18,6 +19,33 @@
     },
     "lock": {
       "$ref": "common.schema.json#/$defs/digest"
+    },
+    "kinds": {
+      "type": "object",
+      "description": "For every kind a declaration uses (core:<kind> or <canonical package id>::<kind>), which of its fields form the public projection, so hashing needs nothing outside the graph. Core kinds fix their lists; a package kind's are its @interface fields. \"all\" means every field except the core declaration fields (stack and use).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interface"
+        ],
+        "properties": {
+          "interface": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              {
+                "const": "all"
+              }
+            ]
+          }
+        }
+      }
     },
     "modules": {
       "type": "array",
