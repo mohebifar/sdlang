@@ -221,7 +221,7 @@ open items for the next design round (none is applied):
 - O.3 A complete evidence-transition example (implementation edit, oracle edit, unrelated publication) showing which evidence is reused or replaced.
 - O.4 A cross-module caller/callee protocol example where only the callee's inherited prompt changes.
 - O.5 Declarative toolchain constraints for an adapter (how planning rejects an unsupported combination without running package code) and a compact `spec.lock` example.
-- O.6 Cross-language numeric vectors for the canonical byte contract.
+- O.6 [resolved by C.4] Cross-language numeric vectors for the canonical byte contract.
 
 ## Post-final corrections (not rescored)
 
@@ -317,3 +317,5 @@ passes.
 - C.1 [change of order] The user asked for the CLI to be built now, in Rust (logos, clap), ahead of the trial that `SPEC.md` puts first. The parser is the first phase; the runner the trial needs follows as phases 4 and 5 (`cli/README.md`).
 - C.2 [dogfood] The CLI's own plan is written in int lang (`cli/spec/`), with a local package `cli/spec-packages/rust/` that maps modules to crates, `lib` to Rust module files and a `command` kind to clap subcommands. It is the first spec outside the web stack; it needed no new language concept.
 - C.3 [built] Phase 1: `crates/syntax` (logos lexer, string scanner with prose dedent, syntax tree with spans and JSON output, recursive-descent parser, codespan diagnostics) and `crates/cli` (`spec parse [--json] <paths>`). It accepts every spec block in the design documents and every `.int` file in the repository, and agrees with `tools/check_examples.py` on its 23 grammar cases; a test keeps the two case tables in step. 38 tests; clippy clean with warnings denied.
+- C.4 [rule] Canonical numbers and keys, pinned (resolves O.6): integers and integral floats in exact plain decimal; other numbers as JavaScript's `Number.prototype.toString` writes them (chosen because adapters run on Node); keys sorted by Unicode code point, not UTF-16; keys equal after NFC are an error. "Shortest round-trip form" had let Python (`1e-05`), Rust and JavaScript (`0.00001`) disagree. `tools/canon.py` now writes this form, `examples/hash-vectors.json` gains nine vectors, and `examples/hashes.json` is unchanged (the graphs hold no floats).
+- C.5 [built] Phase 2: `crates/canon` (canonical JSON, digests, the five projection hashes with type references and recursive components) and `spec hash [--canonical | --graph]`. It reproduces all 15 vectors and every projection hash in `examples/hashes.json` for both worked graphs, and agrees byte for byte with `tools/canon.py` on 4,000 generated numbers. The interface table is still the reference's fixed `KIND_INTERFACE` until phase 3 reads kind definitions. 58 tests across the workspace; clippy clean.

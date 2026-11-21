@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 /// `run`, which returns the exit code: 0 success, 1 the input is wrong, 2 usage or
 /// internal error.
 mod commands {
+    pub mod hash;
     pub mod parse;
 }
 
@@ -25,6 +26,8 @@ struct Cli {
 enum Command {
     /// Parse .int files and report syntax errors.
     Parse(commands::parse::Args),
+    /// Print the canonical JSON or digest of a JSON file, or a graph's projection hashes.
+    Hash(commands::hash::Args),
 }
 
 fn main() -> ExitCode {
@@ -43,6 +46,7 @@ fn main() -> ExitCode {
     };
     let code = match cli.command {
         Command::Parse(args) => commands::parse::run(args),
+        Command::Hash(args) => commands::hash::run(args),
     };
     ExitCode::from(code)
 }

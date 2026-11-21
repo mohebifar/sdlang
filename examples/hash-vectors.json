@@ -1,5 +1,5 @@
 {
-  "description": "Canonical JSON test vectors for tools/canon.py and any other implementation. Values are given as JSON; implementations must produce exactly `canonical` and `sha256`.",
+  "description": "Canonical JSON test vectors for tools/canon.py and any other implementation. Values are given as JSON; implementations must produce exactly `canonical` and `sha256`. Numbers in `value` are read as the JSON text writes them.",
   "vectors": [
     {
       "name": "key order and whitespace do not matter",
@@ -53,6 +53,79 @@
       },
       "canonical": "{\"$prose\":\"Line one.\\nLine two with @{auth.login}.\\n\"}",
       "sha256": "sha256:aaa265ea04e5cc7274e349202959157613d76d0aa66f8d5817ea04515ac03730"
+    },
+    {
+      "name": "small number in plain decimal",
+      "value": {
+        "n": 1e-05
+      },
+      "canonical": "{\"n\":0.00001}",
+      "sha256": "sha256:694af9772b95df9403774a048bc7b0d78618b2af451e2d50378f639027727b2d"
+    },
+    {
+      "name": "number below 1e-6 uses an exponent without padding",
+      "value": {
+        "n": 1e-07
+      },
+      "canonical": "{\"n\":1e-7}",
+      "sha256": "sha256:747d6d23b64d1b2d579adb832b44de31c91c875bbef7a8e397f5d183a746b54b"
+    },
+    {
+      "name": "exponent with a fraction",
+      "value": {
+        "n": -1.5e-07
+      },
+      "canonical": "{\"n\":-1.5e-7}",
+      "sha256": "sha256:4033ace43c3b2ceb920880a6a77bfdc2356b0c4009754d35c00a828e89a1eee7"
+    },
+    {
+      "name": "ordinary fraction",
+      "value": {
+        "n": 123.456
+      },
+      "canonical": "{\"n\":123.456}",
+      "sha256": "sha256:dd6385e6e7be31c75212ad6e1c44172f4a11698576d59bb4de2e4c1aef4a5bd2"
+    },
+    {
+      "name": "large integral float is written exactly",
+      "value": {
+        "n": 1e+23
+      },
+      "canonical": "{\"n\":99999999999999991611392}",
+      "sha256": "sha256:d958f1f76ecc27ebd69b0057524d584be5ad514b2e05fa15eeef26f1db115d18"
+    },
+    {
+      "name": "integer beyond 64 bits is kept exactly",
+      "value": {
+        "n": 12345678901234567890123
+      },
+      "canonical": "{\"n\":12345678901234567890123}",
+      "sha256": "sha256:f38cd47fb9cf6163e645fd5e3ca4f2b1dd937fe0909ccd2583ebb38c85b7b35a"
+    },
+    {
+      "name": "negative zero is zero",
+      "value": {
+        "n": -0.0
+      },
+      "canonical": "{\"n\":0}",
+      "sha256": "sha256:f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0"
+    },
+    {
+      "name": "keys sort by code point, not UTF-16",
+      "value": {
+        "😀": 1,
+        "�": 2
+      },
+      "canonical": "{\"�\":2,\"😀\":1}",
+      "sha256": "sha256:9fbfff35f05fb9c72de19e392d0a1b848acb4d6c42489709d709982d10dd883c"
+    },
+    {
+      "name": "control characters escape",
+      "value": {
+        "s": "\u0001\n\t\"\\/"
+      },
+      "canonical": "{\"s\":\"\\u0001\\n\\t\\\"\\\\/\"}",
+      "sha256": "sha256:fffcdc39b91a4a9e28f2ddf584825910c6f5a73a0e044fa1cc736d78f9dbaa89"
     }
   ]
 }

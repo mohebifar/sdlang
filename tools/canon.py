@@ -33,30 +33,73 @@ CONSUMING = {"calls", "reads", "writes", "uses", "types", "requires"}
 OBSERVING = {"calls", "reads", "writes"}
 
 
-def _normalise(obj):
-    """NFC every string (keys too); integers stay integers; finite floats only, and a
-    float with an integral value is written as an integer."""
+def _js_number(x):
+    """A non-integral finite float as JavaScript's Number.prototype.toString writes it:
+    shortest round-trip digits, plain decimal unless the exponent is below -6 or above 20."""
+    from decimal import Decimal
+    sign = "-" if x < 0 else ""
+    t = Decimal(repr(abs(x))).as_tuple()
+    digits, exp = "".join(map(str, t.digits)), t.exponent
+    while len(digits) > 1 and digits.endswith("0"):
+        digits, exp = digits[:-1], exp + 1
+    digits = digits.lstrip("0") or "0"
+    k, n = len(digits), len(digits) + exp
+    if k <= n <= 21:
+        out = digits + "0" * (n - k)
+    elif 0 < n <= 21:
+        out = digits[:n] + "." + digits[n:]
+    elif -6 < n <= 0:
+        out = "0." + "0" * (-n) + digits
+    else:
+        e = n - 1
+        out = digits[0] + ("." + digits[1:] if k > 1 else "") + "e" + ("+" if e > 0 else "-") + str(abs(e))
+    return sign + out
+
+
+def _encode(obj, out):
     if isinstance(obj, str):
-        return unicodedata.normalize("NFC", obj)
-    if isinstance(obj, bool) or obj is None:
-        return obj
-    if isinstance(obj, int):
-        return obj
-    if isinstance(obj, float):
+        out.append(json.dumps(unicodedata.normalize("NFC", obj), ensure_ascii=False))
+    elif obj is None or isinstance(obj, bool):
+        out.append(json.dumps(obj))
+    elif isinstance(obj, int):
+        out.append(str(obj))
+    elif isinstance(obj, float):
         if not math.isfinite(obj):
             raise ValueError("non-finite number in canonical JSON")
-        return int(obj) if obj == int(obj) else obj
-    if isinstance(obj, list):
-        return [_normalise(v) for v in obj]
-    if isinstance(obj, dict):
-        return {_normalise(k): _normalise(v) for k, v in obj.items()}
-    raise TypeError(type(obj))
+        out.append(str(int(obj)) if obj == int(obj) else _js_number(obj))
+    elif isinstance(obj, list):
+        out.append("[")
+        for i, v in enumerate(obj):
+            if i:
+                out.append(",")
+            _encode(v, out)
+        out.append("]")
+    elif isinstance(obj, dict):
+        items = {}
+        for k, v in obj.items():
+            nk = unicodedata.normalize("NFC", k)
+            if nk in items:
+                raise ValueError(f"duplicate key after NFC normalisation: {nk!r}")
+            items[nk] = v
+        out.append("{")
+        for i, k in enumerate(sorted(items)):  # str order is Unicode code point order
+            if i:
+                out.append(",")
+            out.append(json.dumps(k, ensure_ascii=False))
+            out.append(":")
+            _encode(items[k], out)
+        out.append("}")
+    else:
+        raise TypeError(type(obj))
 
 
 def canonical(obj):
-    """Canonical JSON: NFC strings, sorted keys, no insignificant whitespace, UTF-8,
-    integers without exponent, floats in shortest round-trip form."""
-    return json.dumps(_normalise(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    """Canonical JSON (SPEC.md, Projections and hashes): NFC strings and keys, keys sorted
+    by code point, no insignificant whitespace, UTF-8; integers and integral floats in
+    plain decimal; other numbers as JavaScript writes them; non-finite numbers rejected."""
+    out = []
+    _encode(obj, out)
+    return "".join(out)
 
 
 def sha(obj):

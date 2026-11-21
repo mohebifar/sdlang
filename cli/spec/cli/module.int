@@ -1,4 +1,5 @@
 import syntax
+import canon
 
 module {
   summary: "The spec binary: argument parsing and commands"
@@ -11,7 +12,7 @@ module {
 
 export rust.binary spec {
   summary: "The spec binary's entry point"
-  uses: [parse]
+  uses: [parse, hash]
   expect {
     help: "spec --help lists every command with a one-line description"
     version: "spec --version prints the crate version"
@@ -33,3 +34,16 @@ export rust.command parse {
     missing: "a path that does not exist exits 2"
   }
 }
+
+export rust.command hash {
+  name: "hash"
+  summary: "Prints the canonical JSON or digest of a JSON file, or the projection hashes of a graph"
+  uses: [canon.canonical_json, canon.projections]
+  expect {
+    digest: "given a JSON file, it prints the digest of its canonical JSON and exits 0"
+    canonical: "with --canonical it prints the canonical JSON text instead"
+    graph: "with --graph it prints, as JSON, each declaration's projection hashes keyed by address"
+    invalid: "a file that is not valid JSON, or holds a non-finite number, exits 1 with the reason"
+  }
+}
+

@@ -13,13 +13,18 @@ cargo test --workspace
 cargo run -p intlang-cli -- parse ..
 ```
 
+```bash
+cargo run -p intlang-cli -- hash --graph ../examples/graph.after.json
+```
+
 ## Where things are
 
 | Spec | Code |
 | --- | --- |
 | `spec/syntax/` | `crates/syntax`: logos lexer, string scanning and prose dedent, syntax tree, parser, diagnostics |
 | `spec/cli/` | `crates/cli`: the `spec` binary (clap) and its commands |
-| `spec/canon/`, `spec/graph/` | not built yet |
+| `spec/canon/` | `crates/canon`: canonical JSON, digests and projection hashes |
+| `spec/graph/` | not built yet |
 
 The checks are the ones the local package declares: `cargo build --locked`, `cargo clippy`
 with warnings denied, and `cargo test`. The syntax crate's corpus test parses every
@@ -31,7 +36,9 @@ grammar cases in step with `tools/check_examples.py`.
 Each phase is specified in `spec/` before it is built; later phases are only sketched there.
 
 1. **Syntax** (done): `spec parse [--json] <paths>`.
-2. **Canon**: canonical JSON and hashing, reproducing `examples/hash-vectors.json`.
+2. **Canon** (done): canonical JSON, digests and projection hashes, reproducing
+   `examples/hash-vectors.json` and `examples/hashes.json`; `spec hash [--canonical |
+   --graph] <file>`.
 3. **Graph**: module discovery, imports, resolution and lowering to the canonical graph,
    reproducing `examples/graph.before.json` and `graph.after.json`; `spec graph`.
 4. **State and plan**: state records, drift, propagation and transactions; `spec plan`.

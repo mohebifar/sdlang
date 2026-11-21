@@ -184,10 +184,11 @@ jointly merge (see Transactions).
 Hashes are computed over canonical projections of the graph, never over source text. A
 frontend emits the graph as JSON (`schemas/graph.schema.json`) with every name resolved,
 member short forms expanded, defaults filled and matching rules listed per declaration
-(`applies`). A projection's hash is the sha256 of its canonical JSON: sorted keys, no
-insignificant whitespace, UTF-8, every string and key NFC-normalised, integers without
-exponent, an integral float written as an integer, other numbers in shortest round-trip
-form, non-finite numbers rejected; arrays that are sets (edges, `uses`, `calls`,
+(`applies`). A projection's hash is the sha256 of its canonical JSON: no insignificant
+whitespace, UTF-8, every string and key NFC-normalised, keys sorted by Unicode code point
+(two keys equal after NFC are an error), integers and integral floats in plain decimal with
+no exponent, other numbers as JavaScript's `Number.prototype.toString` writes them,
+non-finite numbers rejected; arrays that are sets (edges, `uses`, `calls`,
 `reads`, `applies`) sorted by the canonical JSON of their elements, other arrays in authored
 order; prose dedented, with LF line ends, trailing spaces removed and mentions rewritten to
 `@{<address>}`. Source locations are diagnostics and never hashed. An action's `input` and

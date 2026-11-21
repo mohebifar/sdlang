@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/syntax", "crates/cli"]
+members = ["crates/syntax", "crates/canon", "crates/cli"]
 resolver = "2"
 
 [workspace.package]
@@ -10,12 +10,16 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 intlang-syntax = { path = "crates/syntax" }
+intlang-canon = { path = "crates/canon" }
 logos = "0.16"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# arbitrary_precision keeps number text exact, so canonical JSON can write it exactly.
+serde_json = { version = "1", features = ["arbitrary_precision"] }
 clap = { version = "4.6", features = ["derive"] }
 codespan-reporting = { version = "0.13", default-features = false, features = ["std"] }
 walkdir = "2.5"
+sha2 = "0.11"
+unicode-normalization = "0.1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
