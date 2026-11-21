@@ -851,7 +851,7 @@ def main(argv):
             parse(open(path).read())
         except ParseError as e:
             failures.append(f"{path}: {e}")
-    for path in argv or ["SPEC.md", "PROTOCOL.md", "EXTENSIONS.md"]:
+    for path in argv or ["SPEC.md", "PROTOCOL.md", "EXTENSIONS.md", "TRIAL.md"]:
         count, f = check_spec_md(path)
         failures += f
         for k in total:

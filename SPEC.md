@@ -7,8 +7,8 @@ Contents: Summary · Goals · Core model · Surface syntax · Projects, files an
 Definition kinds · Packages · State, plan and apply · Team workflow · Agent interface
 (reference: `PROTOCOL.md`) · Ownership and drift · Verification · Runtime state · Worked
 example · First milestone and open questions. Grammar: `GRAMMAR.ebnf`. Checker:
-`tools/check_examples.py`. Provisional parts not needed by the first milestone:
-`EXTENSIONS.md`.
+`tools/check_examples.py`. The pinned trial: `TRIAL.md`. Provisional parts not needed by
+the first milestone: `EXTENSIONS.md`.
 
 **What a reader must learn.** Ten ideas carry the core; everything else is detail under one
 of them:
@@ -523,7 +523,7 @@ because a hint guides future work only (see Propagation).
 | `environment` | A deployment target the CLI observes | database binding, connection variable, expected resource | context | core |
 | `extern` | Existing code referenced but not managed | source, summary | context | core |
 | `entity` | A persisted data type | typed fields, relations, constraints | managed | core |
-| `action` | A callable contract, independent of transport | input, output, errors, requires, reads, writes | managed | core |
+| `action` | A callable contract, independent of transport | input, output, errors, uses, requires, reads, writes | managed | core |
 | `lib` | Shared code that belongs to no page or action: helpers, hooks, shared types | exports, path | managed | core |
 | `nextjs.page` | A routed screen | route, uses, calls, reads, requires | managed | package |
 | `nextjs.endpoint` | An HTTP route | method, path, calls | managed | package |
@@ -585,13 +585,14 @@ export lib dates {
 Its public projection is its summary and `exports`, the symbol names other declarations may
 import; they reach it with `uses: [dates]`. Adding a name is compatible; removing or
 renaming one is not. An export is a value or type import according to the symbol found in
-the candidate. `uses` observes no behaviour, so a change to a lib's prompt or `expect`
-gives its users `verify` (implementation impact), not `review`; a caller that relies on a
-helper's behaviour states it in its own `expect`. The adapter's `implements lib` gives it a module and a test file
-(in the milestone adapter, `src/lib/<module>/<name>.ts` and its test); a `path` field instead names an existing file, which
-is how adoption claims shared code. Code may be reorganised freely inside one declaration's
-files. Moving code to another owner is a spec change (a new `lib`, or a `moved` member),
-because it changes who may write that code and who may import it.
+the candidate. `uses` observes no behaviour, so a change to a lib's prompt or `expect` gives
+its users `verify` (implementation impact), not `review`; a caller that relies on a helper's
+behaviour states it in its own `expect`. The adapter's `implements lib` gives it a module
+and a test file (in the milestone adapter, `src/lib/<module>/<name>.ts` and its test); a
+`path` field instead names an existing file, which is how adoption claims shared code. Code
+may be reorganised freely inside one declaration's files. Moving code to another owner is a
+spec change (a new `lib`, or a `moved` member), because it changes who may write that code
+and who may import it.
 
 **Entities imply migrations.** An `entity` takes its generator (schema file, migration)
 from the `database` binding's package; changes are classified as described in Runtime
@@ -991,7 +992,9 @@ target still reaches its former consumers.
 ### Transactions
 
 1. A **transaction** is a changed declaration plus every dependent with an `update`
-   obligation. Transactions that share a declaration merge. A cross-declaration member
+   obligation. Transactions that share a declaration merge. Obligations do not merge
+   transactions: a caller with `verify` from two transactions (compatible fan-in) is
+   verified in each, against that transaction's applied graph. A cross-declaration member
    move or a shared-file contribution change also joins the declarations involved.
 2. A transaction with no change, only obligations (a check definition changed), is rooted
    at the obligations themselves.
@@ -1753,29 +1756,26 @@ The first milestone tests only that, and tests it against a control.
    `plan` with create, update, delete and drift, serial transactions, the work-order and
    result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
    in `examples/nextjs-adapter.int`, hard-coded. Its checks run through the check protocol:
-   typecheck, build, test (the independent acceptance tests and agent-written tests) and its
-   conformance rules, plus the core's ownership, envelope and TypeScript import rules.
-2. A trial on a toy Next.js app: ten spec edits in sequence, including an interface change
-   with callers, a compatible input widening, a normative prose change to an action, a
-   route move with created parts, an adopted hand edit, and an edit that tempts the agent to
-   widen its scope. Each edit has an acceptance test written independently and outside the
-   agent's write set.
-3. Two control arms, with the same agent, baseline, edits and acceptance tests:
-   - **Plain:** each edit as a one-line instruction, with no spec, graph or state.
-   - **Strong:** the agent works in the repository as it normally would, with the
-     project's tests and a Markdown spec file per feature. Each edit is made to the
-     Markdown first, and the agent is told to bring the code in line. This is the
-     practice the language has to beat.
-4. Measure, per arm: intended behaviour achieved, existing behaviour retained (the
-   acceptance tests of earlier edits), writes outside the files the edit concerns, review
-   corrections, code-diff size relative to spec-diff size, and cost (model tokens, wall
-   time, human review minutes). Seed some edits with deliberately weak tests (asserting only
-   that a request succeeded) and measure how often the coverage reviewer rejects them,
-   since `tested` depends on that judgement.
-   **Stop rule, fixed before the trial:** if the language arm does not beat the strong arm
-   on retained behaviour or out-of-scope writes by a margin, set before the trial, that pays
-   for its extra cost,
-   the language stops here, whatever the design scores say.
+   typecheck, build, test (the project's own tests; the acceptance tests stay outside the
+   runner so that no arm gets feedback from them) and its conformance rules, plus the core's ownership, envelope and TypeScript import rules.
+2. A trial on a toy Next.js app, pinned in `TRIAL.md`: ten spec edits in sequence (an
+   interface change with a caller, a compatible widening, a normative prose change to an
+   action, compatible fan-in, an inherited prompt change, a route move with created parts,
+   an adopted hand edit, an edit that tempts the agent to widen its scope, a create and a
+   delete), each with acceptance tests written independently and kept outside every
+   agent's reach.
+3. Two control arms with the same agent, baseline, edits and acceptance tests. **Plain:**
+   each edit as a one-line instruction. **Strong:** the agent with the repository, its
+   tests and a Markdown spec per feature, edited first; this is the practice the language
+   has to beat.
+4. Measures (intended behaviour, regressions, out-of-scope files, review corrections, diff
+   ratio, cost) and a probe of how often the coverage reviewer accepts deliberately weak
+   tests. **Stop rule, fixed in `TRIAL.md` before the trial:** unless intended behaviour is
+   no worse than the strong arm's, regressions are at most half, the strong arm regresses
+   enough to show a difference, and cost stays within bounds, the language stops here,
+   whatever the design scores say. Out-of-scope
+   writes do not decide it, because the language arm's envelope refuses them by
+   construction.
 5. Only then: the parser and evaluator for `project`, `stack`, `use`, `module`,
    `nextjs.page`, `action` and `lib`, and `spec check`.
 
