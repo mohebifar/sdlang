@@ -47,6 +47,8 @@ pub struct Package {
     /// Skill names declared in the manifest.
     pub skills: Vec<String>,
     pub files: Vec<SourceFile>,
+    /// The package's directory, where its checks and generators run from.
+    pub root: PathBuf,
 }
 
 #[derive(Debug)]
@@ -187,6 +189,7 @@ fn load_package(root: &Path, id: String, dir: &Path) -> GResult<Package> {
         provides,
         skills,
         files,
+        root: dir.to_path_buf(),
     })
 }
 

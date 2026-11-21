@@ -1,0 +1,27 @@
+import package "./spec-packages/toy" as toy
+
+project demo {
+  summary: "A tiny project for apply's end-to-end tests"
+  verify: "tested"
+}
+
+export entity Item {
+  summary: "Something to list"
+  fields {
+    name: string
+  }
+}
+
+export toy.note hello {
+  title: "Hello"
+  summary: "Greets the reader"
+  expect {
+    greets: "says hello"
+  }
+}
+
+export toy.note bye {
+  title: "Bye"
+  summary: "Says goodbye after hello"
+  uses: [hello]
+}

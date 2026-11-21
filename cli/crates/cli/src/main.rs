@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 /// `run`, which returns the exit code: 0 success, 1 the input is wrong, 2 usage or
 /// internal error.
 mod commands {
+    pub mod apply;
     pub mod graph;
     pub mod hash;
     pub mod parse;
@@ -34,6 +35,8 @@ enum Command {
     Graph(commands::graph::Args),
     /// Plan a change from the spec, the recorded state and the files on disk.
     Plan(commands::plan::Args),
+    /// Apply plan.json transaction by transaction with an agent and a reviewer.
+    Apply(commands::apply::Args),
 }
 
 fn main() -> ExitCode {
@@ -55,6 +58,7 @@ fn main() -> ExitCode {
         Command::Hash(args) => commands::hash::run(args),
         Command::Graph(args) => commands::graph::run(args),
         Command::Plan(args) => commands::plan::run(args),
+        Command::Apply(args) => commands::apply::run(args),
     };
     ExitCode::from(code)
 }

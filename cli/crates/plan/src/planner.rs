@@ -582,8 +582,31 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
         groups.entry(uf.find(a)).or_default().push(a.clone());
     }
     let key = |a: &String| (rank(&entries[a].kind), a.clone());
+    // Within a transaction, members follow ordering edges too (deletions in reverse,
+    // after their former consumers); cycles fall back to the tie-break key.
+    let depends_on = |a: &String, b: &String| -> bool {
+        if entries[a].change == Change::Delete {
+            return former.iter().any(|(c, d)| d == a && c == b);
+        }
+        decls.get(a.as_str()).is_some_and(|d| {
+            d["edges"].as_array().into_iter().flatten().any(|e| {
+                ORDERING.contains(&e["relation"].as_str().unwrap_or_default())
+                    && e["target"] == json!(b)
+            })
+        })
+    };
     for members in groups.values_mut() {
         members.sort_by_key(key);
+        let mut left: Vec<String> = members.clone();
+        let mut sorted = Vec::new();
+        while !left.is_empty() {
+            let i = left
+                .iter()
+                .position(|a| !left.iter().any(|b| b != a && depends_on(a, b)))
+                .unwrap_or(0);
+            sorted.push(left.remove(i));
+        }
+        *members = sorted;
     }
     // Kahn's algorithm with the tie-break key of each group's first member.
     let mut ordered: Vec<String> = Vec::new();

@@ -1,0 +1,36 @@
+// A toy package for apply's tests: notes written by an agent, entities by a generator.
+
+export kind note {
+  fields {
+    title: string @interface
+  }
+  outputs {
+    main: "notes/${meta.name}.txt"
+    tests: "tests/${meta.name}.json"
+  }
+  checks: [build, test]
+}
+
+export implements entity {
+  outputs {
+    schema: "schema/${meta.name}.txt"
+  }
+  generator: gen
+  checks: [build]
+}
+
+export check build {
+  purpose: "build"
+  scope: "project"
+  run: ["sh", "./checks/build.sh"]
+}
+
+export check test {
+  purpose: "test"
+  scope: "declaration"
+  run: ["python3", "./checks/test.py"]
+}
+
+export generator gen {
+  run: ["python3", "./gen.py"]
+}

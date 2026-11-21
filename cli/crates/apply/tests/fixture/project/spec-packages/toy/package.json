@@ -1,0 +1,10 @@
+{
+  "name": "@intlang-local/toy",
+  "version": "0.1.0",
+  "private": true,
+  "intlang": {
+    "format": 1,
+    "name": "toy",
+    "entry": "./spec/index.int"
+  }
+}

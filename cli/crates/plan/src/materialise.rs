@@ -234,6 +234,27 @@ fn generator(body: &Block) -> Option<String> {
     })
 }
 
+/// The body that materialises `decl`: its package kind, the `implements` of its core
+/// kind, or its `use`'s binding (for sections such as `checks`, `ambient` and `retains`).
+pub fn kind_body<'p>(project: &'p Project, decl: &Value) -> Option<&'p Block> {
+    let implementers = implementers(project).ok()?;
+    source_for(project, &implementers, decl).map(|s| s.body)
+}
+
+/// The package that owns `decl`'s materialising body.
+pub fn kind_package<'p>(project: &'p Project, decl: &Value) -> Option<&'p Package> {
+    let kind = decl["kind"].as_str()?;
+    if kind == "core:use" {
+        let package = decl["fields"]["package"].as_str()?;
+        return project.packages.iter().find(|p| p.npm_name == package);
+    }
+    if let Some(core) = kind.strip_prefix("core:") {
+        return implementers(project).ok()?.get(core).map(|(p, _)| *p);
+    }
+    let (package_id, _) = kind.rsplit_once("::")?;
+    project.packages.iter().find(|p| p.id == package_id)
+}
+
 /// Every managed declaration's materialisation, keyed by address. Two declarations
 /// claiming one path is an error.
 pub fn materialise(project: &Project, graph: &Value) -> PResult<BTreeMap<String, Materialisation>> {

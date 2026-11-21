@@ -15,6 +15,7 @@ intlang-syntax.workspace = true
 intlang-canon.workspace = true
 intlang-graph.workspace = true
 intlang-plan.workspace = true
+intlang-apply.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -51,6 +51,14 @@ pub struct Output {
 pub struct StateRecord {
     pub address: String,
     pub kind: String,
+    /// The digest of the declaration's canonical graph entry as applied, kept in the
+    /// applied store so generators receive the old entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    /// The digest of `{ "source": <the declaration's source text> }` as applied, kept in
+    /// the applied store so the next work order can show the previous spec.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     pub hashes: Hashes,
     /// Inherited normative source -> hash.
     pub context_parts: BTreeMap<String, String>,
@@ -134,6 +142,14 @@ impl Store {
             map.insert(rel, Value::String(digest_bytes(&bytes)));
         }
         Ok(digest(&Value::Object(map))?)
+    }
+
+    pub fn remove_record(&self, address: &str) -> PResult<()> {
+        let path = self.state_dir().join(format!("{address}.json"));
+        match fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(io(&path, e)),
+            _ => Ok(()),
+        }
     }
 
     pub fn write_record(&self, record: &StateRecord) -> PResult<()> {
@@ -266,6 +282,20 @@ fn hashed_refs(value: &Value, acc: &mut BTreeSet<String>) {
     }
 }
 
+/// What a publication writes besides what the graph and the files determine.
+#[derive(Default)]
+pub struct Publish<'a> {
+    /// Only these declarations; all managed declarations when `None`.
+    pub only: Option<&'a BTreeSet<String>>,
+    /// Created outputs per address, as they stand after the transaction.
+    pub created: BTreeMap<String, BTreeMap<String, Output>>,
+    /// Evidence records per address.
+    pub evidence: BTreeMap<String, Vec<Value>>,
+    /// Source text per address, as applied.
+    pub sources: BTreeMap<String, String>,
+    pub provenance: Option<Value>,
+}
+
 /// Records every managed declaration of `graph` as accepted, with the files on disk as
 /// its baseline bytes (a slot with no file is left without an output), and stores every
 /// projection the records name. Returns the records written.
@@ -277,10 +307,30 @@ pub fn record_baseline(
     materialisations: &BTreeMap<String, Materialisation>,
     provenance: Option<Value>,
 ) -> PResult<Vec<StateRecord>> {
+    let publish = Publish {
+        provenance,
+        ..Publish::default()
+    };
+    publish_records(store, project_root, graph, docs, materialisations, &publish)
+}
+
+/// Writes the records of the published declarations (see [`Publish`]) and the applied
+/// store entries they name.
+pub fn publish_records(
+    store: &Store,
+    project_root: &Path,
+    graph: &Value,
+    docs: &GraphDocuments,
+    materialisations: &BTreeMap<String, Materialisation>,
+    publish: &Publish,
+) -> PResult<Vec<StateRecord>> {
     let decls = declarations(graph);
     let mut written = Vec::new();
     let mut to_store: BTreeSet<String> = BTreeSet::new();
     for (address, m) in materialisations {
+        if publish.only.is_some_and(|only| !only.contains(address)) {
+            continue;
+        }
         let decl = decls[address.as_str()];
         let d = &docs.declarations[address];
         let hashes = d.hashes()?;
@@ -299,6 +349,18 @@ pub fn record_baseline(
                 );
             }
         }
+        for (key, out) in publish.created.get(address).into_iter().flatten() {
+            if let Some(bytes) = file_digest(project_root, &out.path)? {
+                let mut out = out.clone();
+                out.bytes = bytes;
+                outputs.insert(key.clone(), out);
+            }
+        }
+        let entry = store.put_applied(decl)?;
+        let source = match publish.sources.get(address) {
+            Some(text) => Some(store.put_applied(&json!({ "source": text }))?),
+            None => None,
+        };
         let mut context_parts = BTreeMap::new();
         for (source, document) in &d.context_parts {
             context_parts.insert(source.clone(), store.put_applied(document)?);
@@ -314,6 +376,8 @@ pub fn record_baseline(
         let record = StateRecord {
             address: address.clone(),
             kind: decl["kind"].as_str().unwrap_or_default().to_string(),
+            entry: Some(entry),
+            source,
             hashes: Hashes {
                 public: hashes.public,
                 behaviour: hashes.behaviour,
@@ -324,8 +388,8 @@ pub fn record_baseline(
             consumed,
             members: member_hashes(decl)?,
             outputs,
-            evidence: vec![],
-            provenance: provenance.clone(),
+            evidence: publish.evidence.get(address).cloned().unwrap_or_default(),
+            provenance: publish.provenance.clone(),
         };
         store.write_record(&record)?;
         written.push(record);

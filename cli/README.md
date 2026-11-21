@@ -25,6 +25,10 @@ cargo run -p intlang-cli -- graph .
 cargo run -p intlang-cli -- plan <project> --json
 ```
 
+```bash
+cargo run -p intlang-cli -- apply <project> --agent "<command>" --reviewer "<command>"
+```
+
 ## Where things are
 
 | Spec | Code |
@@ -34,6 +38,7 @@ cargo run -p intlang-cli -- plan <project> --json
 | `spec/canon/` | `crates/canon`: canonical JSON, digests and projection hashes |
 | `spec/graph/` | `crates/graph`: project and package loading, scopes and resolution, kind schemas, selectors, lowering to the canonical graph |
 | `spec/plan/` | `crates/plan`: output materialisation, state records and the applied store, compatibility, the planner |
+| `spec/apply/` | `crates/apply`: git candidates, work and review orders, the check protocol, evidence, the transaction engine |
 
 The checks are the ones the local package declares: `cargo build --locked`, `cargo clippy`
 with warnings denied, and `cargo test`. The syntax crate's corpus test parses every
@@ -58,9 +63,15 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
    against a baseline recorded from `examples/worked/before` reproduces
    `examples/plan.json`, digests aside. State is written only by a library function
    until phase 5 publishes through it.
-5. **Apply**: work orders, the check protocol, the `nextjs` adapter, transactions; `spec
-   apply`. With phases 4 and 5 this is the runner `TRIAL.md` needs, and phase 3 removes
-   the trial's hand-written graphs.
+5. **Apply**, in two parts. With phases 4 and 5 this is the runner `TRIAL.md` needs, and
+   phase 3 removes the trial's hand-written graphs.
+   - 5a (done): `spec apply` with candidate worktrees, generators, work orders and
+     results, envelope enforcement, build, test and conformance checks, review orders and
+     verdicts, evidence, retries, one commit per transaction and the journal. Tested on a
+     toy project with scripted agent, reviewer, generator and checks.
+   - 5b: the MCP tool server (`spec mcp`), context packing and resource serving, the
+     TypeScript import rule, timeouts, the `@intlang/nextjs` adapter's checks, test
+     reporter and generators, and a run with a real agent.
 6. `spec check` and `spec import`.
 
 Nothing in `../EXTENSIONS.md` is in scope, except the two pieces SPEC.md's worked example

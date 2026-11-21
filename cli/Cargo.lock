@@ -189,6 +189,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "intlang-apply"
+version = "0.1.0"
+dependencies = [
+ "intlang-canon",
+ "intlang-graph",
+ "intlang-plan",
+ "intlang-syntax",
+ "serde",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
 name = "intlang-canon"
 version = "0.1.0"
 dependencies = [
@@ -202,6 +215,7 @@ name = "intlang-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "intlang-apply",
  "intlang-canon",
  "intlang-graph",
  "intlang-plan",

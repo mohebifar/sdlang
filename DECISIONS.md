@@ -329,10 +329,40 @@ passes.
 - C.12 [choices, phase 4 only, not yet in SPEC.md]
   - **State.** `consumed` records `public` for every ordering relation and `collects`, and `behaviour` and `context` as well for `calls`, `reads` and `writes`. `mentions` are not recorded, since they neither order nor observe. There is no `guidance` hash, as in SPEC.md's example. The applied store is `.spec/applied/<hex>.json`, holding canonical JSON, and is checked against its name when read. `record_baseline` writes records for the current graph with the files on disk as accepted bytes. It is a library function only, until `apply` and `import` publish through it.
   - **Binding.** `graph_before` is the digest of every record's address and hashes. The planner never reads an old graph. `state_digest` covers each record file's path and exact digest. `fingerprints` holds the owned outputs of every entry, plus drifted files. Kind `inputs` are not yet included.
-  - **Order.** SPEC.md orders transactions only by ordering edges. Ties go to data (entities and uses), then logic (types, actions and libs), then everything else, then address. Members of a transaction follow the same key. This is the rule that reproduces the fixture's numbering.
+  - **Order.** SPEC.md orders transactions only by ordering edges. Ties go to data (entities and uses), then logic (types, actions and libs), then everything else, then address. This is the rule that reproduces the fixture's numbering. Members of a transaction follow ordering edges among themselves (deletions after their former consumers), then the same key; phase 5 found the first version, which used only the key, dispatching a page before the action it uses.
   - **Obligations.** An obligation attaches to every transaction whose change caused it, and the entry names the first. Obligations with no changed source (inherited context, or an observed target whose own context changed) share one obligation-only transaction, which runs last. An implementation-impact `verify` is dropped when the same source already gives one.
   - **Other.** A pure move is a transaction with change `none`, so its re-keyed record publishes. A changed or empty slot path is an `update` with cause `convention`. A blocked declaration gets no entry and propagates nothing. A delete has strategy `none`. A changed `summary` or annotation is incompatible, because prose cannot be compared.
   - **Not yet planned:** `rollout`, `reviews.conformance`, contributions, created-output moves, check-definition, generator, provider and option changes, stale evidence, repair, reconcile, and `detach` (see O.11).
 - O.10 [open] SPEC.md does not say how transactions with no ordering edge between them are ordered, or where obligation-only work goes. C.12 picks rules that reproduce `examples/plan.json`; SPEC.md should state them or say the order is free.
 - O.11 [open] `detach` of a `protected` declaration needs the lifecycle of a declaration that is gone from the new graph, and the state record does not carry it. Either the record gains `lifecycle`, or removal of a protected declaration needs an explicit request.
+- C.13 [built] Phase 5a: `crates/apply` and `spec apply [dir] [--plan] --agent <cmd> --reviewer <cmd> [--profile] [--max-attempts]`. The engine:
+  - verifies the plan's binding, or the journal chain on a resume;
+  - runs each transaction in a candidate git worktree: generators through the generator protocol, coding agents through work orders and results, deletions;
+  - freezes the candidate, enforces the write envelope and created-output claims on the frozen diff, and runs build, test and conformance checks from the package's definitions;
+  - sends a review order to a separate reviewer command, computes evidence per requirement against its effective policy, and retries failed attempts with the failures inline;
+  - publishes state, the applied store and evidence in one commit per transaction (trailer `Spec-Transaction`), then fast-forwards the branch and appends a journal receipt. Dependents of a failed transaction are skipped, and a failed candidate is kept as a patch.
+
+  The tests run a toy project with a local package whose agent, reviewer, generator and checks are scripts. They cover:
+  - end to end, after which a new plan is empty;
+  - an envelope escape, the dependent skipped, then a resume;
+  - a failing test retried with the failure inline;
+  - a nonconforming review;
+  - a stale binding;
+  - an interface change that updates its consumer in the same transaction.
+
+  Every work order, result, review order, verdict and generator input they write validates against its schema. Nothing has run against a real agent or the Next.js adapter yet.
+- C.14 [choices, phase 5a only, not yet in SPEC.md or PROTOCOL.md]
+  - **State.** The record gains `entry`, the applied graph entry, so generators receive the old entry. It also gains `source`, the applied source text, so a work order's `previous` spec is the text as last applied rather than whatever the baseline commit holds: phase 5 found that a developer who commits the spec edit before planning made `previous` equal `current`. Both are content-addressed in the applied store.
+  - **Files.** Candidates live under `.spec/run/candidates/`. The protocol area is inside the candidate and is copied back to `.spec/run/<plan>/` afterwards, including a rendered `order.md`. `.spec/run/` and `.spec/journal/` are excluded through `.git/info/exclude`. The journal is not committed, because a receipt names its own result commit.
+  - **Commands.** `--agent` and `--reviewer` are shell commands run in the candidate, with `SPEC_WORK_ORDER`, `SPEC_RESULT` and `SPEC_DISPATCH`, or `SPEC_REVIEW_ORDER`, `SPEC_VERDICT` and `SPEC_DISPATCH`. Each coding subject gets its own work order, in transaction order.
+  - **Checks.** Build checks run in the candidate. Test and conformance checks run from the package root, reading the candidate as `workdir`. An argv path beginning with `./` resolves against the package root. Whatever a check writes is discarded by resetting to the frozen snapshot, but ignored files survive. The `graph` handed to checks is the new graph, not yet the applied graph. Test outputs are slots whose key contains `test`. A case newly bound by the agent has no known instance keys, so any keys are accepted, provided every attempt of every instance passed.
+  - **Evidence.** A verify-only obligation keeps its previous coverage and conformance verdicts and reruns its checks. A review obligation is reviewed again. `does_not_conform` on a coding subject is a failed attempt. On an obligated declaration it fails the transaction, since escalation within the contingent envelope is not built. The run input closure is the digest of the file digests of the declaration, of what it reaches over ordering relations and of `stack`, together with the check's definition hash and the profile.
+  - **Not in 5a:**
+    - the MCP server: `tools.mcp` is listed because the schema requires it, and the order says the tools are unavailable;
+    - context packing and serving manifest resources;
+    - the TypeScript import resolver;
+    - timeouts and process-tree kill;
+    - infrastructure reruns (an infrastructure failure fails the transaction);
+    - evaluating blocked claims (any `blocked` result stops the transaction);
+    - repair, approvals (always unmet), amended plans and created-output relocation.
 

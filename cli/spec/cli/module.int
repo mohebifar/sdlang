@@ -3,6 +3,7 @@ import syntax
 import canon
 import graph
 import plan
+import apply
 
 module {
   summary: "The spec binary: argument parsing and commands"
@@ -15,7 +16,7 @@ module {
 
 export rust.binary spec {
   summary: "The spec binary's entry point"
-  uses: [parse, hash, graph_command, plan_command]
+  uses: [parse, hash, graph_command, plan_command, apply_command]
   expect {
     help: "spec --help lists every command with a one-line description"
     version: "spec --version prints the crate version"
@@ -77,5 +78,16 @@ export rust.command plan_command {
     id: "--id sets the plan id; the default is p-<UTC date>-01"
     baseline: "the baseline commit is the project's git HEAD; outside a git work tree it exits 2"
     error: "a graph error exits 1 with its location"
+  }
+}
+
+export rust.command apply_command {
+  name: "apply"
+  summary: "Applies plan.json transaction by transaction with an agent and a reviewer command"
+  uses: [plan.planner, apply.engine]
+  expect {
+    runs: "given --agent and --reviewer commands, it applies the plan, prints one line per transaction and exits 0 when every transaction published"
+    partial: "when any transaction fails or is skipped it exits 1, listing why"
+    refuses: "a plan whose binding no longer matches exits 1 naming the first mismatch"
   }
 }
