@@ -352,8 +352,43 @@ impl Server {
                 problem(
                     "schema",
                     Some("tests"),
-                    format!("{m} is not a requirement of this order"),
+                    format!(
+                        "{m:?} is not a requirement of this order; use its full member, one of: {}",
+                        members.iter().copied().collect::<Vec<_>>().join(", ")
+                    ),
                 );
+            }
+            // Each test output is one of the target's outputs, by its full member, or an
+            // output this draft creates for it.
+            let target = t["subject"]["target"].as_str().unwrap_or_default();
+            let mut outputs: BTreeSet<String> = self
+                .ctx
+                .subjects
+                .iter()
+                .filter(|s| s.address == target)
+                .flat_map(|s| s.outputs.iter().map(|(member, _)| member.clone()))
+                .collect();
+            outputs.extend(
+                draft["outputs"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|o| o["owner"] == json!(target) && o["op"] != "remove")
+                    .filter_map(|o| o["key"].as_str())
+                    .map(|k| format!("{target}#outputs.{k}")),
+            );
+            for x in t["tests"].as_array().into_iter().flatten() {
+                let o = x["output"].as_str().unwrap_or_default();
+                if !outputs.contains(o) {
+                    problem(
+                        "schema",
+                        Some("tests"),
+                        format!(
+                            "test output {o:?} is not an output of {target}; use its full member, one of: {}",
+                            outputs.iter().cloned().collect::<Vec<_>>().join(", ")
+                        ),
+                    );
+                }
             }
         }
         let mut claimed: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();

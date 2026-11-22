@@ -60,7 +60,7 @@ Adds a task.
 
 Expectations:
 
-- stored: a created task is returned by list_tasks with its title, not done
+- stored: a created task is stored with its title, not done
 
 ## action list_tasks
 
@@ -86,7 +86,7 @@ Marks a task done.
 
 Expectations:
 
-- marks_done: after complete_task, list_tasks shows the task as done
+- marks_done: after complete_task, the stored task is done
 
 ## page tasks_index
 

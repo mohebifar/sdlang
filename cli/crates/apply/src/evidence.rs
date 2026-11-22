@@ -203,7 +203,10 @@ pub struct Verdict {
     pub dispatch: String,
     pub conformance: Option<String>,
     pub coverage: Option<String>,
+    /// The conformance reason.
     pub reason: String,
+    /// The coverage reason, given back to the agent when coverage is insufficient.
+    pub coverage_reason: String,
 }
 
 /// The evidence record of one requirement and whether its policy is met.

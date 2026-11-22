@@ -884,22 +884,32 @@ impl TxRunner<'_> {
                 }
             }
             if failures.is_empty() {
-                // An obligated declaration whose policy is not met (tests that do not
-                // cover a requirement, say) escalates like a nonconforming one.
+                // A requirement whose policy is not met (tests the reviewer finds do not
+                // cover it, say) is a test failure: a subject being coded gets another
+                // attempt with the finding, and an obligated declaration escalates like a
+                // nonconforming one. Publishing reports it once no attempt is left.
                 let (_, unmet) =
                     self.evidence(&entries, &reqs, &claims, &runs, &verdicts, &records)?;
+                let coded = |a: &String| {
+                    agent_entries.iter().any(|e| e["address"] == json!(a))
+                        || escalated.iter().any(|e| e["address"] == json!(a))
+                };
                 let escalate: BTreeSet<String> = unmet
                     .iter()
                     .filter(|(a, _)| {
                         obligated.contains(a)
-                            && !escalated.iter().any(|e| e["address"] == json!(a))
+                            && !coded(a)
                             && decls
                                 .get(a.as_str())
                                 .is_some_and(|d| d["lifecycle"] != "frozen")
                     })
                     .map(|(a, _)| a.clone())
                     .collect();
-                if escalate.is_empty() || self.options.agent.is_none() || attempt == max {
+                let retry: Vec<&(String, String)> = unmet
+                    .iter()
+                    .filter(|(a, _)| coded(a) || escalate.contains(a))
+                    .collect();
+                if retry.is_empty() || self.options.agent.is_none() || attempt == max {
                     return self.publish(
                         c, &entries, &obligated, &reqs, &claims, &runs, &verdicts, &records,
                     );
@@ -910,13 +920,24 @@ impl TxRunner<'_> {
                         "strategy": "agent", "causes": ["escalation"], "transaction": self.id,
                     }));
                 }
-                for (a, m) in unmet.iter().filter(|(a, _)| escalate.contains(a)) {
+                for (a, m) in retry {
+                    let member = m.split(' ').next().unwrap_or_default();
+                    let why = verdicts
+                        .get(member)
+                        .filter(|v| v.coverage.as_deref() == Some("insufficient"))
+                        .map(|v| {
+                            format!(
+                                "; the reviewer found its tests insufficient: {}",
+                                v.coverage_reason
+                            )
+                        })
+                        .unwrap_or_default();
                     failures.push(failure(
                         attempt,
                         &snapshot,
                         "policy_unmet",
                         "test",
-                        &format!("{a}: policy not met: {m}"),
+                        &format!("{a}: policy not met: {m}{why}"),
                         None,
                     ));
                 }
@@ -1144,7 +1165,7 @@ impl TxRunner<'_> {
             .dir
             .join(order["result_path"].as_str().unwrap_or_default());
         let command = self.options.agent.clone().unwrap_or_default();
-        let markdown = orders::render_work_order(&order);
+        let markdown = orders::render_work_order(&order, Some(&c.dir));
         let _ = fs::write(area.join("order.md"), &markdown);
         let mcp_config = self
             .write_mcp_context(
@@ -1238,7 +1259,8 @@ impl TxRunner<'_> {
                     "result_invalid",
                     "protocol",
                     &format!(
-                        "{address}: tests name {member}, which is not a requirement of this order"
+                        "{address}: tests name {member:?}, which is not a requirement of this order; name the requirement by its full member, one of: {}",
+                        members.iter().copied().collect::<Vec<_>>().join(", ")
                     ),
                     None,
                 )));
@@ -1329,6 +1351,41 @@ impl TxRunner<'_> {
                     created.remove(key);
                 }
                 _ => {}
+            }
+        }
+        // A test binding names one of this subject's outputs by its full member; anything
+        // else would bind to no test run, and the requirement would publish unverified.
+        let mut outputs: BTreeSet<String> = BTreeSet::new();
+        if let Some(m) = env.mats.get(address) {
+            outputs.extend(m.slots.keys().map(|k| format!("{address}#outputs.{k}")));
+        }
+        if let Some(r) = record {
+            outputs.extend(
+                r.outputs
+                    .iter()
+                    .filter(|(_, o)| o.origin == "created")
+                    .map(|(k, _)| format!("{address}#outputs.{k}")),
+            );
+        }
+        if let Some(created) = claims.created.get(address) {
+            outputs.extend(created.keys().map(|k| format!("{address}#outputs.{k}")));
+        }
+        for t in result["tests"].as_array().into_iter().flatten() {
+            for x in t["tests"].as_array().into_iter().flatten() {
+                let o = x["output"].as_str().unwrap_or_default();
+                if !outputs.contains(o) {
+                    return Ok(Some(failure(
+                        attempt,
+                        snapshot,
+                        "result_invalid",
+                        "protocol",
+                        &format!(
+                            "{address}: a test binding names output {o:?}, which is not an output of this subject; name it by its full member, one of: {}",
+                            outputs.iter().cloned().collect::<Vec<_>>().join(", ")
+                        ),
+                        None,
+                    )));
+                }
             }
         }
         Ok(None)
@@ -1771,7 +1828,7 @@ impl TxRunner<'_> {
             let verdict_path = c
                 .dir
                 .join(order["verdict_path"].as_str().unwrap_or_default());
-            let mut markdown = orders::render_review_order(&order);
+            let mut markdown = orders::render_review_order(&order, Some(&c.dir));
             if let Some(why) = &rejected {
                 markdown.push_str(&format!(
                     "\n## Your previous verdict was rejected\n\n{why}\n"
@@ -2029,6 +2086,12 @@ fn read_verdict(
                 conformance,
                 coverage,
                 reason: a["conformance"]["reason"].as_str().unwrap_or("").into(),
+                coverage_reason: a["coverage"]
+                    .as_array()
+                    .and_then(|c| c.iter().find(|x| x["candidate"] == "c1"))
+                    .and_then(|x| x["reason"].as_str())
+                    .unwrap_or("")
+                    .into(),
             },
         );
     }
@@ -2120,6 +2183,7 @@ fn previous_verdict(record: &StateRecord, member: &str) -> Option<Verdict> {
         conformance,
         coverage,
         reason: String::new(),
+        coverage_reason: String::new(),
     })
 }
 

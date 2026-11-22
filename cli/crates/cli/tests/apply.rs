@@ -167,6 +167,14 @@ fn agents_use_the_mcp_server() {
     assert_eq!(hello["missing"]["error"], "not_found");
     assert_eq!(hello["validate"]["valid"], true, "{}", hello["validate"]);
     assert_eq!(hello["validate_with_rogue"]["valid"], false);
+    let bare = &hello["validate_bare_output"];
+    assert_eq!(bare["valid"], false, "{bare}");
+    assert!(
+        bare["problems"][0]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("hello#outputs.tests")),
+        "{bare}"
+    );
     assert_eq!(
         hello["validate_with_rogue"]["problems"][0]["stage"],
         "envelope"

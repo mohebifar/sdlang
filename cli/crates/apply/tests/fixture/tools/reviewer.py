@@ -17,6 +17,14 @@ if escalate and any(s["subject"]["target"] == escalate for s in order["subjects"
     mark = os.environ["REVIEW_MARK"]
     first = not os.path.exists(mark)
     open(mark, "a").close()
+# REVIEW_INSUFFICIENT=<address> finds that address's tests insufficient in its first review
+# only (REVIEW_MARK records it), so the agent is asked again with the reason.
+insufficient = os.environ.get("REVIEW_INSUFFICIENT", "")
+gap = False
+if insufficient and any(s["subject"]["target"] == insufficient for s in order["subjects"]):
+    mark = os.environ["REVIEW_MARK"]
+    gap = not os.path.exists(mark)
+    open(mark, "a").close()
 subjects = []
 for s in order["subjects"]:
     verdict = os.environ.get("REVIEW_VERDICT", "conforms")
@@ -24,7 +32,9 @@ for s in order["subjects"]:
         verdict = "does_not_conform"
     v = {"id": s["subject"]["requirement"] if bad == "always" else s["id"], "conformance": {"verdict": verdict, "reason": "scripted"}}
     if "coverage" in s["assess"]:
-        v["coverage"] = [{"candidate": c["id"], "verdict": "sufficient", "reason": "scripted"}
+        short = gap and s["subject"]["target"] == insufficient
+        v["coverage"] = [{"candidate": c["id"], "verdict": "insufficient" if short else "sufficient",
+                          "reason": "the test never checks the greeting text" if short else "scripted"}
                          for c in s.get("coverage_candidates", [])]
     subjects.append(v)
 json.dump({"schema": "intlang.review-verdict/1", "dispatch": order["dispatch"],

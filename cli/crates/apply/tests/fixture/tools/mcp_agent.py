@@ -44,6 +44,11 @@ open("rogue.txt", "w").write("x\n")
 log["validate_with_rogue"] = tool("validate_result", {"draft": result})
 os.remove("rogue.txt")
 log["validate"] = tool("validate_result", {"draft": result})
+bare = json.loads(json.dumps(result))
+for t in bare["tests"]:
+    for x in t["tests"]:
+        x["output"] = "tests"
+log["validate_bare_output"] = tool("validate_result", {"draft": bare})
 log["self_check"] = tool("run_self_check", {"check": "toy.test"})
 log["not_a_check"] = tool("run_self_check", {"check": "toy.nothing"})
 server.stdin.close()

@@ -555,7 +555,7 @@ pub fn work_order(
         "limits": { "timeout_seconds": 1800, "result_max_bytes": 65536 },
     });
     let mut order = order;
-    let used = render_work_order(&order).len().div_ceil(4) as u64;
+    let used = render_work_order(&order, None).len().div_ceil(4) as u64;
     order["context"]["budget"]["used_input"] = json!(used);
     seal(order)
 }
@@ -725,8 +725,17 @@ fn fence(s: &mut String, lang: &str, body: &str) {
     let _ = writeln!(s, "```{lang}\n{}\n```\n", body.trim_end());
 }
 
-/// The work order as Markdown, for the agent's stdin.
-pub fn render_work_order(order: &Value) -> String {
+/// `rel`, a path relative to the worktree, made absolute when the worktree is known. An
+/// agent with no shell cannot read the environment, so the Markdown names the full path.
+fn at(worktree: Option<&Path>, rel: &str) -> String {
+    match worktree {
+        Some(w) => w.join(rel).to_string_lossy().into_owned(),
+        None => rel.to_string(),
+    }
+}
+
+/// The work order as Markdown, for the agent's stdin; `worktree` is the candidate it runs in.
+pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -851,21 +860,25 @@ pub fn render_work_order(order: &Value) -> String {
     s.push_str("## Result\n\n");
     let _ = writeln!(
         s,
-        "When done, write a JSON result to `{}` (also in $SPEC_RESULT) with: \"schema\": \"intlang.result/1\", \"dispatch\": \"{}\", \
+        "When done, write a JSON result to `{}` (also in $SPEC_RESULT), exactly that path, with: \"schema\": \"intlang.result/1\", \"dispatch\": \"{}\", \
          \"order_hash\": \"{}\", \"status\": \"submitted\" or \"blocked\", a one-paragraph \"summary\", \"outputs\" claiming every new \
          file you created under a creation root ({{\"op\": \"create\", \"owner\": <address>, \"key\": <snake_case key>, \"root\": <root>, \
          \"relative_path\": <path under the root>}}), and \"tests\" binding each requirement to the test cases that cover it \
          ({{\"subject\": {{\"target\", \"requirement\"}}, \"tests\": [{{\"output\", \"case\"}}]}}). Tag each test case with a stable snake_case \
-         case name the test reporter reports. The full order is the JSON file in $SPEC_WORK_ORDER. The MCP server named in tools.mcp ($SPEC_MCP_CONFIG holds a client configuration for it) serves get_task, get_declaration, read_context, get_diagnostic, run_self_check and validate_result; run validate_result on your draft before writing it.",
-        order["result_path"].as_str().unwrap_or(""),
+         case name the test reporter reports. The full order is the JSON file `{}` (also in $SPEC_WORK_ORDER). The MCP server named in tools.mcp ($SPEC_MCP_CONFIG holds a client configuration for it) serves get_task, get_declaration, read_context, get_diagnostic, run_self_check and validate_result; run validate_result on your draft before writing it.",
+        at(worktree, order["result_path"].as_str().unwrap_or("")),
         order["dispatch"].as_str().unwrap_or(""),
-        order["binding"]["order_hash"].as_str().unwrap_or("")
+        order["binding"]["order_hash"].as_str().unwrap_or(""),
+        at(
+            worktree,
+            &format!(".spec/run/{}/order.json", order["dispatch"].as_str().unwrap_or(""))
+        )
     );
     s
 }
 
-/// The review order as Markdown, for the reviewer's stdin.
-pub fn render_review_order(order: &Value) -> String {
+/// The review order as Markdown, for the reviewer's stdin; `worktree` is the candidate.
+pub fn render_review_order(order: &Value, worktree: Option<&Path>) -> String {
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -906,10 +919,10 @@ pub fn render_review_order(order: &Value) -> String {
     }
     let _ = writeln!(
         s,
-        "Write the verdict to `{}` (also $SPEC_VERDICT): {{\"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{}\", \"order_hash\": \"{}\", \
+        "Write the verdict to `{}` (also $SPEC_VERDICT), exactly that path: {{\"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{}\", \"order_hash\": \"{}\", \
          \"subjects\": [{{\"id\": the subject id (s1, s2, ...), \"conformance\": {{\"verdict\": \"conforms\"|\"does_not_conform\"|\"cannot_determine\", \"reason\"}}, \
          \"coverage\": [{{\"candidate\", \"verdict\": \"sufficient\"|\"insufficient\"|\"cannot_determine\", \"reason\"}}]}}]}}. Answer every subject and every assessment exactly once.",
-        order["verdict_path"].as_str().unwrap_or(""),
+        at(worktree, order["verdict_path"].as_str().unwrap_or("")),
         order["dispatch"].as_str().unwrap_or(""),
         order["binding"]["order_hash"].as_str().unwrap_or("")
     );

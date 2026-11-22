@@ -130,6 +130,8 @@ export lib engine {
     journal: "each published transaction appends a receipt with its input and result commits to .spec/journal/<plan>.jsonl"
     mcp_config: "each coding dispatch gets an MCP client configuration naming spec mcp for it, in SPEC_MCP_CONFIG"
     escalation: "an obligated declaration a review finds nonconforming, or whose policy is not met, becomes an update inside its contingent envelope on the next attempt, with the finding inline; a frozen one, or one with no attempt or agent left, fails the transaction"
+    coverage_retry: "a requirement of a subject being coded whose tests the reviewer finds insufficient fails the attempt, and the next attempt gets the reviewer's reason inline"
+    test_bindings: "a result whose test binding names anything but one of the subject's outputs, by its full member, is invalid"
     moves: "outputs whose path changed (a moved declaration, a moved creation root) are moved in the candidate before any agent runs, and the envelope names where each came from"
     acquire: "an acquire entry runs no agent and no review: build checks run, its claimed files' current bytes become its baseline, its requirements publish unverified with the import's test bindings, and it leaves .spec/import.json"
     infrastructure: "a check that fails for infrastructure reasons is rerun once before the transaction fails, and never costs a coding attempt"

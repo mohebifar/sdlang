@@ -76,7 +76,8 @@ with its own envelope, so authority stays attributed to an owner.
 ## Retries
 
 `attempt.max` defaults to 3. A failed attempt is recorded as a classified failure
-(`implementation`, `test`, `infrastructure`, `protocol`) with the check's definition hash,
+(`implementation`, `test`, `infrastructure`, `protocol`; tests a reviewer finds
+insufficient are a `test` failure) with the check's definition hash,
 the snapshot, a normalised failure fingerprint, a bounded excerpt and a handle to the full
 log. Infrastructure failures are rerun by the CLI a bounded number of times and never
 consume a coding attempt. The next coding attempt continues in the same candidate with

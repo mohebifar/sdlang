@@ -252,6 +252,73 @@ fn a_failing_check_is_retried_with_the_failure_inline() {
     assert_eq!(hello[1]["previous"], 1);
 }
 
+/// The agent's dispatches for transaction `tx`, from its log.
+fn dispatches(log: &Path, tx: &str) -> Vec<Value> {
+    fs::read_to_string(log)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str::<Value>(l).unwrap())
+        .filter(|l| l["dispatch"].as_str().unwrap().contains(&format!("/{tx}/")))
+        .collect()
+}
+
+#[test]
+fn insufficient_coverage_is_retried_with_the_reviewers_reason() {
+    let root = setup("coverage-retry");
+    let log = root.parent().unwrap().join("coverage-retry.agent-log");
+    let mark = root.parent().unwrap().join("coverage-retry.review-mark");
+    let _ = fs::remove_file(&log);
+    let _ = fs::remove_file(&mark);
+    let report = apply(&options(
+        &root,
+        &format!("AGENT_MODE=good AGENT_LOG={}", log.display()),
+        &format!("REVIEW_INSUFFICIENT=hello REVIEW_MARK={}", mark.display()),
+    ))
+    .unwrap();
+    assert!(report.all_published(), "{report:?}");
+    let hello = dispatches(&log, "tx-2");
+    assert_eq!(hello.len(), 2, "{hello:?}");
+    let excerpt = hello[1]["excerpts"][0].as_str().unwrap();
+    assert!(
+        excerpt.contains("insufficient") && excerpt.contains("never checks the greeting text"),
+        "{excerpt}"
+    );
+}
+
+#[test]
+fn the_rendered_order_names_the_result_path_in_full() {
+    // An agent with no shell cannot read $SPEC_RESULT; a real one resolved the relative
+    // path against the main checkout instead of its candidate.
+    let root = setup("absolute-paths");
+    let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
+    assert!(report.all_published(), "{report:?}");
+    let md = fs::read_to_string(root.join(".spec/run/p-test-01/r1/tx-2/1/order.md")).unwrap();
+    let candidate = root.join(".spec/run/candidates/p-test-01-r1-tx-2");
+    let result = candidate.join(".spec/run/p-test-01/r1/tx-2/1/result.json");
+    assert!(md.contains(&format!("`{}`", result.display())), "{md}");
+}
+
+#[test]
+fn a_test_binding_to_a_bare_slot_key_is_rejected_and_retried() {
+    let root = setup("bare-output");
+    let log = root.parent().unwrap().join("bare-output.agent-log");
+    let _ = fs::remove_file(&log);
+    let report = apply(&options(
+        &root,
+        &format!("AGENT_MODE=bare_first AGENT_LOG={}", log.display()),
+        "",
+    ))
+    .unwrap();
+    assert!(report.all_published(), "{report:?}");
+    let hello = dispatches(&log, "tx-2");
+    assert_eq!(hello.len(), 2, "{hello:?}");
+    let excerpt = hello[1]["excerpts"][0].as_str().unwrap();
+    assert!(
+        excerpt.contains("\"tests\"") && excerpt.contains("hello#outputs.tests"),
+        "{excerpt}"
+    );
+}
+
 #[test]
 fn nonconforming_review_fails_the_transaction() {
     let root = setup("nonconforming");

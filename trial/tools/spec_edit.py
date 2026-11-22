@@ -59,7 +59,7 @@ export action delete_task {
     not_found: "No task has that id"
   }
   expect {
-    marks_done: "after complete_task, list_tasks shows the task as done"
+    marks_done: "after complete_task, the stored task is done"
   }
 }''', '''moved tasks.complete_task -> tasks.set_task_done
 

@@ -1,5 +1,6 @@
 # A scripted coding agent. AGENT_MODE: good | escape (writes rogue.txt for AGENT_TARGET) |
-# fail_first (first attempt writes failing tests). AGENT_LOG records each dispatch.
+# fail_first (first attempt writes failing tests) | bare_first (first attempt binds tests to the
+# bare slot key "tests", as a real agent once did). AGENT_LOG records each dispatch.
 import json, os
 
 order = json.load(open(os.environ["SPEC_WORK_ORDER"]))
@@ -18,7 +19,9 @@ for s in order["subjects"]:
         else:
             open(path, "w").write("note " + addr + "\n")
     for r, k in zip(s["requirements"], keys):
-        tests.append({"subject": r["subject"], "tests": [{"output": addr + "#outputs.tests", "case": k}]})
+        bare = mode == "bare_first" and order["attempt"]["number"] == 1
+        output = "tests" if bare else addr + "#outputs.tests"
+        tests.append({"subject": r["subject"], "tests": [{"output": output, "case": k}]})
     if mode == "escape" and addr == target:
         open("rogue.txt", "w").write("not mine\n")
 result = {"schema": "intlang.result/1", "dispatch": order["dispatch"],
@@ -31,6 +34,7 @@ if log:
     with open(log, "a") as f:
         f.write(json.dumps({"dispatch": order["dispatch"], "attempt": order["attempt"]["number"],
                             "previous": len(order["attempt"]["previous"]),
+                            "excerpts": [p.get("excerpt", "") for p in order["attempt"]["previous"]],
                             "subjects": [{"address": s["address"], "causes": [c["kind"] for c in s["causes"]]}
                                          for s in order["subjects"]],
                             "order": os.environ["SPEC_WORK_ORDER"]}) + "\n")

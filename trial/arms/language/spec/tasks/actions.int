@@ -4,7 +4,7 @@ export action create_task {
   output: { id: string, title: string, done: boolean, created_at: timestamp }
   uses: [store]
   expect {
-    stored: "a created task is returned by list_tasks with its title, not done"
+    stored: "a created task is stored with its title, not done"
   }
 }
 
@@ -27,6 +27,6 @@ export action complete_task {
     not_found: "No task has that id"
   }
   expect {
-    marks_done: "after complete_task, list_tasks shows the task as done"
+    marks_done: "after complete_task, the stored task is done"
   }
 }
