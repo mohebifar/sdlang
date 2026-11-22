@@ -439,3 +439,6 @@ passes.
 
   What the replay does not show: how a real agent or reviewer does. Its agent and reviewer know the answer.
 
+
+- C.23 [built, trial setup] A Linux build of `spec` for profile `trial-v1`. `trial/profile/spec.Dockerfile` builds it in `rust:1.89-bookworm`, pinned by digest, so its glibc matches the profile's bookworm. It is kept out of the profile image: every arm runs in the same image, and only the language arm's containers mount the binary. The CLI's 151 tests pass on Linux, and inside the profile, with no network, the language arm's setup and E1 to E3 run with C.22's agent and reviewer. Built and run on arm64 only.
+  - **Stopping a process group could kill `spec`.** The engine stopped each command's group by running `kill -KILL -<pgid>`. In bookworm, the kill command (procps-ng 4.0.2) killed its caller when the group had already exited, which is the usual case after a command finishes. So `spec apply` died after its first check, and a timed-out group might not be stopped at all. The engine now calls kill(2) through `rustix`, which keeps the CLI free of unsafe code, and the CLI's spec states the requirement: stopping an exited group signals no other process. Nothing on macOS showed this.

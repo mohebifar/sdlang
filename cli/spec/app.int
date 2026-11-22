@@ -24,3 +24,4 @@ use "serde" for serialization
 use "serde_json" for json_io
 use "codespan-reporting" for error_rendering
 use "walkdir" for file_walking
+use "rustix" for process_signals

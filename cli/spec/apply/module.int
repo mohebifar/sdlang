@@ -50,6 +50,7 @@ export lib process {
   expect {
     timeout: "a command still running at its limit is stopped with its whole process group and reported as timed out"
     tree: "processes a command left running are stopped when it exits"
+    contained: "stopping a group that has already exited signals no other process, on Linux as on macOS"
   }
 }
 

@@ -31,11 +31,18 @@ pub enum Program<'a> {
     Shell(&'a str),
 }
 
+/// SIGKILL to the process group `pid` leads, by kill(2) rather than the kill command: its
+/// handling of a negative pid differs between implementations, and procps-ng 4.0.2's, in
+/// Debian bookworm, killed its caller when the group had already exited.
 fn kill_group(pid: u32) {
-    let _ = Command::new("kill")
-        .args(["-KILL", &format!("-{pid}")])
-        .stderr(Stdio::null())
-        .status();
+    let Some(pid) = i32::try_from(pid)
+        .ok()
+        .filter(|p| *p > 1)
+        .and_then(rustix::process::Pid::from_raw)
+    else {
+        return;
+    };
+    let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
 }
 
 /// Runs `program` in `cwd`. `capture` false passes stdout and stderr through to ours.

@@ -13,6 +13,7 @@ intlang-graph.workspace = true
 intlang-plan.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rustix.workspace = true
 
 [dev-dependencies]
 walkdir.workspace = true

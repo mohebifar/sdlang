@@ -10,6 +10,7 @@ says where each piece is and how the operator uses it.
 | `arms/strong/` | The strong arm's overlay: `docs/specs/tasks.md` and `about.md`, the same content as Markdown. The plain arm has no overlay. |
 | `acceptance/` | The acceptance tests: Playwright UI tests (`ui/`), Vitest contract tests (`contract/`), the table of when each test is active (`tests.json`, with the route map), the runner (`run.mjs`) and the E8 hand patch (`patches/e8.mjs`). Never copied into an arm. |
 | `profile/Dockerfile` | Profile `trial-v1`: `node:22` pinned by digest, pnpm 10.34.9 and the Chromium that Playwright 1.65.1 drives. |
+| `profile/spec.Dockerfile` | The Linux build of `spec` (Rust 1.89 on bookworm, pinned by digest), output to `profile/bin/`, which git ignores. Kept out of the profile image so every arm runs in the same image. |
 | `tools/make-arm.sh` | Makes one arm's workspace for one run. |
 | `tools/spec_edit.py` | Applies one edit's spec change to the language arm, as `TRIAL.md` states it. |
 | `reference/` | One implementation of the ten edits, as patches, used to calibrate the acceptance tests. Operator only; never shown to an agent. |
@@ -19,10 +20,15 @@ TypeScript 5.9.3, Vitest 3.2.7; Node.js 22 and pnpm 10.34.9 from the profile.
 
 ## One run
 
-Build the image once:
+Build the image and the Linux `spec` once. The binary is for the Docker host's
+architecture; add `--platform` to both builds to choose another:
 
 ```bash
 docker build -t intlang-trial-v1 trial/profile
+```
+
+```bash
+docker build -f trial/profile/spec.Dockerfile --output trial/profile/bin cli
 ```
 
 Make each arm's workspace inside the profile. This is the only step that needs the
@@ -32,7 +38,14 @@ network, to install dependencies from the lockfile:
 docker run --rm -v "$PWD/trial:/trial:ro" -v "$PWD/runs:/runs" intlang-trial-v1 /trial/tools/make-arm.sh language /runs/language-1
 ```
 
-Every later step runs with `--network none`. In the language arm, the setup that
+Every later step runs with `--network none`. The language arm's containers also mount the
+binary on the path; the other arms' do not:
+
+```bash
+docker run --rm -it --network none -v "$PWD/trial/profile/bin/spec:/usr/local/bin/spec:ro" -v "$PWD/runs:/runs" -w /runs/language-1 intlang-trial-v1 bash
+```
+
+In the language arm, the setup that
 `TRIAL.md` measures but does not count is:
 
 ```bash
@@ -54,7 +67,6 @@ spec plan && spec apply --reviewer "<reviewer command>"
 The first plan acquires all nine declarations with no agent (build checks only). The second
 discharges the `verify` and `review` obligations that acquisition leaves; afterwards
 `spec check` reports `consistent`. The root layout stays unmanaged, as a kind input.
-`spec` must be a Linux build when it runs inside the profile.
 
 Each edit in the language arm is: the spec change, a commit, a plan to compare with
 `TRIAL.md`'s expected plan, and the apply:
@@ -107,6 +119,10 @@ and run E8 onwards with `PATCHED_ABOUT` set to that copy.
   (`reference/tools/`): every plan matches `TRIAL.md`'s expected plan, every transaction
   publishes, `spec check` is `consistent` after each edit and every active acceptance test
   passes. It says nothing about how a real agent does.
+- The Linux `spec` passes the CLI's 151 tests in its build image, and inside the profile
+  with no network it runs the language arm's setup and E1 to E3 with the same agent and
+  reviewer: every transaction publishes and `spec check` is `consistent` after each. Built
+  and run on arm64 only.
 - The language arm's setup runs end to end with the real adapter: import, acquisition,
   then the obligations discharged by a scripted reviewer, then `spec check` reports
   `consistent`. The trial's own setup uses the pinned model as reviewer instead.

@@ -24,6 +24,7 @@ clap = { version = "4.6", features = ["derive"] }
 codespan-reporting = { version = "0.13", default-features = false, features = ["std"] }
 walkdir = "2.5"
 sha2 = "0.11"
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
 unicode-normalization = "0.1"
 
 [workspace.lints.rust]
