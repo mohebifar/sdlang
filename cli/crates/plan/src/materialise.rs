@@ -69,7 +69,7 @@ fn source_for<'p>(
     if kind == "core:use" {
         let package = decl["fields"]["package"].as_str()?;
         let capability = decl["fields"]["capability"].as_str()?;
-        let p = project.packages.iter().find(|p| p.npm_name == package)?;
+        let p = project.packages.iter().find(|p| p.source_name == package)?;
         return package_statements(p).find_map(|item| match item {
             Exportable::Named(n) if n.kind.dotted() == "binding" && n.name.text == capability => {
                 Some(Source {
@@ -246,7 +246,7 @@ pub fn kind_package<'p>(project: &'p Project, decl: &Value) -> Option<&'p Packag
     let kind = decl["kind"].as_str()?;
     if kind == "core:use" {
         let package = decl["fields"]["package"].as_str()?;
-        return project.packages.iter().find(|p| p.npm_name == package);
+        return project.packages.iter().find(|p| p.source_name == package);
     }
     if let Some(core) = kind.strip_prefix("core:") {
         return implementers(project).ok()?.get(core).map(|(p, _)| *p);

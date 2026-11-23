@@ -272,7 +272,7 @@ class Parser:
             if self.atkw("module"):
                 self.take()
             self.address(); self.expectp("->"); self.address()
-        elif self.atkw("project"):
+        elif self.atkw("project") or self.atkw("package"):
             self.take(); self.ident(); self.block()
         elif self.atkw("stack"):
             self.take(); self.block()
@@ -541,7 +541,6 @@ SCHEMA_EXAMPLES = [
     ("graph", "examples/graph.before.json"),
     ("graph", "examples/graph.after.json"),
     ("plan", "examples/plan.json"),
-    ("package-manifest", "examples/package.json"),
     ("generator#input", "examples/generator.input.json"),
     ("generator#output", "examples/generator.output.json"),
     ("check#input", "examples/check.test-input.json"),
@@ -680,7 +679,7 @@ def check_schemas():
         return ["jsonschema not installed: cannot validate schemas (pip install jsonschema)"], 0
     schemas = {}
     for name in ["common", "work-order", "result", "review-order", "review-verdict", "graph", "plan",
-                 "package-manifest", "generator", "mcp-tools", "check"]:
+                 "generator", "mcp-tools", "check"]:
         schemas[name] = json.load(open(f"schemas/{name}.schema.json"))
         jsonschema.Draft202012Validator.check_schema(schemas[name])
     registry = Registry().with_resources(

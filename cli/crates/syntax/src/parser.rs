@@ -313,6 +313,13 @@ impl Parser {
             let span = start.to(body.span);
             return Ok(Statement::Project(Project { name, body, span }));
         }
+        if self.at_kw("package") {
+            self.take();
+            let name = self.ident()?;
+            let body = self.block()?;
+            let span = start.to(body.span);
+            return Ok(Statement::Package(PackageHeader { name, body, span }));
+        }
         if self.at_kw("stack") {
             self.take();
             let body = self.block()?;

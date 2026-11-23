@@ -27,7 +27,7 @@ export lib loader {
   expect {
     modules: "every directory under spec/ is a module named by its dotted path, the root module named by the empty string"
     file_order: "a module's files are read in file-name order"
-    lock: "packages come from sd.lock: each entry's id and directory, whose package.json sdlang entry names the import name, entry file, skills and provides"
+    lock: "packages come from sd.lock: each entry's id and directory, whose package.sd header names the import name, entry file, skills and provides"
   }
 }
 

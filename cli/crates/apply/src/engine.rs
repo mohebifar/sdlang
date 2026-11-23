@@ -2143,7 +2143,7 @@ enum AgentStop {
 }
 
 /// The skills the subjects' kinds name (`skills: [app_router]`), as `(name, text)` from
-/// their packages' manifests: guidance for the agent, never obligations.
+/// their packages' headers: guidance for the agent, never obligations.
 fn skills<'d>(project: &Project, decls: impl Iterator<Item = &'d Value>) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for decl in decls {
@@ -2155,16 +2155,12 @@ fn skills<'d>(project: &Project, decls: impl Iterator<Item = &'d Value>) -> Vec<
             .into_iter()
             .map(|n| n.rsplit('.').next().unwrap_or(&n).to_string())
             .collect();
-        let manifest: Value = fs::read_to_string(package.root.join("package.json"))
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
         for name in names {
             let label = format!("{}.{name}", package.import_name);
             if out.iter().any(|(n, _)| *n == label) {
                 continue;
             }
-            let Some(rel) = manifest["sdlang"]["skills"][&name].as_str() else {
+            let Some(rel) = package.skills.get(&name) else {
                 continue;
             };
             if let Ok(text) = fs::read_to_string(package.root.join(rel)) {

@@ -18,7 +18,7 @@ pub fn keyword(word: &str) -> Option<&'static str> {
         "project" => "The project's name and project-wide context (`summary`, `prompt`, `verify`).",
         "stack" => "Language, runtime, framework and package manager; owns toolchain files.",
         "module" => "Header for a directory of the spec: `summary`, `prompt`, `skills`.",
-        "package" => "In `import package \"./dir\"`: a local package directory.",
+        "package" => "A package's header, alone in its `package.sd`: the import name, `entry`, `skills` and `provides`. In `import package \"./dir\"`: a local package directory.",
         "ref" => "A reference type: `ref action` is a reference to an action.",
         "self" => "The declaration being defined.",
         "select" => "A selector: `select action where meta.module == \"auth\"`.",

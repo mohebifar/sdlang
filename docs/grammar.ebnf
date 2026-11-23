@@ -12,6 +12,7 @@ Statement     ::= Import
                 | Use
                 | Moved
                 | ProjectDecl
+                | PackageDecl
                 | StackDecl
                 | ModuleDecl
                 | 'export'? Exportable
@@ -37,6 +38,7 @@ Address       ::= Word ( '.' Word )* ( '#' Word '.' Word ( '.' Word )* )?
                      and "Moves" in docs/spec.md. *)
 
 ProjectDecl   ::= 'project' Ident Block
+PackageDecl   ::= 'package' Ident Block   (* only in a package's package.sd, alone *)
 StackDecl     ::= 'stack' Block
 ModuleDecl    ::= 'module' Block
 LetDecl       ::= 'let' Ident '=' Gap Expr

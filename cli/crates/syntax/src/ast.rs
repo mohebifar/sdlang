@@ -62,6 +62,7 @@ pub enum Statement {
     Use(Use),
     Moved(Moved),
     Project(Project),
+    Package(PackageHeader),
     Stack(Stack),
     Module(ModuleHeader),
     Decl(Decl),
@@ -74,6 +75,7 @@ impl Statement {
             Statement::Use(s) => s.span,
             Statement::Moved(s) => s.span,
             Statement::Project(s) => s.span,
+            Statement::Package(s) => s.span,
             Statement::Stack(s) => s.span,
             Statement::Module(s) => s.span,
             Statement::Decl(s) => s.span,
@@ -128,6 +130,14 @@ pub struct Address {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Project {
+    pub name: Name,
+    pub body: Block,
+    pub span: Span,
+}
+
+/// `package nextjs { ... }`: a package's header, alone in its `package.sd`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct PackageHeader {
     pub name: Name,
     pub body: Block,
     pub span: Span,

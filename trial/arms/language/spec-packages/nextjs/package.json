@@ -4,6 +4,7 @@
   "description": "The sdlang adapter for Next.js App Router projects: kinds, path templates, checks and generators",
   "license": "MIT OR Apache-2.0",
   "files": [
+    "package.sd",
     "spec/",
     "checks/",
     "gen/",
@@ -14,13 +15,5 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js"
-  },
-  "sdlang": {
-    "format": 1,
-    "name": "nextjs",
-    "entry": "./spec/index.sd",
-    "skills": {
-      "app_router": "./skills/app_router.md"
-    }
   }
 }

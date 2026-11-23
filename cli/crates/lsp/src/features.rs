@@ -411,6 +411,14 @@ pub fn document_symbols(a: &Analysis, file: usize) -> Vec<DocumentSymbol> {
                 r(p.name.span),
                 members(&p.body),
             )),
+            Statement::Package(p) => out.push(doc_symbol(
+                p.name.text.clone(),
+                Some("package".into()),
+                SymbolKind::PACKAGE,
+                r(p.span),
+                r(p.name.span),
+                members(&p.body),
+            )),
             Statement::Stack(s) => out.push(doc_symbol(
                 "stack".into(),
                 None,
@@ -610,6 +618,7 @@ fn collect_folds(ast: &File, out: &mut Vec<Fold>) {
     for statement in &ast.statements {
         match statement {
             Statement::Project(p) => fold_block(&p.body, out),
+            Statement::Package(p) => fold_block(&p.body, out),
             Statement::Stack(s) => fold_block(&s.body, out),
             Statement::Module(m) => fold_block(&m.body, out),
             Statement::Use(u) => {

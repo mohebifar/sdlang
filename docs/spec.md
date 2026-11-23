@@ -448,7 +448,7 @@ and attachment rules are in `docs/extensions.md`, Rules and selectors.
 
 | Sort | Names |
 | --- | --- |
-| Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `implements`, `annotation` |
+| Statement forms | `project`, `stack`, `module`, `use`, `import`, `type`, `let`, `moved`, `kind`, `implements`, `annotation`; `package` in a package's `package.sd` only |
 | Core kinds | `entity`, `action`, `lib`, `rule`, `environment`; in package sources only: `check`, `generator`, `observer`, `binding` |
 | Builtin types | `string`, `number`, `integer`, `boolean`, `uuid`, `email`, `url`, `timestamp`, `date`, `json`, `route_path`, `template`, `secret`, `catalog` (any catalog declaration, for reference-typed kind fields) |
 | Constants | `now` |
@@ -618,36 +618,41 @@ project declaration or claims a file.
 
 ### Contents
 
-A package is an npm package whose `package.json` has a static `sdlang` entry:
+A package is a directory with a `package.sd` file holding one `package` header, written
+in sdlang like everything else:
 
-```json
-{
-  "name": "@sdlang/nextjs",
-  "sdlang": {
-    "format": 1,
-    "name": "nextjs",
-    "entry": "./spec/index.sd",
-    "skills": { "app_router": "./skills/app-router" },
-    "migrations": "./spec/migrations.json"
+```spec
+package nextjs {
+  entry: "./spec/index.sd"
+  skills {
+    app_router: "./skills/app_router.md"
   }
 }
 ```
+
+The header names the package for `import` and points to its files: `entry` (default
+`./spec/index.sd`), `skills` (name → package-relative Markdown), `provides`, `options` and
+`migrations` (a declarative upgrade map). Where a package comes from (npm, git or a local
+path), its version and its content hash are recorded in `sd.lock`, never in the package, so
+one directory can be published to npm, fetched from git or copied in unchanged. An npm
+package keeps a `package.json` for publishing only; `sdc` never reads it.
 
 Its spec sources may contain `kind`, `implements`, `annotation`, `check`, `generator`,
 `observer` and `binding` definitions (package-only forms) and exported catalog declarations: types, constants, and `extern`
 declarations describing the package's runtime exports (`ui.button` describes `ui-sdk`'s `Button`). Packages cannot export
 managed instances in v0. A package bound with `use` also has a `provides` entry, which maps
 a capability's export names to the package's declarations
-(`"provides": { "ui": { "button": "Button" } }` in `ui-sdk`'s manifest); it is a namespace, not a behavioural contract, and two providers of one
+(`provides { ui { button: Button } }` in `ui-sdk`'s header); it is a namespace, not a behavioural contract, and two providers of one
 capability are never assumed interchangeable (D1.7). Each component (kind schemas,
 conventions, skills, checks, generators) is hashed separately, so a plan can say *why* an
 upgrade affects a declaration.
 
-`name` is the package's import name: `import nextjs` resolves through `sd.lock` to the one
-locked package whose manifest declares `"name": "nextjs"`; if none or several do, the import
-must name the package (`import package "@sdlang/nextjs" as nextjs`). A provider that
+The header's name is the package's import name: `import nextjs` resolves through `sd.lock`
+to the one locked package whose header is `package nextjs`; if none or several do, the
+import must name the package by its lock id (`import package "@sdlang/nextjs" as nextjs`).
+`use "drizzle" for database` names a package the same way. A provider that
 accepts `use` options declares an `options` type in its spec sources
-(`"options": "DrizzleOptions"` in the manifest); the record after `use ... for database` is
+(`options: DrizzleOptions` in the header); the record after `use ... for database` is
 checked against it, and options on a provider without one are an error.
 
 Relations are fixed by the core in v0. A package kind uses them through `@relation`, and
@@ -714,9 +719,7 @@ and a `path` field, when present, replaces the `main` slot's template. At most
 one locked package may implement a given core kind; two is a compile error naming both.
 The milestone adapter is written out in full in `examples/nextjs-adapter.sd` (kinds,
 `implements action`, `implements lib`, `implements stack`, checks, generator, and its
-route-to-path rule),
-and `schemas/package-manifest.schema.json` defines the manifest, marking the fields a v0
-implementation may rely on.
+route-to-path rule).
 
 Contributions to shared files (`accepts`, `collects`) and the `binding` form, for `use`
 bindings that own files, are provisional and specified in `docs/extensions.md`.
@@ -821,7 +824,7 @@ Nobody has written packages yet, so v0 depends on as few as possible:
 - **Local kinds are cheap.** A team writes kinds for itself in a local package outside
   `spec/` (for example `spec-packages/acme/`), imported with
   `import package "./spec-packages/acme" as acme`. `sdc package init` scaffolds one. Local
-  packages use the same manifest, validation and pinning as published ones. There is no
+  packages use the same header, validation and pinning as published ones. There is no
   generic catch-all kind: a shallow local kind is honest about having no tests,
   and reports show which guarantees each declaration actually has.
 - **Libraries without a package.** `use "pdf-lib" for pdf` binds a bare capability: its

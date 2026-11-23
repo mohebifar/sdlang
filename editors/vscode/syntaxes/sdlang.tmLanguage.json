@@ -130,7 +130,7 @@
       ]
     },
     "declaration": {
-      "match": "^\\s*(?:(export)\\s+)?(?:(extern)\\s+)?(?!(?:import|export|extern|use|moved|let|type|kind|annotation|implements|project|stack|module)\\b)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:@|\\{))",
+      "match": "^\\s*(?:(export)\\s+)?(?:(extern)\\s+)?(?!(?:import|export|extern|use|moved|let|type|kind|annotation|implements|project|package|stack|module)\\b)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:@|\\{))",
       "captures": {
         "1": {
           "name": "storage.modifier.export.sdlang"
@@ -205,7 +205,7 @@
           }
         },
         {
-          "match": "^\\s*(project)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "^\\s*(project|package)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": {
               "name": "storage.type.project.sdlang"

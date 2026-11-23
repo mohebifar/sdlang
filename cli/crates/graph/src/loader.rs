@@ -2,15 +2,16 @@
 //!
 //! A project root holds `spec/` (one module per directory, the root module named "")
 //! and, optionally, `sd.lock`. Until the lock format is settled (open item O.5) the lock
-//! is a stand-in: `{ "packages": [{ "id": "npm:<name>", "path": "<dir>" }] }`, each
-//! directory holding a `package.json` with an `sdlang` entry. A package imported with
+//! is a stand-in: `{ "packages": [{ "id": "npm:<name>", "path": "<dir>" }] }`. Each package
+//! directory holds a `package.sd` with one `package` header, which names the package and its
+//! files. The lock, not the package, says where it came from. A package imported with
 //! `import package "./dir"` is loaded from that directory directly.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use sdlang_syntax::ast::{File, ImportSource, Statement};
+use sdlang_syntax::ast::{Expr, File, ImportSource, MemberValue, Statement};
 use sdlang_syntax::strings::Part;
 use sdlang_syntax::{lexer, parse};
 use serde_json::Value;
@@ -36,16 +37,16 @@ pub struct Module {
 
 #[derive(Debug)]
 pub struct Package {
-    /// Canonical id: `npm:<package name>`, or `local:<path>` for a local package.
+    /// Canonical id from the lock: `npm:<package name>`, or `local:<path>` for a local package.
     pub id: String,
-    /// The npm package name, as `use "<name>" for ...` writes it.
-    pub npm_name: String,
-    /// The import name from the manifest's `sdlang.name`.
+    /// The id without its source scheme, as `use "<name>" for ...` writes it.
+    pub source_name: String,
+    /// The import name from the `package` header.
     pub import_name: String,
     /// Capability export name -> package declaration name, per capability.
     pub provides: BTreeMap<String, BTreeMap<String, String>>,
-    /// Skill names declared in the manifest.
-    pub skills: Vec<String>,
+    /// Skill name -> package-relative path of its Markdown.
+    pub skills: BTreeMap<String, String>,
     pub files: Vec<SourceFile>,
     /// The package's directory, where its checks and generators run from.
     pub root: PathBuf,
@@ -157,52 +158,104 @@ fn load_modules(
     Ok(())
 }
 
+/// The text of a string or a dotted name.
+fn text_of(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::String(s) => Some(crate::scope::lit_text(s)),
+        Expr::Path { path, .. } => Some(path.dotted()),
+        _ => None,
+    }
+}
+
+/// Reads the package in `dir` from its `package.sd`:
+///
+/// ```text
+/// package nextjs {
+///   entry: "./spec/index.sd"
+///   skills { app_router: "./skills/app_router.md" }
+///   provides { ui { button: Button } }
+/// }
+/// ```
+///
+/// `entry` defaults to `./spec/index.sd`. `options` and `migrations` are reserved.
 fn load_package(root: &Path, id: String, dir: &Path, overlay: &Overlay) -> GResult<Package> {
-    let manifest_path = dir.join("package.json");
-    let text = fs::read_to_string(&manifest_path)
-        .map_err(|e| GraphError::plain(format!("cannot read {}: {e}", manifest_path.display())))?;
-    let manifest: Value = serde_json::from_str(&text).map_err(|e| {
-        GraphError::plain(format!(
-            "{} is not valid JSON: {e}",
-            manifest_path.display()
-        ))
-    })?;
-    let sdlang = manifest.get("sdlang").ok_or_else(|| {
-        GraphError::plain(format!("{} has no sdlang entry", manifest_path.display()))
-    })?;
-    let str_of = |v: Option<&Value>, what: &str| -> GResult<String> {
-        v.and_then(Value::as_str).map(String::from).ok_or_else(|| {
-            GraphError::plain(format!("{}: missing {what}", manifest_path.display()))
-        })
+    let manifest = read_source(root, &dir.join("package.sd"), overlay)?;
+    let mut header = None;
+    for statement in &manifest.ast.statements {
+        match statement {
+            Statement::Package(h) if header.is_none() => header = Some(h),
+            other => {
+                return Err(GraphError::at(
+                    &manifest,
+                    other.span(),
+                    "package.sd holds one package header and nothing else",
+                ))
+            }
+        }
+    }
+    let Some(header) = header else {
+        return Err(GraphError::plain(format!(
+            "{}: no package header",
+            manifest.path.display()
+        )));
     };
-    let npm_name = str_of(manifest.get("name"), "name")?;
-    let import_name = str_of(sdlang.get("name"), "sdlang.name")?;
-    let entry = str_of(sdlang.get("entry"), "sdlang.entry")?;
-    let provides = sdlang
-        .get("provides")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-        .map(|(cap, names)| {
-            let names = names
-                .as_object()
-                .into_iter()
-                .flatten()
-                .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
-                .collect();
-            (cap.clone(), names)
-        })
-        .collect();
-    let skills = sdlang
-        .get("skills")
-        .and_then(Value::as_object)
-        .map(|m| m.keys().cloned().collect())
-        .unwrap_or_default();
+    let mut entry = "./spec/index.sd".to_string();
+    let mut skills = BTreeMap::new();
+    let mut provides = BTreeMap::new();
+    for member in &header.body.members {
+        let bad = |what: &str| GraphError::at(&manifest, member.name.span, what.to_string());
+        match (member.name.text.as_str(), &member.value) {
+            ("entry", MemberValue::Field(f)) => match &f.value {
+                Expr::String(s) => entry = crate::scope::lit_text(s),
+                _ => return Err(bad("entry is a path in quotes")),
+            },
+            ("skills", MemberValue::Section(section)) => {
+                for skill in &section.members {
+                    let MemberValue::Field(f) = &skill.value else {
+                        return Err(bad("each skill is `name: \"path\"`"));
+                    };
+                    let Expr::String(path) = &f.value else {
+                        return Err(bad("each skill is `name: \"path\"`"));
+                    };
+                    skills.insert(skill.name.text.clone(), crate::scope::lit_text(path));
+                }
+            }
+            ("provides", MemberValue::Section(section)) => {
+                for capability in &section.members {
+                    let MemberValue::Section(names) = &capability.value else {
+                        return Err(bad("provides lists `capability { export: declaration }`"));
+                    };
+                    let mut map = BTreeMap::new();
+                    for n in &names.members {
+                        let target = match &n.value {
+                            MemberValue::Field(f) => text_of(&f.value),
+                            _ => None,
+                        };
+                        let Some(target) = target else {
+                            return Err(bad("provides lists `capability { export: declaration }`"));
+                        };
+                        map.insert(n.name.text.clone(), target);
+                    }
+                    provides.insert(capability.name.text.clone(), map);
+                }
+            }
+            ("options" | "migrations", MemberValue::Field(_)) => {}
+            (other, _) => {
+                return Err(bad(&format!(
+                    "unknown package field `{other}`; a package header has entry, skills, provides, options and migrations"
+                )))
+            }
+        }
+    }
+    let source_name = id
+        .split_once(':')
+        .map_or(id.as_str(), |(_, n)| n)
+        .to_string();
     let files = vec![read_source(root, &dir.join(entry), overlay)?];
     Ok(Package {
         id,
-        npm_name,
-        import_name,
+        source_name,
+        import_name: header.name.text.clone(),
         provides,
         skills,
         files,

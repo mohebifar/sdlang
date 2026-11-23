@@ -558,15 +558,15 @@ fn semantic(root: &Path, project: &Project, scope: &Scope) -> Analysis {
                 full_span: Span::default(),
                 label: "package".into(),
                 summary: Some(format!(
-                    "npm `{}`, imported as `{}`",
-                    package.npm_name, package.import_name
+                    "`{}`, imported as `{}`",
+                    package.source_name, package.import_name
                 )),
                 kind: None,
                 exported: true,
             },
         );
-        for skill in &package.skills {
-            let path = package.root.join("skills").join(format!("{skill}.md"));
+        for (skill, rel) in &package.skills {
+            let path = package.root.join(rel);
             a.defs.insert(
                 Sym::Skill {
                     package: package.id.clone(),
@@ -597,7 +597,7 @@ fn semantic(root: &Path, project: &Project, scope: &Scope) -> Analysis {
                 )
             })
             .collect();
-        kids.extend(package.skills.iter().map(|s| {
+        kids.extend(package.skills.keys().map(|s| {
             (
                 s.clone(),
                 Sym::Skill {
@@ -1002,6 +1002,8 @@ impl Walker<'_> {
                 Some(Sym::CoreKind("project".into())),
                 &mut Vec::new(),
             ),
+            // A package header names files and declarations by text; nothing to resolve.
+            Statement::Package(_) => {}
             Statement::Stack(s) => self.block(
                 &s.body,
                 None,

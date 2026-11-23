@@ -113,7 +113,24 @@ use "better-auth" for authentication
 use "drizzle" for database { dialect: "postgres" }
 ```
 
-The Next.js adapter is in [adapters/nextjs](../adapters/nextjs).
+A package is a directory with a `package.sd` header and its spec sources:
+
+```sd
+package ui_sdk {
+  entry: "./spec/index.sd"
+  provides {
+    ui {
+      button: Button
+      form: Form
+    }
+  }
+}
+```
+
+The header gives the import name and points to the package's files. Where the package
+came from and which version it is live in `sd.lock`, so the same directory works from npm,
+git or a local path. A team's own kinds go in a local package such as
+`spec-packages/acme/`. The Next.js adapter is in [adapters/nextjs](../adapters/nextjs).
 
 ## Rules
 

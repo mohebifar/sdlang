@@ -1,0 +1,3 @@
+package drizzle {
+  options: DrizzleOptions
+}

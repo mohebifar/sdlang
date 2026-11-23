@@ -137,11 +137,7 @@ struct Server<'c> {
 
 /// `dir` is a project root: it has `spec/` and is not itself a package.
 fn is_root(dir: &Path) -> bool {
-    if !dir.join("spec").is_dir() {
-        return false;
-    }
-    let manifest = std::fs::read_to_string(dir.join("package.json")).unwrap_or_default();
-    serde_json::from_str::<Value>(&manifest).map_or(true, |v| v.get("sdlang").is_none())
+    dir.join("spec").is_dir() && !dir.join("package.sd").is_file()
 }
 
 /// Project roots in a folder, a few levels down.
@@ -177,7 +173,7 @@ impl Server<'_> {
     }
 
     fn register_watchers(&mut self) -> Result<(), Error> {
-        let watchers = ["**/*.sd", "**/sd.lock", "**/package.json"]
+        let watchers = ["**/*.sd", "**/sd.lock"]
             .iter()
             .map(|g| FileSystemWatcher {
                 glob_pattern: GlobPattern::String(g.to_string()),

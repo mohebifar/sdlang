@@ -1,0 +1,13 @@
+package better_auth {
+  skills {
+    skills: "./skills/auth"
+  }
+  provides {
+    authentication {
+      session: session
+      User: User
+      password_reset: password_reset
+      skills: skills
+    }
+  }
+}

@@ -237,7 +237,10 @@ impl<'p> Scope<'p> {
                 for statement in &file.ast.statements {
                     if let Statement::Use(u) = statement {
                         let library = lit_text(&u.library);
-                        let provider = project.packages.iter().position(|p| p.npm_name == library);
+                        let provider = project
+                            .packages
+                            .iter()
+                            .position(|p| p.source_name == library);
                         if capabilities.contains_key(&u.capability.text) {
                             return Err(GraphError::at(
                                 file,
@@ -442,7 +445,7 @@ impl<'p> Scope<'p> {
                     let id = format!("local:{}", clean_display(&name));
                     project.package_by_id(&id)
                 } else {
-                    project.packages.iter().position(|p| p.npm_name == name)
+                    project.packages.iter().position(|p| p.source_name == name)
                 };
                 match found {
                     Some(p) => Ok((Target::Package(p), project.packages[p].import_name.clone())),
@@ -565,7 +568,7 @@ impl<'p> Scope<'p> {
                 "'{name}' is not exported from package {}",
                 package.id
             )),
-            None if package.skills.iter().any(|s| s == name) => Ok(Target::Skill {
+            None if package.skills.contains_key(name) => Ok(Target::Skill {
                 package: p,
                 name: name.into(),
             }),

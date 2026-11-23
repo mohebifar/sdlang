@@ -806,6 +806,13 @@ impl<'p> Lowerer<'p> {
                 for (si, statement) in file.ast.statements.iter().enumerate() {
                     match statement {
                         Statement::Import(_) => {}
+                        Statement::Package(h) => {
+                            return Err(GraphError::at(
+                                file,
+                                h.span,
+                                "a package header belongs in a package's package.sd, not under spec/",
+                            ));
+                        }
                         Statement::Moved(m) => {
                             let scope = if m.module {
                                 "module"

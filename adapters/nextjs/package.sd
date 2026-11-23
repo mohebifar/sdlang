@@ -1,0 +1,5 @@
+package nextjs {
+  skills {
+    app_router: "./skills/app_router.md"
+  }
+}
