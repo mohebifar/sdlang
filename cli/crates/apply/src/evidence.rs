@@ -13,7 +13,6 @@ use crate::error::AResult;
 pub struct Policy {
     pub tests: bool,
     pub review: bool,
-    pub checks: Vec<String>,
     pub approval: bool,
 }
 
@@ -42,15 +41,6 @@ impl Policy {
                 Some(Policy {
                     tests: flag("tests"),
                     review: flag("review"),
-                    checks: o
-                        .get("checks")
-                        .and_then(Value::as_array)
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(|c| c.as_str().map(String::from))
-                                .collect()
-                        })
-                        .unwrap_or_default(),
                     approval: flag("approval"),
                 })
             }
@@ -61,16 +51,10 @@ impl Policy {
         self.tests |= other.tests;
         self.review |= other.review;
         self.approval |= other.approval;
-        for c in &other.checks {
-            if !self.checks.contains(c) {
-                self.checks.push(c.clone());
-            }
-        }
-        self.checks.sort();
     }
 
     pub fn to_value(&self) -> Value {
-        json!({ "tests": self.tests, "review": self.review, "checks": self.checks, "approval": self.approval })
+        json!({ "tests": self.tests, "review": self.review, "approval": self.approval })
     }
 
     /// The label a met policy earns.
@@ -268,18 +252,6 @@ pub fn requirement_evidence(
             "dispatch": verdict.map(|v| v.dispatch.clone()),
         });
     }
-    for rule in &req.policy.checks {
-        let status = runs
-            .iter()
-            .find_map(|r| r.rules.get(rule))
-            .map(String::as_str)
-            .unwrap_or("missing");
-        match status {
-            "satisfied" => {}
-            "violated" => failed = true,
-            _ => missing = true,
-        }
-    }
     if req.policy.approval {
         // A human approval is never produced by apply.
         missing = true;
@@ -310,8 +282,8 @@ mod tests {
     fn policy_forms() {
         assert_eq!(Policy::parse(&json!("tested")).unwrap().label(), "tested");
         assert_eq!(Policy::parse(&json!("judged")).unwrap().label(), "judged");
-        let p = Policy::parse(&json!({ "$record": { "tests": true, "checks": ["x.y"] } })).unwrap();
-        assert!(p.tests && !p.review && p.checks == ["x.y"]);
+        let p = Policy::parse(&json!({ "$record": { "tests": true } })).unwrap();
+        assert!(p.tests && !p.review && !p.approval);
     }
 
     #[test]

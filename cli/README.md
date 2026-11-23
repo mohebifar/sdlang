@@ -84,7 +84,7 @@ Each phase is specified in `spec/` before it is built; later phases are only ske
 5. **Apply**, in two parts. With phases 4 and 5 this is the runner `docs/trial.md` needs, and
    phase 3 removes the trial's hand-written graphs.
    - 5a (done): `sdc apply` with candidate worktrees, generators, work orders and
-     results, envelope enforcement, build, test and conformance checks, review orders and
+     results, envelope enforcement, build and test checks, review orders and
      verdicts, evidence, retries, one commit per transaction and the journal. Tested on a
      toy project with scripted agent, reviewer, generator and checks.
    - 5b (done): the MCP tool server (`sdc mcp`) and resource serving, the TypeScript

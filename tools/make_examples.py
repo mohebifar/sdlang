@@ -87,7 +87,7 @@ def requirement(key, text, baseline, cases):
         "subject": {"target": "auth.login", "requirement": f"auth.login#expect.{key}"},
         "text": text,
         "contract_hash": contract(text.replace("@{forgot_password}", "@{auth.forgot_password}")),
-        "policy": {"tests": True, "review": True, "checks": [], "approval": False},
+        "policy": {"tests": True, "review": True, "approval": False},
         "policy_source": "project",
         "baseline": baseline,
         "tests": [{"output": TESTS, "case": c} for c in cases],
@@ -227,7 +227,6 @@ def work_order():
         "checks": [
             {"id": "nextjs.typecheck", "definition_hash": d("check:nextjs.typecheck"), "self_check": True},
             {"id": "nextjs.build", "definition_hash": d("check:nextjs.build"), "self_check": True},
-            {"id": "nextjs.conformance", "definition_hash": d("check:nextjs.conformance"), "self_check": True},
             {"id": "nextjs.test:auth.login#outputs.tests", "definition_hash": d("check:nextjs.test"),
              "self_check": True},
         ],
@@ -275,7 +274,7 @@ def review_order():
             "previous_text": None,
             "contract_hash": contract("the forgot-password link goes to @{auth.forgot_password}"),
             "context_hash": HA["auth.login"]["context"],
-            "policy": {"tests": True, "review": True, "checks": [], "approval": False},
+            "policy": {"tests": True, "review": True, "approval": False},
             "assess": ["conformance", "coverage"],
             "code": ["src/app/login/_parts/LoginForm.tsx", "tests/app/login/page.test.ts"],
             "coverage_candidates": [{

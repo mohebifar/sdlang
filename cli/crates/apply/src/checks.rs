@@ -1,5 +1,5 @@
 //! The check protocol (docs/spec.md, Packages -> Check protocol): check definitions read from
-//! packages, and build, test and conformance runs.
+//! packages, and build and test runs.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -22,9 +22,6 @@ pub struct CheckDef {
     pub purpose: String,
     pub scope: String,
     pub run: Vec<String>,
-    /// Rule -> the kinds (short names) it applies to.
-    pub rules: BTreeMap<String, Vec<String>>,
-    pub advisory: Vec<String>,
     pub package_root: PathBuf,
     pub definition_hash: String,
 }
@@ -71,23 +68,11 @@ fn check_def(package: &Package, name: &str) -> Option<CheckDef> {
             },
             _ => None,
         })?;
-    let mut rules = BTreeMap::new();
-    for m in &body.members {
-        if let (true, MemberValue::Section(section)) = (m.name.text == "rules", &m.value) {
-            for r in &section.members {
-                if let MemberValue::Field(f) = &r.value {
-                    rules.insert(r.name.text.clone(), names(Some(&f.value)));
-                }
-            }
-        }
-    }
     let purpose = text(field(body, "purpose"));
     let scope = text(field(body, "scope"));
     let run = strings(field(body, "run"));
-    let advisory = names(field(body, "advisory"));
     let definition = json!({
-        "package": package.id, "name": name, "purpose": purpose, "scope": scope,
-        "run": run, "rules": rules, "advisory": advisory,
+        "package": package.id, "name": name, "purpose": purpose, "scope": scope, "run": run,
     });
     Some(CheckDef {
         id: format!("{}.{name}", package.import_name),
@@ -95,8 +80,6 @@ fn check_def(package: &Package, name: &str) -> Option<CheckDef> {
         purpose,
         scope,
         run,
-        rules,
-        advisory,
         package_root: package.root.clone(),
     })
 }
@@ -204,7 +187,7 @@ fn strings(expr: Option<&Expr>) -> Vec<String> {
     }
 }
 
-/// A kind's short name, as conformance rules list kinds: `npm:x::page` -> `page`.
+/// A kind's short name: `npm:x::page` -> `page`.
 pub fn kind_short(kind: &str) -> &str {
     kind.rsplit_once("::")
         .map(|(_, k)| k)
@@ -235,7 +218,6 @@ pub struct CheckRun {
     pub classification: Option<&'static str>,
     pub excerpt: String,
     pub cases: BTreeMap<String, CaseOutcome>,
-    pub rules: BTreeMap<String, String>,
     /// The run's full output, for get_diagnostic.
     pub log: String,
 }
@@ -249,7 +231,6 @@ pub struct RunContext<'a> {
     pub snapshot: &'a str,
     pub profile: &'a str,
     pub subject: Option<&'a str>,
-    pub subject_kind: Option<&'a str>,
     /// `(member, path)` of the outputs the check sees.
     pub outputs: Vec<(String, String)>,
     /// The test output member, for test checks.
@@ -308,7 +289,6 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         classification: None,
         excerpt: String::new(),
         cases: BTreeMap::new(),
-        rules: BTreeMap::new(),
         log: String::new(),
     };
     // Paths relative to the package root resolve there; plain commands come from PATH.
@@ -361,28 +341,23 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         "package_root": def.package_root,
         "profile": ctx.profile,
     });
-    let applicable: Vec<String> = def
-        .rules
-        .iter()
-        .filter(|(_, kinds)| {
-            ctx.subject_kind
-                .is_some_and(|k| kinds.iter().any(|x| x == kind_short(k)))
-        })
-        .map(|(r, _)| r.clone())
-        .collect();
-    if def.purpose == "conformance" {
-        input["rules"] = json!(applicable);
-    } else {
-        input["expected_cases"] = Value::Array(
-            ctx.expected_cases
-                .iter()
-                .map(|(c, keys)| json!({ "case": c, "keys": if keys.is_empty() { vec!["default".to_string()] } else { keys.clone() } }))
-                .collect(),
+    if def.purpose != "test" {
+        run.classification = Some("infrastructure");
+        run.excerpt = format!(
+            "{}: unknown check purpose {:?}; a check is \"build\" or \"test\"",
+            def.id, def.purpose
         );
-        input["inputs"] = json!(ctx.inputs);
-        if let Some((member, path)) = &ctx.test_output {
-            input["outputs"] = json!([{ "member": member, "path": path }]);
-        }
+        return Ok(run);
+    }
+    input["expected_cases"] = Value::Array(
+        ctx.expected_cases
+            .iter()
+            .map(|(c, keys)| json!({ "case": c, "keys": if keys.is_empty() { vec!["default".to_string()] } else { keys.clone() } }))
+            .collect(),
+    );
+    input["inputs"] = json!(ctx.inputs);
+    if let Some((member, path)) = &ctx.test_output {
+        input["outputs"] = json!([{ "member": member, "path": path }]);
     }
     let (code, stdout, stderr) = exec(
         &argv,
@@ -418,34 +393,6 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
             &mut run,
             "result does not echo the check, protocol and snapshot".into(),
         );
-        return Ok(run);
-    }
-    if def.purpose == "conformance" {
-        let mut violated = Vec::new();
-        for rule in &applicable {
-            let status = result["results"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find(|r| r["rule"] == json!(rule) && r["subject"] == json!(ctx.subject))
-                .and_then(|r| r["status"].as_str())
-                .unwrap_or("error")
-                .to_string();
-            if status != "satisfied" && !def.advisory.contains(rule) {
-                violated.push(format!("{rule}: {status}"));
-            }
-            run.rules.insert(rule.clone(), status);
-        }
-        run.passed = violated.is_empty();
-        if !run.passed {
-            let infra_only = run.rules.values().all(|s| s == "satisfied" || s == "error");
-            run.classification = Some(if infra_only {
-                "infrastructure"
-            } else {
-                "implementation"
-            });
-            run.excerpt = violated.join("; ");
-        }
         return Ok(run);
     }
     // Test result: echo, inventory, cases.

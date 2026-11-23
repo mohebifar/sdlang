@@ -26,7 +26,7 @@ export binding database {
   }
   generator: migrate
   observer: ledger
-  checks: [schema_matches]
+  checks: [migrations]
 }
 
 // How entities are materialised: one schema module each, written by the generator.
@@ -47,7 +47,7 @@ export implements entity {
     }
   }
   generator: migrate
-  checks: [schema_matches]
+  checks: [migrations]
 }
 
 export annotation backfill {
@@ -68,13 +68,11 @@ export annotation index {
   }
 }
 
-export check schema_matches {
-  purpose: "conformance"
-  scope: "declaration"
-  rules {
-    schema_matches_entity: [entity]
-  }
-  run: ["node", "./checks/schema-matches.js"]
+// Fails when the schema files and the migrations disagree.
+export check migrations {
+  purpose: "build"
+  scope: "project"
+  run: ["pnpm", "exec", "drizzle-kit", "check"]
 }
 
 export generator migrate {

@@ -87,7 +87,7 @@ fn reproduce(
                 .into_iter()
                 .find(|c| c.id == run.check)
         });
-        let (Some(decl), Some(def)) = (decl, def) else {
+        let Some(def) = def else {
             for (requirement, _) in cases {
                 out.push(finding(
                     requirement,
@@ -120,7 +120,6 @@ fn reproduce(
             snapshot: head,
             profile: &options.profile,
             subject: Some(&run.address),
-            subject_kind: decl["kind"].as_str(),
             outputs: outputs.clone(),
             test_output: Some((run.output.clone(), path)),
             expected_cases: expected,

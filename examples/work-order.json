@@ -2,7 +2,7 @@
   "schema": "sdlang.work-order/1",
   "dispatch": "p-2026-11-18-01/r1/tx-4/1",
   "binding": {
-    "order_hash": "sha256:bedf6439863c6f6b9f4f1d0deadff94bc1a2eebbc46f5be49222f6386d8c247a",
+    "order_hash": "sha256:53eab84d6728c63372f6d0f669137ec54d82f1686525d8d5517a4ec76372eed4",
     "plan": "p-2026-11-18-01",
     "plan_revision": 1,
     "plan_hash": "sha256:3372d9c3fe84c048e6358ae03a544421f6536108a4b082f9b87e326f33e1e339",
@@ -144,7 +144,6 @@
           "policy": {
             "tests": true,
             "review": true,
-            "checks": [],
             "approval": false
           },
           "policy_source": "project",
@@ -166,7 +165,6 @@
           "policy": {
             "tests": true,
             "review": true,
-            "checks": [],
             "approval": false
           },
           "policy_source": "project",
@@ -188,7 +186,6 @@
           "policy": {
             "tests": true,
             "review": true,
-            "checks": [],
             "approval": false
           },
           "policy_source": "project",
@@ -210,7 +207,6 @@
           "policy": {
             "tests": true,
             "review": true,
-            "checks": [],
             "approval": false
           },
           "policy_source": "project",
@@ -384,11 +380,6 @@
     {
       "id": "nextjs.build",
       "definition_hash": "sha256:e56beb79e1bb9867ea5b943629f3ecd801ece14d2298edb435fc8808b61a0fe7",
-      "self_check": true
-    },
-    {
-      "id": "nextjs.conformance",
-      "definition_hash": "sha256:27f3d66bab0962b731ace6dd4381ea9c9271f77bb75bbfbde035cda65a2917a9",
       "self_check": true
     },
     {

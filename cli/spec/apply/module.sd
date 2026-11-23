@@ -98,12 +98,12 @@ export lib orders {
 }
 
 export lib checks {
-  summary: "The check protocol: resolving check definitions from packages and running build, test and conformance checks"
+  summary: "The check protocol: resolving check definitions from packages and running build and test checks"
   exports: ["CheckDef", "resolve_checks", "run_check"]
   expect {
     build: "a build check passes on exit 0 and keeps a bounded excerpt otherwise"
     test: "a test check receives one input document per test output and returns per-case attempts; a missing, skipped or failed-then-passed case does not pass"
-    conformance: "a conformance check reports each applicable rule; a missing rule counts as error"
+    purpose: "a check whose purpose is neither build nor test fails as an infrastructure error"
     run_inputs: "a run's input digest is computed from files on disk by one function shared with sdc check; a project-scope closure is every file git sees except .spec/ and the plan document"
     definition_hash: "a check's definition hash is the digest of its canonical definition, so editing it in the candidate changes nothing"
     isolation: "anything a check writes in the candidate is discarded before publishing"

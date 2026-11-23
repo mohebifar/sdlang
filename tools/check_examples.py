@@ -506,35 +506,6 @@ def check_spec_md(path):
     return count, failures
 
 
-def adapter_rules(path, check):
-    """{rule: [kinds]} from the `rules { }` section of `export check <check>` in an adapter."""
-    text = open(path).read()
-    block = re.search(r"export check " + check + r" \{(.*?)\n\}", text, re.S).group(1)
-    section = re.search(r"rules \{(.*?)\n  \}", block, re.S).group(1)
-    return {m.group(1): [k.strip() for k in m.group(2).split(",")]
-            for m in re.finditer(r"(\w+): \[([^\]]*)\]", section)}
-
-
-def _short_kind(kind):
-    return kind.split("::")[-1].split(":")[-1]
-
-
-def conformance_pair_problems(ci, cr, rules, graph):
-    out = []
-    if ci["check"]["id"] != "nextjs.conformance" or ci["purpose"] != "conformance":
-        out.append("check input: not the adapter's conformance check")
-    if (cr["check"], cr["snapshot"]) != (ci["check"], ci["snapshot"]):
-        out.append("check result: check or snapshot does not echo the input")
-    kind = _short_kind(graph[ci["subject"]]["kind"])
-    applicable = sorted(r for r, kinds in rules.items() if kind in kinds)
-    if sorted(ci["rules"]) != applicable:
-        out.append(f"check input: rules {sorted(ci['rules'])} are not the adapter's rules for {kind}: {applicable}")
-    pairs = sorted((r["subject"], r["rule"]) for r in cr["results"])
-    if pairs != sorted((ci["subject"], r) for r in applicable):
-        out.append(f"check result: reported {pairs}, expected each applicable rule once for {ci['subject']}")
-    return out
-
-
 def _canon():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import canon
@@ -573,8 +544,6 @@ SCHEMA_EXAMPLES = [
     ("package-manifest", "examples/package.json"),
     ("generator#input", "examples/generator.input.json"),
     ("generator#output", "examples/generator.output.json"),
-    ("check#input", "examples/check.input.json"),
-    ("check#conformance_result", "examples/check.conformance-result.json"),
     ("check#input", "examples/check.test-input.json"),
     ("check#test_result", "examples/check.test-result.json"),
 ]
@@ -731,19 +700,10 @@ def check_schemas():
         for err in validator(name).iter_errors(doc):
             failures.append(f"{path}: {err.json_path}: {err.message[:200]}")
     wo, rs, ro, rv = (docs[k] for k in ("work-order", "result", "review-order", "review-verdict"))
-    # Check protocol: pairs of input and result, checked against the adapter's declared rules.
-    graph = {x["address"]: x for x in docs["examples/graph.after.json"]["declarations"]}
-    rules = adapter_rules("examples/nextjs-adapter.sd", "conformance")
-    ci, cr = docs["examples/check.input.json"], docs["examples/check.conformance-result.json"]
+    # Check protocol: the test input and its result.
     ti, tr = docs["examples/check.test-input.json"], docs["examples/check.test-result.json"]
-    failures += conformance_pair_problems(ci, cr, rules, graph)
     failures += test_pair_problems(ti, tr)
-    # Mutations that must be caught: an extra subject, an invented rule, a dropped case.
-    extra = copy.deepcopy(cr)
-    extra["results"].append(dict(cr["results"][0], subject="unrequested.page"))
-    invented_in, invented_out = copy.deepcopy(ci), copy.deepcopy(cr)
-    invented_in["rules"] = ["invented_rule"]
-    invented_out["results"] = [dict(cr["results"][0], rule="invented_rule")]
+    # Mutations that must be caught.
     dropped = copy.deepcopy(tr)
     dropped["cases"] = dropped["cases"][1:]
     no_instance = copy.deepcopy(tr)
@@ -751,21 +711,18 @@ def check_schemas():
     duplicate = copy.deepcopy(tr)
     duplicate["cases"].append(copy.deepcopy(duplicate["cases"][0]))
     other_profile = dict(tr, profile="integration-v4")
-    for label, problems in [("extra subject", conformance_pair_problems(ci, extra, rules, graph)),
-                            ("invented rule", conformance_pair_problems(invented_in, invented_out, rules, graph)),
-                            ("dropped case", test_pair_problems(ti, dropped)),
+    for label, problems in [("dropped case", test_pair_problems(ti, dropped)),
                             ("dropped instance", test_pair_problems(ti, no_instance)),
                             ("duplicate case", test_pair_problems(ti, duplicate)),
                             ("changed profile", test_pair_problems(ti, other_profile))]:
         if not problems:
             failures.append(f"check protocol: mutation not caught: {label}")
-    # Inputs the check schema must reject: purpose-specific fields missing or misplaced.
+    # Inputs the check schema must reject.
     bad_inputs = {
         "test input without expected cases": {k: v for k, v in ti.items() if k != "expected_cases"},
         "test input without run inputs": {k: v for k, v in ti.items() if k != "inputs"},
-        "conformance input without rules": {k: v for k, v in ci.items() if k != "rules"},
-        "conformance input with expected cases": dict(ci, expected_cases=ti["expected_cases"]),
-        "declaration scope with null subject": dict(ci, subject=None),
+        "test input with a null subject": dict(ti, subject=None),
+        "a conformance input": dict(ti, purpose="conformance"),
     }
     for label, doc in bad_inputs.items():
         if not list(validator("check#input").iter_errors(doc)):

@@ -1553,7 +1553,7 @@ impl TxRunner<'_> {
             let acquired = entries
                 .iter()
                 .any(|e| e["address"] == json!(address) && e["strategy"] == "acquire");
-            // Acquisition changes no code and claims no conformance: build checks only.
+            // Acquisition changes no code and claims nothing new: build checks only.
             for def in resolve_checks(env.project, decl)
                 .into_iter()
                 .filter(|d| !acquired || d.purpose == "build")
@@ -1616,7 +1616,6 @@ impl TxRunner<'_> {
                         snapshot,
                         profile: &self.options.profile,
                         subject: (!project_scope).then_some(address.as_str()),
-                        subject_kind: decl["kind"].as_str(),
                         outputs: if project_scope {
                             vec![]
                         } else {

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sdlang.dev/schemas/check.schema.json",
   "title": "Check protocol",
-  "description": "How the CLI runs a conformance or test check and what it returns. The check's argv runs without a shell, reads one input document on stdin and writes one result document on stdout, then exits 0. Any other exit, or a result that fails this schema, is an infrastructure error. Build checks do not use this protocol: they pass on exit 0.",
+  "description": "How the CLI runs a test check and what it returns. The check's argv runs without a shell, reads one input document on stdin and writes one result document on stdout, then exits 0. Any other exit, or a result that fails this schema, is an infrastructure error. Build checks do not use this protocol: they pass on exit 0.",
   "$defs": {
     "check_ref": {
       "type": "object",
@@ -26,7 +26,9 @@
       "additionalProperties": false,
       "required": [
         "check",
+        "expected_cases",
         "graph",
+        "inputs",
         "outputs",
         "package_root",
         "profile",
@@ -46,31 +48,18 @@
           "$ref": "#/$defs/check_ref"
         },
         "purpose": {
-          "enum": [
-            "conformance",
-            "test"
-          ]
+          "const": "test"
         },
         "scope": {
-          "enum": [
-            "declaration",
-            "project"
-          ]
+          "const": "declaration"
         },
         "subject": {
-          "oneOf": [
-            {
-              "$ref": "common.schema.json#/$defs/address"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The declaration checked; null for a project-scope check."
+          "$ref": "common.schema.json#/$defs/address",
+          "description": "The declaration whose test output is run."
         },
         "outputs": {
           "type": "array",
-          "description": "The subject's owned outputs (for a test check, the one test output being run). Empty for project scope.",
+          "description": "The one test output being run.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -86,15 +75,9 @@
                 "type": "string"
               }
             }
-          }
-        },
-        "rules": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z_][a-z0-9_]*$"
           },
-          "description": "Conformance only: the declared rules that apply to the subject's kind. The result must report each exactly once for the subject, and nothing else."
+          "minItems": 1,
+          "maxItems": 1
         },
         "snapshot": {
           "$ref": "common.schema.json#/$defs/digest",
@@ -122,7 +105,7 @@
         },
         "expected_cases": {
           "type": "array",
-          "description": "Test only: the cases and instance keys that current evidence relies on. Each must appear in the result; a missing one counts as not passed.",
+          "description": "the cases and instance keys that current evidence relies on. Each must appear in the result; a missing one counts as not passed.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -148,153 +131,7 @@
         },
         "inputs": {
           "$ref": "common.schema.json#/$defs/digest",
-          "description": "Test only: digest of the run input closure, computed by the CLI. The result echoes it."
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "purpose": {
-                "const": "conformance"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "rules"
-            ],
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "expected_cases"
-                  ]
-                },
-                {
-                  "required": [
-                    "inputs"
-                  ]
-                }
-              ]
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "purpose": {
-                "const": "test"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "expected_cases",
-              "inputs"
-            ],
-            "not": {
-              "required": [
-                "rules"
-              ]
-            },
-            "properties": {
-              "scope": {
-                "const": "declaration"
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "scope": {
-                "const": "declaration"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "subject": {
-                "type": "string"
-              },
-              "outputs": {
-                "minItems": 1
-              }
-            }
-          },
-          "else": {
-            "properties": {
-              "subject": {
-                "type": "null"
-              },
-              "outputs": {
-                "maxItems": 0
-              }
-            }
-          }
-        }
-      ]
-    },
-    "conformance_result": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "protocol",
-        "check",
-        "snapshot",
-        "results"
-      ],
-      "properties": {
-        "protocol": {
-          "const": "sdlang.check/1"
-        },
-        "check": {
-          "$ref": "#/$defs/check_ref"
-        },
-        "snapshot": {
-          "$ref": "common.schema.json#/$defs/digest"
-        },
-        "results": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "rule",
-              "subject",
-              "status",
-              "inputs"
-            ],
-            "properties": {
-              "rule": {
-                "type": "string",
-                "pattern": "^[a-z_][a-z0-9_]*$"
-              },
-              "subject": {
-                "$ref": "common.schema.json#/$defs/address"
-              },
-              "status": {
-                "enum": [
-                  "satisfied",
-                  "violated",
-                  "unsupported",
-                  "error"
-                ]
-              },
-              "message": {
-                "type": "string",
-                "maxLength": 2000
-              },
-              "inputs": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Repository paths the rule read."
-              }
-            }
-          }
+          "description": "digest of the run input closure, computed by the CLI. The result echoes it."
         }
       }
     },

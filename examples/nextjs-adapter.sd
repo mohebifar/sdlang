@@ -28,7 +28,7 @@ export kind page {
     imports: ["next/link", "next/navigation", "react", "react/jsx-runtime"]
   }
   inputs: ["src/app/layout.tsx", "src/middleware.ts", "next.config.ts"]
-  checks: [typecheck, build, test, conformance]
+  checks: [typecheck, build, test]
   skills: [app_router]
 }
 
@@ -53,7 +53,7 @@ export implements action {
   ambient {
     imports: ["server-only"]
   }
-  checks: [typecheck, test, conformance]
+  checks: [typecheck, test]
   skills: [app_router]
 }
 
@@ -97,22 +97,6 @@ export check test {
   purpose: "test"
   scope: "declaration"
   run: ["node", "./checks/test.js"]
-}
-
-// Conformance rules. page_default_export: the page slot's module has a default export
-// that is a React component. no_client_secrets: no module in the subject's client bundle
-// (a file marked "use client" and every module it imports, transitively) reads a
-// process.env variable without the NEXT_PUBLIC_ prefix or imports a module marked
-// "server-only". Both are judged statically on the candidate; a dynamic env access
-// such as process.env with a computed name is reported unsupported.
-export check conformance {
-  purpose: "conformance"
-  scope: "declaration"
-  rules {
-    page_default_export: [page]
-    no_client_secrets: [page, action]
-  }
-  run: ["node", "./checks/conformance.js"]
 }
 
 export generator install {

@@ -681,7 +681,7 @@ export kind page {
   ambient {
     imports: ["next/link", "next/navigation", "react", "react/jsx-runtime"]
   }
-  checks: [typecheck, build, test, conformance]
+  checks: [typecheck, build, test]
 }
 ```
 
@@ -757,8 +757,8 @@ export generator registry {
 }
 ```
 
-A check has a `purpose` (`build`, `conformance` or `test`, which selects its result
-protocol: exit status, per-rule results, or per-case results; see the check protocol below),
+A check has a `purpose` (`build` or `test`, which selects its result protocol: exit
+status, or per-case results; see the check protocol below),
 a `scope` (`declaration` or `project`) and a `run` argv executed without a shell. A test
 check is run once per test output; that run's id is `<check>:<output member>`
 (`nextjs.test:auth.login#outputs.tests`). A generator has only `run`; its inputs, outputs
@@ -778,7 +778,7 @@ return `blocked`. A generator that cannot meet this is not used.
 | Dependency installation | A toolchain operation of `stack`, with its own network and install-script policy; lifecycle scripts off by default. |
 
 **Check protocol.** A build check is a plain command: exit 0 passes, any other exit fails,
-and the CLI keeps a bounded excerpt of its output. Conformance and test checks speak JSON,
+and the CLI keeps a bounded excerpt of its output. Test checks speak JSON,
 defined in `schemas/check.schema.json`. The CLI writes one input document to the check's
 stdin: the check's id and definition hash, its purpose and scope, the subject and its owned
 outputs (none for project scope), the path of the canonical graph the transaction is
@@ -786,16 +786,12 @@ checked against (the applied graph: published declarations plus this transaction
 Transactions → Partial progress), so a check can read the declaration it judges and what it
 references, the snapshot, a working directory that is
 a disposable copy of the candidate (writes there are discarded), a scratch directory, the
-package root and the execution profile. A conformance input also carries the rules that
-apply to the subject's kind. A test input carries the cases and instance keys the evidence
+package root and the execution profile. A test input carries the cases and instance keys the evidence
 expects, and the digest of the run input closure, which the CLI computes because a check
 cannot see ownership; the result echoes it. The check
 writes one result document to stdout and exits 0; any other exit, or an invalid result, is
-an infrastructure error. A conformance result has one entry per applicable rule; a test
-result has cases, instances, every attempt and the inventory digest (Verification →
-Tests). Examples:
-`examples/check.input.json` with `examples/check.conformance-result.json`, and
-`examples/check.test-input.json` with `examples/check.test-result.json`.
+an infrastructure error. A test result has cases, instances, every attempt and the inventory digest (Verification →
+Tests). Example: `examples/check.test-input.json` with `examples/check.test-result.json`.
 
 ### Lock
 
@@ -816,7 +812,7 @@ Nobody has written packages yet, so v0 depends on as few as possible:
 - **What an adapter must provide.** Kinds with fields, output templates and exports; argv
   for its build and typecheck checks; and a test reporter that emits the check protocol's
   test result with stable case tags. Per-case oracle digests are optional (the whole test
-  harness is a valid, coarse digest), and so are conformance rules. Ownership and protected
+  harness is a valid, coarse digest). Ownership and protected
   files come from the core.
 - **One adapter.** `@sdlang/nextjs` supports one App Router layout, static routes and
   one exact Next.js, React, TypeScript and package-manager combination, and rejects
@@ -826,7 +822,7 @@ Nobody has written packages yet, so v0 depends on as few as possible:
   `spec/` (for example `spec-packages/acme/`), imported with
   `import package "./spec-packages/acme" as acme`. `sdc package init` scaffolds one. Local
   packages use the same manifest, validation and pinning as published ones. There is no
-  generic catch-all kind: a shallow local kind is honest about having no conformance check,
+  generic catch-all kind: a shallow local kind is honest about having no tests,
   and reports show which guarantees each declaration actually has.
 - **Libraries without a package.** `use "pdf-lib" for pdf` binds a bare capability: its
   name and its resolved library identity, with no options allowed. `sdc skill add pdf --from <docs>` stores documentation as a project skill,
@@ -882,7 +878,7 @@ One file per managed declaration, for example `.spec/state/auth.login.json`:
   "evidence": [
     {
       "subject": { "target": "auth.login", "requirement": "auth.login#expect.redirects" },
-      "policy": { "tests": true, "review": true, "checks": [], "approval": false },
+      "policy": { "tests": true, "review": true, "approval": false },
       "coverage": { "contract": "c19a", "tests": [{ "output": "auth.login#outputs.tests", "case": "valid_credentials" }],
                     "oracle": "6a2b", "verdict": "sufficient", "dispatch": "p-2026-11-18-01/r1/tx-4/2" },
       "run": { "inputs": "4b1d", "check": "e0f2", "attempts": ["passed"] },
@@ -935,7 +931,7 @@ Each affected declaration gets one plan entry with independent dimensions:
 
 | Obligation | Trigger | What runs | Escalation |
 | --- | --- | --- | --- |
-| `verify` | Any change in the transaction; changed check definitions; a compatible consumed projection; implementation impact (below); stale runs | The CLI runs conformance, build and mapped tests on the final candidate | A confirmed violation becomes `update`; a coverage gap becomes `review`; infrastructure failure stays a failure |
+| `verify` | Any change in the transaction; changed check definitions; a compatible consumed projection; implementation impact (below); stale runs | The CLI runs build checks and mapped tests on the final candidate | A confirmed violation becomes `update`; a coverage gap becomes `review`; infrastructure failure stays a failure |
 | `review` | Changed normative prose the declaration observes or inherits; stale coverage; a policy that requires judgement | A reviewer agent that wrote none of the code answers per subject: conforms, does not conform (naming the requirement and the mismatch), or cannot determine | Does not conform becomes `update`; cannot determine leaves the policy unsatisfied |
 
 A declaration may carry both obligations. A transaction publishes only when every
@@ -1307,8 +1303,8 @@ current bytes become the baseline, its owner is recorded, and its evidence start
 with no existing file (an acquired declaration with no test file, say) is left without an
 output; the next `sdc plan` finds the empty slot and schedules an `update` that writes it.
 `acquire` is the one exception to "every policy is met before publishing": it publishes
-after compile, ownership and build checks only, because it changes no code and claims no
-conformance. Its requirements are reported `unverified`, and the next `sdc plan` schedules
+after compile, ownership and build checks only, because it changes no code and makes no new
+claim. Its requirements are reported `unverified`, and the next `sdc plan` schedules
 them as `verify` and `review` obligations (`none` changes), which discharge them like any
 other. A walk-through, for an existing `src/lib/auth.ts` that exports `signIn` and
 `requestReset`, used by two pages:
@@ -1352,14 +1348,13 @@ precise and is silent about the rest:
 | Evidence | Promises | Does not establish |
 | --- | --- | --- |
 | Compile | The graph satisfies the language's static rules | Anything about the code |
-| Conformance | A named checker reported a named rule satisfied on recorded inputs, within its stated scope | Compliance with prose; runtime facts |
 | Build | Configured commands succeeded under a recorded profile | Behaviour |
 | Behaviour test | Selected cases met the outcome policy on recorded inputs, and a current review judged their oracles to cover this requirement revision | Exhaustive behaviour; absence of flakes; production success |
 | Review | An identified reviewer gave a recorded verdict on specified artifacts | A proof |
 | Human acceptance | A human approved an exact revision and scope | A test |
 | Runtime observation | A collector reported specified external facts at a recorded time | That they are still true; permission to deploy |
 
-Compile, conformance and build are obligations of every transaction. Requirements carry
+Compile and build are obligations of every transaction. Requirements carry
 the rest.
 
 **What counts as a requirement.** Every `expect` member, and every member of an action's
@@ -1388,7 +1383,6 @@ action charge {
       verify {
         tests: true
         review: true
-        checks: ["payments.idempotency_key_present"]
         approval: true
       }
     }
@@ -1400,8 +1394,7 @@ The string forms are shorthand: `"tested"` is `{ tests: true, review: true }` (t
 judges coverage), `"judged"` is `{ review: true }`, `"accepted"` is `{ approval: true }`.
 The core default is `"judged"`. The effective policy is the union of the member's,
 matching rules' and the project's `verify`: each can add obligations, none can remove one.
-A passing test never discharges a required check, a check never discharges a required test,
-and a human approval discharges only `approval`.
+Tests, review and approval are separate obligations: none discharges another.
 
 **Status** is reported per evidence kind, as an outcome plus currency (`tests: passed,
 current; review: conforms, stale`), because a requirement can have a current review, a
@@ -1482,24 +1475,12 @@ way, but no update is planned.
 A test check reports per case and per attempt through the check protocol's test result
 (Packages → Check protocol; example `examples/check.test-result.json`).
 
-### Conformance
+### What the core enforces
 
-A conformance check declares its rule inventory with the kinds each rule applies to
-(`rules { page_default_export: [page] }`, and `advisory: [...]` for rules that never block)
-and reports each applicable rule for each subject:
-`satisfied`, `violated`, `unsupported` or `error`, with the inputs it read. A rule's meaning
-is part of its package's documentation, and changing it needs a new package version (the
-milestone adapter defines its two rules in `examples/nextjs-adapter.sd`). Silence is never
-satisfaction: a rule missing from the result counts as `error`. Every declared rule is
-required unless listed as advisory. A required rule that is `violated` fails the obligation and escalates
-to `update`; `unsupported` leaves any policy or transaction obligation that needs that check
-unsatisfied, so the transaction cannot publish; `error` is an infrastructure failure, rerun
-and then failed. Advisory results are reported and never block. Packages may *suggest* that a rule bears on a requirement; a suggestion
-does not make the rule entail it. Package rules are narrow (a page has a default export, a
-schema file matches its entity); broad behavioural analysis is not required of anyone.
-
-**Rules the core enforces itself.** Protected files and the attribution of every changed
-file to its owner are checked by the CLI on the frozen diff, never by a package.
+Protected files and the attribution of every changed file to its owner are checked by the
+CLI on the frozen diff, never by a package. sdlang does not run code-level rules of its own:
+linting and similar project rules run as build checks, and whether code does what a
+requirement says is the reviewer's judgement.
 
 ## Runtime state
 
@@ -1762,7 +1743,7 @@ The first milestone tests only that, and tests it against a control.
    result protocol for one existing coding agent, and the `nextjs` adapter exactly as written
    in `examples/nextjs-adapter.sd`, hard-coded. Its checks run through the check protocol:
    typecheck, build, test (the project's own tests; the acceptance tests stay outside the
-   runner so that no arm gets feedback from them) and its conformance rules, plus the core's
+   runner so that no arm gets feedback from them), plus the core's
    ownership and protected files.
 2. A trial on a toy Next.js app, pinned in `docs/trial.md`: ten spec edits in sequence (an
    interface change with a caller, a compatible widening, a normative prose change to an

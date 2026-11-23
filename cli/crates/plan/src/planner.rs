@@ -615,7 +615,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
             let member = ev["subject"]["requirement"].as_str().unwrap_or_default();
             let because = format!("unverified:{member}");
             let tests = policy["tests"] == true;
-            if tests || policy["checks"].as_array().is_some_and(|c| !c.is_empty()) {
+            if tests {
                 e.oblige("verify", because.clone(), "", None);
             }
             if tests || policy["review"] == true {

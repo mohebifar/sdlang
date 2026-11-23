@@ -256,7 +256,6 @@ impl Server {
                     snapshot: &snap,
                     profile: &self.ctx.profile,
                     subject: (!project_scope).then_some(address.as_str()),
-                    subject_kind: subject.map(|s| s.kind.as_str()),
                     outputs: if project_scope {
                         vec![]
                     } else {

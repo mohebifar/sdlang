@@ -75,7 +75,6 @@
       "required": [
         "tests",
         "review",
-        "checks",
         "approval"
       ],
       "properties": {
@@ -84,13 +83,6 @@
         },
         "review": {
           "type": "boolean"
-        },
-        "checks": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true
         },
         "approval": {
           "type": "boolean"
