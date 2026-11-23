@@ -1,9 +1,9 @@
-//! `spec apply`: applies plan.json transaction by transaction.
+//! `sdc apply`: applies plan.json transaction by transaction.
 
 use std::path::PathBuf;
 use std::time::Duration;
 
-use intlang_apply::{apply, ApplyOptions, Outcome};
+use sdlang_apply::{apply, ApplyOptions, Outcome};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -50,7 +50,7 @@ pub fn run(args: Args) -> u8 {
     // Agents start the MCP server with this same binary.
     let spec = std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "spec".into());
+        .unwrap_or_else(|_| "sdc".into());
     let plan = args
         .plan
         .clone()

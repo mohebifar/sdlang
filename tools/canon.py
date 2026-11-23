@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reference canonicaliser for spec graphs (schemas/graph.schema.json).
 
-Computes the four declaration projections and their hashes exactly as SPEC.md
+Computes the four declaration projections and their hashes exactly as docs/spec.md
 "Projections and hashes" describes. Which fields are interface comes from the graph's
 `kinds` table, which the frontend fills from kind definitions.
 
@@ -83,7 +83,7 @@ def _encode(obj, out):
 
 
 def canonical(obj):
-    """Canonical JSON (SPEC.md, Projections and hashes): NFC strings and keys, keys sorted
+    """Canonical JSON (docs/spec.md, Projections and hashes): NFC strings and keys, keys sorted
     by code point, no insignificant whitespace, UTF-8; integers and integral floats in
     plain decimal; other numbers as JavaScript writes them; non-finite numbers rejected."""
     out = []
@@ -239,7 +239,7 @@ def projections(graph):
 
 
 def diff_graphs(before, after):
-    """Derive the plan's change set, following SPEC.md's precedence: an authored change
+    """Derive the plan's change set, following docs/spec.md's precedence: an authored change
     to a declaration's own public, behaviour or body projection is an update; so is a
     change to an aggregate owner's collected members. A change to inherited normative
     context only is a review (plus verify) obligation, never an update. Dependents whose

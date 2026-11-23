@@ -189,7 +189,7 @@ impl Repo {
             fs::write(&exclude, format!("{current}{sep}/node_modules\n"))
                 .map_err(|e| ApplyError::new(format!("{}: {e}", exclude.display())))?;
         }
-        std::os::unix::fs::symlink(&installed, dir.join("node_modules")).map_err(|e| {
+        link_dir(&installed, &dir.join("node_modules")).map_err(|e| {
             ApplyError::new(format!("cannot link node_modules into the candidate: {e}"))
         })
     }
@@ -313,5 +313,31 @@ impl Candidate {
     pub fn patch(&self) -> String {
         let _ = git(&self.dir, &["add", "-A"]);
         git(&self.dir, &["diff", "--binary", untagged(&self.base)]).unwrap_or_default()
+    }
+}
+
+/// Links directory `link` to `target`: a symlink, or on Windows a junction, which needs no
+/// administrator rights.
+#[cfg(unix)]
+fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn link_dir(target: &Path, link: &Path) -> std::io::Result<()> {
+    let status = std::process::Command::new("cmd")
+        .arg("/C")
+        .arg("mklink")
+        .arg("/J")
+        .arg(link)
+        .arg(target)
+        .stdout(std::process::Stdio::null())
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(format!(
+            "mklink /J exited with {status}"
+        )))
     }
 }

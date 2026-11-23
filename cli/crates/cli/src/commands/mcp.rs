@@ -1,4 +1,4 @@
-//! `spec mcp`: serves the MCP tools of one dispatch on stdio. An agent starts it from the
+//! `sdc mcp`: serves the MCP tools of one dispatch on stdio. An agent starts it from the
 //! candidate worktree, as its work order's `tools.mcp.command` says.
 
 use std::io;
@@ -18,7 +18,7 @@ pub struct Args {
 pub fn run(args: Args) -> u8 {
     let stdin = io::stdin().lock();
     let stdout = io::stdout().lock();
-    match intlang_apply::mcp::serve(&args.dir, &args.dispatch, stdin, stdout) {
+    match sdlang_apply::mcp::serve(&args.dir, &args.dispatch, stdin, stdout) {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("error: {e}");

@@ -5,12 +5,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use intlang_syntax::ast::{
+use sdlang_syntax::ast::{
     Address, Annotation, Block, Exportable, Expr, Field, MemberValue, NamedDecl, Operand,
     SelectSource, Selector, Span, Statement,
 };
-use intlang_syntax::diagnostics::line_col;
-use intlang_syntax::strings::{Part, StringKind, StringLit};
+use sdlang_syntax::diagnostics::line_col;
+use sdlang_syntax::strings::{Part, StringKind, StringLit};
 use serde_json::{json, Map, Value};
 
 use crate::error::{GResult, GraphError};
@@ -107,7 +107,7 @@ fn number(text: &str) -> Value {
 }
 
 fn sort_by_canonical(items: &mut [Value]) {
-    items.sort_by_cached_key(|v| intlang_canon::canonical(v).unwrap_or_default());
+    items.sort_by_cached_key(|v| sdlang_canon::canonical(v).unwrap_or_default());
 }
 
 fn valid_route(route: &str) -> bool {
@@ -1065,8 +1065,8 @@ impl<'p> Lowerer<'p> {
             use_decl.value.insert("edges".into(), Value::Array(edges));
         }
 
-        let lock = intlang_canon::digest(&project.lock)
-            .map_err(|e| GraphError::plain(format!("spec.lock: {e}")))?;
+        let lock = sdlang_canon::digest(&project.lock)
+            .map_err(|e| GraphError::plain(format!("sd.lock: {e}")))?;
         let mut kinds = Map::new();
         for l in decls.values() {
             if kinds.contains_key(&l.kind) {
@@ -1086,7 +1086,7 @@ impl<'p> Lowerer<'p> {
             kinds.insert(l.kind.clone(), entry);
         }
         Ok(json!({
-            "schema": "intlang.graph/1",
+            "schema": "sdlang.graph/1",
             "lock": lock,
             "kinds": kinds,
             "modules": modules_out,

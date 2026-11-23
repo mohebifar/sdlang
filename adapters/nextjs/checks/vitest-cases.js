@@ -54,7 +54,7 @@ function toCheckResult(input, report) {
     .map(([tag, instances]) => ({ case: tag, oracle: digest, instances }));
   const pairs = caseList.flatMap((c) => c.instances.map((i) => [c.case, i.key])).sort((a, b) => canonical(a) < canonical(b) ? -1 : 1);
   return {
-    protocol: "intlang.check/1",
+    protocol: "sdlang.check/1",
     check: input.check,
     snapshot: input.snapshot,
     output: output.member,

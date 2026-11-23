@@ -2,10 +2,10 @@
   "name": "better-auth",
   "version": "0.1.0",
   "files": ["spec/", "skills/"],
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "better_auth",
-    "entry": "./spec/index.int",
+    "entry": "./spec/index.sd",
     "skills": { "skills": "./skills/auth" },
     "provides": {
       "authentication": {

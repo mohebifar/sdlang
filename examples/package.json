@@ -1,11 +1,11 @@
 {
-  "name": "@intlang/nextjs",
+  "name": "@sdlang/nextjs",
   "version": "0.1.0",
   "files": ["spec/", "skills/", "checks/", "gen/"],
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "nextjs",
-    "entry": "./spec/index.int",
+    "entry": "./spec/index.sd",
     "skills": { "app_router": "./skills/app-router" },
     "migrations": "./spec/migrations.json"
   }

@@ -1,15 +1,15 @@
-//! `spec parse`: parses .int files and reports syntax errors.
+//! `sdc parse`: parses .sd files and reports syntax errors.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use intlang_syntax::{diagnostics, lexer, parse};
+use sdlang_syntax::{diagnostics, lexer, parse};
 use serde_json::json;
 use walkdir::WalkDir;
 
 #[derive(clap::Args)]
 pub struct Args {
-    /// Files or directories; directories are searched for *.int files.
+    /// Files or directories; directories are searched for *.sd files.
     #[arg(required = true)]
     pub paths: Vec<PathBuf>,
 
@@ -18,7 +18,7 @@ pub struct Args {
     pub json: bool,
 }
 
-/// Expands directories into their *.int files, sorted; fails on a missing path.
+/// Expands directories into their *.sd files, sorted; fails on a missing path.
 fn collect(paths: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
     let mut files = Vec::new();
     for path in paths {
@@ -29,7 +29,7 @@ fn collect(paths: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
                 .filter_map(Result::ok)
                 .filter(|e| e.file_type().is_file())
                 .map(|e| e.into_path())
-                .filter(|p| p.extension().is_some_and(|ext| ext == "int"))
+                .filter(|p| p.extension().is_some_and(|ext| ext == "sd"))
                 .collect();
             found.sort();
             files.extend(found);

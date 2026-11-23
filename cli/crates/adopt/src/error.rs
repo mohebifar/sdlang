@@ -34,9 +34,9 @@ macro_rules! from_error {
 }
 
 from_error!(
-    intlang_plan::PlanError,
-    intlang_apply::error::ApplyError,
-    intlang_canon::CanonError
+    sdlang_plan::PlanError,
+    sdlang_apply::error::ApplyError,
+    sdlang_canon::CanonError
 );
 
 pub type AdResult<T> = Result<T, AdoptError>;

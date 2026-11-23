@@ -43,12 +43,15 @@ result = json.load(open(os.environ["SPEC_RESULT"]))
 open("rogue.txt", "w").write("x\n")
 log["validate_with_rogue"] = tool("validate_result", {"draft": result})
 os.remove("rogue.txt")
+os.makedirs("spec", exist_ok=True)
+open("spec/rogue.txt", "w").write("x\n")
+log["validate_with_spec"] = tool("validate_result", {"draft": result})
+os.remove("spec/rogue.txt")
 log["validate"] = tool("validate_result", {"draft": result})
-bare = json.loads(json.dumps(result))
-for t in bare["tests"]:
-    for x in t["tests"]:
-        x["output"] = "tests"
-log["validate_bare_output"] = tool("validate_result", {"draft": bare})
+short = {"tests": [{"requirement": t["subject"]["requirement"].split(".")[-1],
+                    "tests": [{"output": "tests", "case": x["case"]} for x in t["tests"]]} for t in result["tests"]]}
+log["validate_short"] = tool("validate_result", {"draft": short})
+log["validate_unknown"] = tool("validate_result", {"draft": {"tests": [{"requirement": "nowhere", "tests": [{"case": "x"}]}]}})
 log["self_check"] = tool("run_self_check", {"check": "toy.test"})
 log["not_a_check"] = tool("run_self_check", {"check": "toy.nothing"})
 server.stdin.close()

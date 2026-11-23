@@ -1,5 +1,5 @@
-//! The int lang planner: state records, drift, propagation and transactions, producing
-//! the plan document (`schemas/plan.schema.json`) as SPEC.md's State, plan and apply
+//! The sdlang planner: state records, drift, propagation and transactions, producing
+//! the plan document (`schemas/plan.schema.json`) as docs/spec.md's State, plan and apply
 //! section defines it.
 
 #![forbid(unsafe_code)]

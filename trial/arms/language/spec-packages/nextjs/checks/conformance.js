@@ -1,4 +1,4 @@
-// Conformance check for @intlang/nextjs (check protocol, purpose "conformance").
+// Conformance check for @sdlang/nextjs (check protocol, purpose "conformance").
 //
 // page_default_export: the page slot's module has a default export that is a React
 // component (a function, or an identifier or class whose name starts with a capital).
@@ -103,7 +103,7 @@ function run(input) {
     const r = judge ? judge(input) : { status: "error", inputs: [], message: `unknown rule ${rule}` };
     return { rule, subject: input.subject, ...r };
   });
-  return { protocol: "intlang.check/1", check: input.check, snapshot: input.snapshot, results };
+  return { protocol: "sdlang.check/1", check: input.check, snapshot: input.snapshot, results };
 }
 
 if (require.main === module) {

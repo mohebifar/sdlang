@@ -1,11 +1,11 @@
-//! `spec check`: the read-only gate. Exit 0 when the branch is consistent, 1 with the
+//! `sdc check`: the read-only gate. Exit 0 when the branch is consistent, 1 with the
 //! findings otherwise, 2 when the check cannot run.
 
 use std::path::PathBuf;
 use std::time::Duration;
 
-use intlang_gate::findings::KINDS;
-use intlang_gate::{check, CheckOptions};
+use sdlang_gate::findings::KINDS;
+use sdlang_gate::{check, CheckOptions};
 
 #[derive(clap::Args)]
 pub struct Args {

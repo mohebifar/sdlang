@@ -1,9 +1,9 @@
-"""The worked example of SPEC.md as canonical graphs (before and after the change) and the
+"""The worked example of docs/spec.md as canonical graphs (before and after the change) and the
 plan expected from them. Used by make_examples.py; checked by check_examples.py."""
 import copy
 import hashlib
 
-NEXT = "npm:@intlang/nextjs::page"
+NEXT = "npm:@sdlang/nextjs::page"
 
 
 def d(label):
@@ -23,7 +23,7 @@ def ref(target):
 
 
 def decl(address, kind, sort, fields, *, members=None, edges=(), exported=False, applies=(),
-         annotations=(), file="spec/app.int", line=1):
+         annotations=(), file="spec/app.sd", line=1):
     module = address.rsplit(".", 1)[0] if "." in address else ""
     out = {
         "address": address, "module": module, "kind": kind, "sort": sort, "exported": exported,
@@ -52,18 +52,18 @@ LOGIN_PROMPT = "Email and password form in the shared auth card.\nOn success go 
 LOGIN_PROMPT_AFTER = LOGIN_PROMPT + "Link to @{auth.forgot_password} under the password field.\n"
 
 _before = {
-    "schema": "intlang.graph/1",
+    "schema": "sdlang.graph/1",
     "lock": d("lock:5f3a"),
     "modules": [
-        {"path": "", "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
+        {"path": "", "imports": [{"alias": "nextjs", "source": "package:npm:@sdlang/nextjs"},
                                  {"alias": "auth", "source": "module:auth"}]},
         {"path": "core", "imports": []},
         {"path": "auth", "header": {"summary": "Sign-in, sign-up and session handling",
                                     "prompt": prose(AUTH_PROMPT),
                                     "skills": [ref("npm:better-auth::skills")]},
-         "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
+         "imports": [{"alias": "nextjs", "source": "package:npm:@sdlang/nextjs"},
                      {"alias": "dashboard", "source": "module:dashboard"}]},
-        {"path": "dashboard", "imports": [{"alias": "nextjs", "source": "package:npm:@intlang/nextjs"},
+        {"path": "dashboard", "imports": [{"alias": "nextjs", "source": "package:npm:@sdlang/nextjs"},
                                           {"alias": "core", "source": "module:core"}]},
     ],
     "declarations": [
@@ -97,7 +97,7 @@ _before = {
                           {"name": "core:max_length", "on": "fields.name", "args": [80]},
                           {"name": "core:unique", "on": "fields.slug", "args": []}],
              edges=[edge("types", "npm:better-auth::User", "fields.owner")],
-             exported=True, file="spec/core/workspace.int"),
+             exported=True, file="spec/core/workspace.sd"),
         decl("auth.login", NEXT, "managed", {
             "route": "/login", "summary": "A page where you can sign in",
             "uses": [ref("npm:ui-sdk::Button"), ref("npm:ui-sdk::Form"), ref("npm:ui-sdk::Input")],
@@ -111,7 +111,7 @@ _before = {
                    edge("mentions", "dashboard.home", "expect.redirects.text"),
                    edge("uses", "npm:ui-sdk::Button", "uses"), edge("uses", "npm:ui-sdk::Form", "uses"),
                    edge("uses", "npm:ui-sdk::Input", "uses")],
-            exported=True, file="spec/auth/login.int", line=4),
+            exported=True, file="spec/auth/login.sd", line=4),
         decl("auth.sign_in", "core:action", "managed", {
             "input": {"$type": "record", "fields": {"email": b("email"), "password": b("string")}},
             "output": {"$type": "named", "name": "npm:better-auth::session"},
@@ -120,9 +120,9 @@ _before = {
                 "invalid_credentials": {"summary": "Email or password is wrong", "code": "invalid_credentials"},
                 "rate_limited": {"summary": "Too many attempts; try again later", "code": "rate_limited"}}},
             edges=[edge("types", "npm:better-auth::session", "output")],
-            file="spec/auth/login.int", line=20),
+            file="spec/auth/login.sd", line=20),
         decl("auth.signup", NEXT, "managed", {"route": "/signup", "summary": "Create an account"},
-             exported=True, file="spec/auth/signup.int", line=3),
+             exported=True, file="spec/auth/signup.sd", line=3),
         decl("dashboard.home", NEXT, "managed", {
             "route": "/app", "summary": "Lists the signed-in user's workspaces",
             "requires": [ref("npm:better-auth::session")], "reads": [ref("core.Workspace")],
@@ -130,7 +130,7 @@ _before = {
             "prompt": prose('One card per workspace, newest first.\nThe empty state offers "Create workspace".\n')},
             edges=[edge("reads", "core.Workspace", "reads"), edge("requires", "npm:better-auth::session", "requires"),
                    edge("uses", "npm:ui-sdk::Button", "uses"), edge("uses", "npm:ui-sdk::Card", "uses")],
-            applies=["app_requires_session"], exported=True, file="spec/dashboard/home.int", line=4),
+            applies=["app_requires_session"], exported=True, file="spec/dashboard/home.sd", line=4),
     ],
     "moves": [],
 }
@@ -139,7 +139,7 @@ _before["modules"].sort(key=lambda m: m["path"])
 GRAPH_BEFORE = _before
 
 # Interface fields per kind, as the frontend writes them into the graph: core kinds fix
-# theirs (SPEC.md, Projections and hashes); the nextjs page kind marks `route` @interface.
+# theirs (docs/spec.md, Projections and hashes); the nextjs page kind marks `route` @interface.
 KIND_INTERFACE = {
     "core:project": [], "core:stack": "all", "core:use": "all", "core:rule": ["applies_to"],
     "core:entity": [], "core:action": ["input", "output"], "core:lib": ["exports"],
@@ -176,7 +176,7 @@ def _after():
             edges=[edge("calls", "auth.request_reset", "calls"),
                    edge("uses", "npm:ui-sdk::Button", "uses"), edge("uses", "npm:ui-sdk::Form", "uses"),
                    edge("uses", "npm:ui-sdk::Input", "uses")],
-            exported=True, file="spec/auth/forgot_password.int", line=3),
+            exported=True, file="spec/auth/forgot_password.sd", line=3),
         decl("auth.request_reset", "core:action", "managed", {
             "input": {"$type": "record", "fields": {"email": b("email")}},
             "output": {"$type": "record", "fields": {"sent": b("boolean")}},
@@ -185,7 +185,7 @@ def _after():
             members={"errors": {"rate_limited": {"summary": "Too many requests; try again later",
                                                  "code": "rate_limited"}}},
             edges=[edge("uses", "npm:better-auth::password_reset", "uses")],
-            file="spec/auth/forgot_password.int", line=13),
+            file="spec/auth/forgot_password.sd", line=13),
     ]
     g["declarations"].sort(key=lambda x: x["address"])
     return g
@@ -199,7 +199,7 @@ _with_kinds(GRAPH_BEFORE)
 def plan_fixture():
     tx = lambda n: f"tx-{n}"
     return {
-        "schema": "intlang.plan/1",
+        "schema": "sdlang.plan/1",
         "plan": "p-2026-11-18-01",
         "revision": 1,
         "binding": {

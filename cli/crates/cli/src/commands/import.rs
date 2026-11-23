@@ -1,10 +1,10 @@
-//! `spec import`: proposes an ownership mapping for existing files; with `--accept`,
-//! writes the proposed libs and the pending acquisitions for the next `spec plan`.
+//! `sdc import`: proposes an ownership mapping for existing files; with `--accept`,
+//! writes the proposed libs and the pending acquisitions for the next `sdc plan`.
 
 use std::path::PathBuf;
 
-use intlang_adopt::proposal::render;
-use intlang_adopt::{accept, propose};
+use sdlang_adopt::proposal::render;
+use sdlang_adopt::{accept, propose};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -69,10 +69,10 @@ pub fn run(args: Args) -> u8 {
             println!(
                 "pending acquisition: {} ({})",
                 accepted.pending.join(", "),
-                intlang_plan::PENDING_IMPORTS
+                sdlang_plan::PENDING_IMPORTS
             );
             println!(
-                "next: review and commit these files, then run spec plan and spec apply; the plan acquires them with no agent"
+                "next: review and commit these files, then run sdc plan and sdc apply; the plan acquires them with no agent"
             );
             0
         }

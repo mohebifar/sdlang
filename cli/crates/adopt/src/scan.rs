@@ -1,11 +1,11 @@
-//! The project's files as `spec import` sees them: which are code, what each exports and
+//! The project's files as `sdc import` sees them: which are code, what each exports and
 //! imports, and who imports each file. Static reading only; no package code runs.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use intlang_apply::imports::{aliases, exports, resolve_local, specifiers, CODE_EXTENSIONS};
+use sdlang_apply::imports::{aliases, exports, resolve_local, specifiers, CODE_EXTENSIONS};
 
 use crate::error::{AdResult, AdoptError};
 
@@ -50,7 +50,7 @@ fn walk(root: &Path, dir: &Path) -> AdResult<Vec<String>> {
     let walker = walkdir::WalkDir::new(dir).sort_by_file_name().into_iter();
     for entry in walker.filter_entry(|e| {
         let rel = e.path().strip_prefix(root).unwrap_or(e.path());
-        let rel = rel.to_string_lossy();
+        let rel = rel.to_string_lossy().replace('\\', "/");
         let hidden = e.depth() > 0
             && e.file_name().to_string_lossy().starts_with('.')
             && e.file_type().is_dir();
@@ -132,7 +132,7 @@ pub fn expand(root: &Path, scanned: &Scanned, paths: &[String]) -> AdResult<Vec<
         } else if full.is_file() {
             if skipped(rel) {
                 return Err(AdoptError::new(format!(
-                    "{rel}: spec import never claims files under {}",
+                    "{rel}: sdc import never claims files under {}",
                     SKIP.join(", ")
                 )));
             }

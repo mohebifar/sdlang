@@ -1,9 +1,9 @@
-//! The ownership index (SPEC.md, Ownership and drift): derived from the state records,
+//! The ownership index (docs/spec.md, Ownership and drift): derived from the state records,
 //! never a second source of truth, and checked for collisions and dangling claims.
 
 use std::collections::BTreeMap;
 
-use intlang_plan::state::StateRecord;
+use sdlang_plan::state::StateRecord;
 
 use crate::findings::Finding;
 
@@ -83,7 +83,7 @@ pub fn ownership_findings(records: &[(String, StateRecord)]) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use intlang_plan::state::{Hashes, Output};
+    use sdlang_plan::state::{Hashes, Output};
 
     fn record(address: &str, outputs: &[(&str, &str)]) -> StateRecord {
         StateRecord {

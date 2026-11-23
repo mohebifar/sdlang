@@ -1,17 +1,17 @@
-//! Work orders, review orders and generator inputs (PROTOCOL.md), with their binding and
+//! Work orders, review orders and generator inputs (docs/protocol.md), with their binding and
 //! Markdown rendering.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::Path;
 
-use intlang_canon::{canonical, digest, GraphDocuments};
-use intlang_graph::loader::Project;
-use intlang_graph::scope::{Owner, Scope};
-use intlang_plan::materialise::{kind_body, Materialisation};
-use intlang_plan::state::{consumed_for, file_digest, StateRecord, Store};
-use intlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
-use intlang_syntax::strings::Part;
+use sdlang_canon::{canonical, digest, GraphDocuments};
+use sdlang_graph::loader::Project;
+use sdlang_graph::scope::{Owner, Scope};
+use sdlang_plan::materialise::{kind_body, Materialisation};
+use sdlang_plan::state::{consumed_for, file_digest, StateRecord, Store};
+use sdlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
+use sdlang_syntax::strings::Part;
 use serde_json::{json, Map, Value};
 
 use crate::error::AResult;
@@ -31,7 +31,7 @@ pub struct Env<'a> {
     pub plan_hash: String,
     pub graph_hash: String,
     pub lock_hash: String,
-    /// How an agent starts the MCP server: `[<spec binary>, "mcp", "--dispatch"]`.
+    /// How an agent starts the MCP server: `[<sdc binary>, "mcp", "--dispatch"]`.
     pub spec_command: Vec<String>,
 }
 
@@ -79,11 +79,11 @@ fn decl_slice(text: &str, statements: &[Statement], name: &str) -> Option<String
 }
 
 impl Env<'_> {
-    fn info(&self, address: &str) -> Option<&intlang_graph::scope::DeclInfo> {
+    fn info(&self, address: &str) -> Option<&sdlang_graph::scope::DeclInfo> {
         self.scope.decls.iter().find(|d| d.address == address)
     }
 
-    fn source_file(&self, address: &str) -> Option<&intlang_graph::loader::SourceFile> {
+    fn source_file(&self, address: &str) -> Option<&sdlang_graph::loader::SourceFile> {
         let info = self.info(address)?;
         self.project.modules.get(&info.module)?.files.get(info.file)
     }
@@ -124,7 +124,7 @@ impl Env<'_> {
             if let Ok(target) = self.scope.resolve_names(&owner, &refs, file, d.span) {
                 if let Some(canonical) = self.scope.canonical(&target) {
                     out.insert(names.join("."), json!(canonical));
-                } else if let intlang_graph::scope::Target::PackageItem { .. } = target {
+                } else if let sdlang_graph::scope::Target::PackageItem { .. } = target {
                     // kinds resolve to package items above; nothing else to add
                 }
             }
@@ -327,7 +327,7 @@ fn allowed_imports(env: &Env, decl: &Value) -> Vec<Value> {
                     for i in items {
                         if let Expr::String(lit) = i {
                             out.push(json!({
-                                "module": intlang_graph::scope::lit_text(lit), "exports": ["*"], "mode": "runtime",
+                                "module": sdlang_graph::scope::lit_text(lit), "exports": ["*"], "mode": "runtime",
                                 "via": format!("ambient:{}", crate::checks::kind_short(decl["kind"].as_str().unwrap_or_default())),
                             }));
                         }
@@ -534,7 +534,7 @@ pub fn work_order(
         references_all.extend(references(env, s.address, s.record)?);
     }
     let order = json!({
-        "schema": "intlang.work-order/1",
+        "schema": "sdlang.work-order/1",
         "dispatch": dispatch,
         "binding": {
             "order_hash": "", "plan": env.plan["plan"], "plan_revision": env.plan["revision"], "plan_hash": env.plan_hash,
@@ -555,7 +555,7 @@ pub fn work_order(
         "limits": { "timeout_seconds": 1800, "result_max_bytes": 65536 },
     });
     let mut order = order;
-    let used = render_work_order(&order, None).len().div_ceil(4) as u64;
+    let used = render_work_order(&order, None, &[], &[]).len().div_ceil(4) as u64;
     order["context"]["budget"]["used_input"] = json!(used);
     seal(order)
 }
@@ -617,7 +617,7 @@ pub fn review_order(
         })
         .collect();
     seal(json!({
-        "schema": "intlang.review-order/1",
+        "schema": "sdlang.review-order/1",
         "dispatch": dispatch,
         "binding": { "order_hash": "", "plan_hash": env.plan_hash, "candidate_snapshot": snapshot, "graph_hash": env.graph_hash, "lock_hash": env.lock_hash },
         "subjects": values,
@@ -675,7 +675,7 @@ pub fn generator_input(
                             };
                             let path = rs.members.iter().find_map(|f| match &f.value {
                                 MemberValue::Field(x) if f.name.text == "path" => match &x.value {
-                                    Expr::String(s) => Some(intlang_graph::scope::lit_text(s)),
+                                    Expr::String(s) => Some(sdlang_graph::scope::lit_text(s)),
                                     _ => None,
                                 },
                                 _ => None,
@@ -710,7 +710,7 @@ pub fn generator_input(
         }
     }
     seal(json!({
-        "protocol": "intlang.generator/1",
+        "protocol": "sdlang.generator/1",
         "dispatch": dispatch,
         "binding": { "order_hash": "", "plan_hash": env.plan_hash, "input_snapshot": snapshot, "graph_hash": env.graph_hash, "lock_hash": env.lock_hash },
         "subjects": subject_values,
@@ -735,7 +735,14 @@ fn at(worktree: Option<&Path>, rel: &str) -> String {
 }
 
 /// The work order as Markdown, for the agent's stdin; `worktree` is the candidate it runs in.
-pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
+/// `protected` lists files adopted from a hand edit, which no dispatch may change;
+/// `guidance` is the skills the subjects' kinds name, as `(name, text)`.
+pub fn render_work_order(
+    order: &Value,
+    worktree: Option<&Path>,
+    protected: &[String],
+    guidance: &[(String, String)],
+) -> String {
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -744,9 +751,18 @@ pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
     );
     let _ = writeln!(
         s,
-        "Make the code in the files listed under each subject's envelope satisfy that subject's spec and requirements. \
-         Write only those files, or new files under its creation roots. Do not edit spec/ or .spec/ (other than your result). \
+        "Make the code satisfy each subject's spec and requirements. Each subject lists the files it lives in: start there. \
+         Change any other file the change needs as well (callers, shared code, tests); the declarations owning those files \
+         are checked and reviewed with this change. Do not edit spec/, sd.lock, spec-packages/ or .spec/{}. \
          Attempt {} of {}.\n",
+        if protected.is_empty() {
+            String::new()
+        } else {
+            format!(
+                ", or {}, which a person edited by hand and whose bytes stay as they are",
+                protected.iter().map(|p| format!("`{p}`")).collect::<Vec<_>>().join(", ")
+            )
+        },
         order["attempt"]["number"], order["attempt"]["max"]
     );
     let previous = order["attempt"]["previous"]
@@ -789,14 +805,18 @@ pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
         for (k, v) in subj["spec"]["resolution"].as_object().into_iter().flatten() {
             let _ = writeln!(s, "- `{k}` is `{}`", v.as_str().unwrap_or(""));
         }
-        s.push_str("\n### Envelope\n\n");
+        s.push_str("\n### Files\n\n");
         for w in subj["envelope"]["write"].as_array().into_iter().flatten() {
             let _ = writeln!(
                 s,
-                "- write `{}` ({}; now {})",
+                "- `{}` ({}, {})",
                 w["path"].as_str().unwrap_or(""),
                 w["output"].as_str().unwrap_or(""),
-                w["expected"].as_str().unwrap_or("")
+                if w["expected"] == "absent" {
+                    "new"
+                } else {
+                    "exists"
+                }
             );
         }
         for c in subj["envelope"]["create_under"]
@@ -806,17 +826,9 @@ pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
         {
             let _ = writeln!(
                 s,
-                "- create new files under `{}` (root `{}`); register each in your result's outputs",
-                c["path"].as_str().unwrap_or(""),
-                c["root"].as_str().unwrap_or("")
+                "- new parts of it go under `{}`",
+                c["path"].as_str().unwrap_or("")
             );
-        }
-        for i in subj["envelope"]["allowed_imports"]
-            .as_array()
-            .into_iter()
-            .flatten()
-        {
-            let _ = writeln!(s, "- may import `{}`", i["module"].as_str().unwrap_or(""));
         }
         s.push_str("\n### Requirements\n\n");
         for r in subj["requirements"].as_array().into_iter().flatten() {
@@ -857,18 +869,19 @@ pub fn render_work_order(order: &Value, worktree: Option<&Path>) -> String {
         );
         fence(&mut s, "json", r["text"].as_str().unwrap_or(""));
     }
-    s.push_str("## Result\n\n");
+    for (name, text) in guidance {
+        let _ = writeln!(s, "## Guidance: {name}\n\n{}\n", text.trim());
+    }
+    s.push_str("## Tests and result\n\n");
     let _ = writeln!(
         s,
-        "When done, write a JSON result to `{}` (also in $SPEC_RESULT), exactly that path, with: \"schema\": \"intlang.result/1\", \"dispatch\": \"{}\", \
-         \"order_hash\": \"{}\", \"status\": \"submitted\" or \"blocked\", a one-paragraph \"summary\", \"outputs\" claiming every new \
-         file you created under a creation root ({{\"op\": \"create\", \"owner\": <address>, \"key\": <snake_case key>, \"root\": <root>, \
-         \"relative_path\": <path under the root>}}), and \"tests\" binding each requirement to the test cases that cover it \
-         ({{\"subject\": {{\"target\", \"requirement\"}}, \"tests\": [{{\"output\", \"case\"}}]}}). Tag each test case with a stable snake_case \
-         case name the test reporter reports. The full order is the JSON file `{}` (also in $SPEC_WORK_ORDER). The MCP server named in tools.mcp ($SPEC_MCP_CONFIG holds a client configuration for it) serves get_task, get_declaration, read_context, get_diagnostic, run_self_check and validate_result; run validate_result on your draft before writing it.",
+        "A requirement is covered by the test cases named after its key: tag a case with `filter` to cover `...#expect.filter`, \
+         in the form the package's test reporter reads. A result file is optional. Write JSON to `{}` only to report \
+         `\"status\": \"blocked\"` with a `\"summary\"` saying why, or to bind tests whose case name differs from the key: \
+         `{{\"tests\": [{{\"requirement\": \"filter\", \"tests\": [{{\"case\": \"my_case\"}}]}}]}}` (short names are fine). \
+         The full order is `{}`. The MCP server in $SPEC_MCP_CONFIG serves get_task, get_declaration, read_context, \
+         get_diagnostic, run_self_check and validate_result.",
         at(worktree, order["result_path"].as_str().unwrap_or("")),
-        order["dispatch"].as_str().unwrap_or(""),
-        order["binding"]["order_hash"].as_str().unwrap_or(""),
         at(
             worktree,
             &format!(".spec/run/{}/order.json", order["dispatch"].as_str().unwrap_or(""))
@@ -919,7 +932,7 @@ pub fn render_review_order(order: &Value, worktree: Option<&Path>) -> String {
     }
     let _ = writeln!(
         s,
-        "Write the verdict to `{}` (also $SPEC_VERDICT), exactly that path: {{\"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{}\", \"order_hash\": \"{}\", \
+        "Write the verdict to `{}` (also $SPEC_VERDICT), exactly that path: {{\"schema\": \"sdlang.review-verdict/1\", \"dispatch\": \"{}\", \"order_hash\": \"{}\", \
          \"subjects\": [{{\"id\": the subject id (s1, s2, ...), \"conformance\": {{\"verdict\": \"conforms\"|\"does_not_conform\"|\"cannot_determine\", \"reason\"}}, \
          \"coverage\": [{{\"candidate\", \"verdict\": \"sufficient\"|\"insufficient\"|\"cannot_determine\", \"reason\"}}]}}]}}. Answer every subject and every assessment exactly once.",
         at(worktree, order["verdict_path"].as_str().unwrap_or("")),

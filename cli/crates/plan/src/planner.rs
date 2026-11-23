@@ -1,12 +1,12 @@
 //! The plan: identity, drift, the change set, propagation, transactions and the binding
-//! (SPEC.md, State, plan and apply). Reads the new graph, the state records, the applied
+//! (docs/spec.md, State, plan and apply). Reads the new graph, the state records, the applied
 //! store and the owned files; never an old commit and never package code.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use intlang_canon::{digest, documents, GraphDocuments};
-use intlang_graph::loader::Project;
+use sdlang_canon::{digest, documents, GraphDocuments};
+use sdlang_graph::loader::Project;
 use serde_json::{json, Map, Value};
 
 use crate::compat::{classify, Compatibility};
@@ -17,7 +17,7 @@ use crate::state::{
     ORDERING,
 };
 
-/// What `spec plan` reads besides the files under the project root.
+/// What `sdc plan` reads besides the files under the project root.
 pub struct PlanInputs<'a> {
     pub root: &'a Path,
     pub project: &'a Project,
@@ -25,7 +25,7 @@ pub struct PlanInputs<'a> {
     pub plan_id: &'a str,
     /// `git:<object id>` of the commit the plan starts from.
     pub baseline_commit: &'a str,
-    /// New declarations `spec import --accept` adopts, by address (strategy `acquire`).
+    /// New declarations `sdc import --accept` adopts, by address (strategy `acquire`).
     pub acquire: Option<&'a BTreeMap<String, Acquisition>>,
     /// Drifted files whose edit the operator accepts (resolution `adopt`).
     pub adopt: Option<&'a BTreeSet<String>>,
@@ -109,9 +109,9 @@ pub fn pending_imports(root: &Path) -> PResult<BTreeMap<String, Acquisition>> {
     };
     let v: Value = serde_json::from_str(&text)
         .map_err(|e| PlanError::new(format!("{PENDING_IMPORTS}: {e}")))?;
-    if v["schema"] != "intlang.import/1" {
+    if v["schema"] != "sdlang.import/1" {
         return Err(PlanError::new(format!(
-            "{PENDING_IMPORTS}: not an import document (schema intlang.import/1)"
+            "{PENDING_IMPORTS}: not an import document (schema sdlang.import/1)"
         )));
     }
     Ok(v["acquire"]
@@ -133,7 +133,7 @@ pub fn write_pending_imports(root: &Path, pending: &BTreeMap<String, Acquisition
         .iter()
         .map(|(a, q)| (a.clone(), q.to_value()))
         .collect();
-    let doc = json!({ "schema": "intlang.import/1", "acquire": acquire });
+    let doc = json!({ "schema": "sdlang.import/1", "acquire": acquire });
     let text = serde_json::to_string_pretty(&doc).expect("serialisable") + "\n";
     std::fs::create_dir_all(path.parent().expect("under .spec"))
         .and_then(|_| std::fs::write(&path, text))
@@ -626,7 +626,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
     }
     freeze(&mut entries, &mut blocked);
 
-    // Adoption (SPEC.md, Hashes and drift): the edited bytes become the baseline, so a
+    // Adoption (docs/spec.md, Hashes and drift): the edited bytes become the baseline, so a
     // change to the declaration's own text is reviewed against them, not written again.
     // Any other cause still updates it, from the adopted bytes.
     for (address, paths) in &adopted {
@@ -1027,7 +1027,7 @@ pub fn plan(inputs: &PlanInputs) -> PResult<Value> {
         "fingerprints": fingerprints,
     });
     Ok(json!({
-        "schema": "intlang.plan/1",
+        "schema": "sdlang.plan/1",
         "plan": inputs.plan_id,
         "revision": 1,
         "binding": binding,

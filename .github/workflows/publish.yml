@@ -1,0 +1,123 @@
+# Publishes a release once its draft is published on GitHub. Each channel runs only when
+# its repository variable is "true" (Settings > Secrets and variables > Actions > Variables)
+# and uses the artifacts attached to the release, so what ships is what was built.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, such as v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  npm:
+    if: vars.PUBLISH_NPM == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # npm 11.5 or later publishes with trusted publishing when NPM_TOKEN is not set.
+      - run: npm install -g npm@11
+      - run: gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p npm-packages.tar.gz
+      - name: Publish the platform packages, then @sdlang/cli, then the adapter
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          mkdir tarballs && tar -xzf npm-packages.tar.gz -C tarballs
+          publish() {
+            manifest=$(tar -xOzf "$1" package/package.json)
+            name=$(node -pe 'JSON.parse(process.argv[1]).name' "$manifest")
+            version=$(node -pe 'JSON.parse(process.argv[1]).version' "$manifest")
+            if npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "$name@$version is already published"
+              return
+            fi
+            dist_tag=latest
+            case "$version" in *-*) dist_tag=next ;; esac
+            npm publish "$1" --access public --provenance --tag "$dist_tag"
+          }
+          for f in tarballs/sdlang-cli-*-*.tgz; do
+            case "$f" in tarballs/sdlang-cli-[0-9]*) ;; *) publish "$f" ;; esac
+          done
+          publish tarballs/sdlang-cli-[0-9]*.tgz
+          publish tarballs/sdlang-nextjs-*.tgz
+
+  crates:
+    if: vars.PUBLISH_CRATES == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish the sdlang-* crates in dependency order
+        working-directory: cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --workspace --locked
+
+  vscode-marketplace:
+    if: vars.PUBLISH_VSCODE == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p '*.vsix'
+      - run: npx --yes @vscode/vsce publish --packagePath ./*.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  open-vsx:
+    if: vars.PUBLISH_OPENVSX == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p '*.vsix'
+      - run: npx --yes ovsx publish ./*.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+  # Commits the rendered formula to a tap repository named by the HOMEBREW_TAP variable
+  # (owner/homebrew-name), with a token that can push to it.
+  homebrew:
+    if: vars.HOMEBREW_TAP != ''
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.HOMEBREW_TAP }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - run: |
+          mkdir -p tap/Formula
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p sdc.rb -D tap/Formula --clobber
+      - working-directory: tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/sdc.rb
+          git commit -m "sdc ${TAG#v}"
+          git push

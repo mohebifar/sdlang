@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use intlang_syntax::ast::{Block, Expr, MemberValue};
+use sdlang_syntax::ast::{Block, Expr, MemberValue};
 
 /// How a field's expression is read and lowered.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,7 +122,7 @@ fn refs(relation: Option<&str>) -> FieldType {
     }
 }
 
-/// Fields every declaration may carry (SPEC.md: core declaration fields).
+/// Fields every declaration may carry (docs/spec.md: core declaration fields).
 fn common_fields() -> BTreeMap<String, FieldSchema> {
     let mut f = BTreeMap::new();
     f.insert("summary".into(), field(FieldType::Str));
@@ -230,7 +230,7 @@ const BUILTIN_SCALARS: &[(&str, FieldType)] = &[
     ("integer", FieldType::Number),
 ];
 
-fn relation_of(annotations: &[intlang_syntax::ast::Annotation]) -> Option<String> {
+fn relation_of(annotations: &[sdlang_syntax::ast::Annotation]) -> Option<String> {
     annotations.iter().find_map(|a| {
         if a.name.dotted() != "relation" {
             return None;
@@ -305,10 +305,10 @@ pub fn package_kind(canonical: String, body: &Block) -> KindSchema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use intlang_syntax::ast::{Exportable, Statement};
+    use sdlang_syntax::ast::{Exportable, Statement};
 
     fn kind_body(src: &str) -> Block {
-        let file = intlang_syntax::parse(src).unwrap();
+        let file = sdlang_syntax::parse(src).unwrap();
         let Statement::Decl(d) = &file.statements[0] else {
             panic!()
         };

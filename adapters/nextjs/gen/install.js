@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const input = JSON.parse(fs.readFileSync(0, "utf8"));
 process.stdout.write(
   JSON.stringify({
-    protocol: "intlang.generator/1",
+    protocol: "sdlang.generator/1",
     dispatch: input.dispatch,
     order_hash: input.binding.order_hash,
     status: "unsupported",

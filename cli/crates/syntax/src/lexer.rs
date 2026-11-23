@@ -1,4 +1,4 @@
-//! Tokens for `.int` source, produced with logos.
+//! Tokens for `.sd` source, produced with logos.
 //!
 //! Line breaks are tokens (the grammar accepts them only where it says so); spaces,
 //! tabs and `//` comments are skipped. A string literal is one token carrying its

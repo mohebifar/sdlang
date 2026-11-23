@@ -1,15 +1,15 @@
-//! The check protocol (SPEC.md, Packages -> Check protocol): check definitions read from
+//! The check protocol (docs/spec.md, Packages -> Check protocol): check definitions read from
 //! packages, and build, test and conformance runs.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use intlang_canon::digest;
-use intlang_graph::loader::{Package, Project};
-use intlang_graph::scope::lit_text;
-use intlang_plan::materialise::{kind_body, kind_package};
-use intlang_plan::state::{declarations, file_digest, ORDERING};
-use intlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
+use sdlang_canon::digest;
+use sdlang_graph::loader::{Package, Project};
+use sdlang_graph::scope::lit_text;
+use sdlang_plan::materialise::{kind_body, kind_package};
+use sdlang_plan::state::{declarations, file_digest, ORDERING};
+use sdlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
 use serde_json::{json, Value};
 
 use crate::error::AResult;
@@ -29,14 +29,14 @@ pub struct CheckDef {
     pub definition_hash: String,
 }
 
-fn field<'b>(body: &'b Block, name: &str) -> Option<&'b Expr> {
+pub(crate) fn field<'b>(body: &'b Block, name: &str) -> Option<&'b Expr> {
     body.members.iter().find_map(|m| match &m.value {
         MemberValue::Field(f) if m.name.text == name => Some(&f.value),
         _ => None,
     })
 }
 
-fn names(expr: Option<&Expr>) -> Vec<String> {
+pub(crate) fn names(expr: Option<&Expr>) -> Vec<String> {
     match expr {
         Some(Expr::List { items, .. }) => items
             .iter()
@@ -113,9 +113,9 @@ pub fn resolve_checks(project: &Project, decl: &Value) -> Vec<CheckDef> {
         .collect()
 }
 
-/// What a run input closure is computed from (SPEC.md, Currency).
+/// What a run input closure is computed from (docs/spec.md, Currency).
 pub struct Closure<'a> {
-    /// The tree the files are read from: a candidate, or the project for `spec check`.
+    /// The tree the files are read from: a candidate, or the project for `sdc check`.
     pub dir: &'a Path,
     pub project: &'a Project,
     pub graph: &'a Value,
@@ -348,7 +348,7 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
         return Ok(run);
     }
     let mut input = json!({
-        "protocol": "intlang.check/1",
+        "protocol": "sdlang.check/1",
         "check": { "id": def.id, "definition_hash": def.definition_hash },
         "purpose": def.purpose,
         "scope": def.scope,
@@ -410,7 +410,7 @@ pub fn run_check(def: &CheckDef, ctx: &RunContext) -> AResult<CheckRun> {
             return Ok(run);
         }
     };
-    if result["protocol"] != "intlang.check/1"
+    if result["protocol"] != "sdlang.check/1"
         || result["check"]["id"] != json!(def.id)
         || result["snapshot"] != json!(ctx.snapshot)
     {

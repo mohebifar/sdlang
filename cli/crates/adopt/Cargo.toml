@@ -1,17 +1,17 @@
 [package]
-name = "intlang-adopt"
-description = "spec import: brownfield adoption for an int lang project"
+name = "sdlang-adopt"
+description = "sdc import: brownfield adoption for an sdlang project"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-intlang-canon.workspace = true
-intlang-syntax.workspace = true
-intlang-graph.workspace = true
-intlang-plan.workspace = true
-intlang-apply.workspace = true
+sdlang-canon.workspace = true
+sdlang-syntax.workspace = true
+sdlang-graph.workspace = true
+sdlang-plan.workspace = true
+sdlang-apply.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 walkdir.workspace = true

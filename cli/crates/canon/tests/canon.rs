@@ -23,8 +23,8 @@ fn vectors() {
     let mut wrong = Vec::new();
     for v in vectors {
         let name = v["name"].as_str().unwrap();
-        let text = intlang_canon::canonical(&v["value"]).unwrap();
-        let digest = intlang_canon::digest(&v["value"]).unwrap();
+        let text = sdlang_canon::canonical(&v["value"]).unwrap();
+        let digest = sdlang_canon::digest(&v["value"]).unwrap();
         if text != v["canonical"].as_str().unwrap() {
             wrong.push(format!("{name}: canonical {text} != {}", v["canonical"]));
         }
@@ -44,7 +44,7 @@ fn worked_hashes() {
         ("after", "examples/graph.after.json"),
     ] {
         let graph = read_json(file);
-        let got = intlang_canon::projections(&graph).unwrap();
+        let got = sdlang_canon::projections(&graph).unwrap();
         let want = expected[side].as_object().unwrap();
         assert_eq!(got.len(), want.len(), "{side}: declaration count");
         for (address, projections) in &got {
@@ -126,7 +126,7 @@ fn numbers_agree_with_the_python_reference() {
     let mut wrong = Vec::new();
     for (text, py) in texts.iter().zip(&python) {
         let value: Value = serde_json::from_str(text).unwrap();
-        let rust = intlang_canon::canonical(&value).unwrap();
+        let rust = sdlang_canon::canonical(&value).unwrap();
         if &rust != py {
             wrong.push(format!("{text}: rust {rust} python {py}"));
         }

@@ -1,14 +1,14 @@
-//! Where each managed declaration's outputs live and who produces them (SPEC.md, Kind
+//! Where each managed declaration's outputs live and who produces them (docs/spec.md, Kind
 //! definitions and Outputs): slots and creation roots from the declaration's package kind,
 //! from the one package that `implements` its core kind, or from its `use`'s binding.
 
 use std::collections::BTreeMap;
 
-use intlang_graph::loader::{Package, Project};
-use intlang_graph::schema::{package_kind, FieldType};
-use intlang_graph::scope::lit_text;
-use intlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
-use intlang_syntax::strings::Part;
+use sdlang_graph::loader::{Package, Project};
+use sdlang_graph::schema::{package_kind, FieldType};
+use sdlang_graph::scope::lit_text;
+use sdlang_syntax::ast::{Block, Exportable, Expr, MemberValue, Statement};
+use sdlang_syntax::strings::Part;
 use serde_json::Value;
 
 use crate::error::{PResult, PlanError};
@@ -128,7 +128,7 @@ fn meta(decl: &Value) -> (String, String) {
     (name.to_string(), module.replace('.', "/"))
 }
 
-/// Interpolates and normalises one template (SPEC.md, Kind definitions: substitution).
+/// Interpolates and normalises one template (docs/spec.md, Kind definitions: substitution).
 pub fn expand(
     template: &[Part],
     decl: &Value,
@@ -297,7 +297,7 @@ mod tests {
     use serde_json::json;
 
     fn parts(src: &str) -> Vec<Part> {
-        let file = intlang_syntax::parse(&format!("let t = \"{src}\"\n")).unwrap();
+        let file = sdlang_syntax::parse(&format!("let t = \"{src}\"\n")).unwrap();
         let Statement::Decl(d) = &file.statements[0] else {
             panic!()
         };

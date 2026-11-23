@@ -1,0 +1,3 @@
+# Text files use LF everywhere, so specs, fixtures and the hashes recorded over them
+# match on Windows checkouts too.
+* text=auto eol=lf

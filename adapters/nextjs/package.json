@@ -1,7 +1,7 @@
 {
-  "name": "@intlang/nextjs",
+  "name": "@sdlang/nextjs",
   "version": "0.1.0",
-  "description": "The int lang adapter for Next.js App Router projects: kinds, path templates, checks and generators",
+  "description": "The sdlang adapter for Next.js App Router projects: kinds, path templates, checks and generators",
   "license": "MIT OR Apache-2.0",
   "files": [
     "spec/",
@@ -15,10 +15,10 @@
   "scripts": {
     "test": "node --test test/*.test.js"
   },
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "nextjs",
-    "entry": "./spec/index.int",
+    "entry": "./spec/index.sd",
     "skills": {
       "app_router": "./skills/app_router.md"
     }

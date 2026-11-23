@@ -1,13 +1,13 @@
-//! Accepting a proposal: the proposed libs' `.int` files and the pending acquisitions
+//! Accepting a proposal: the proposed libs' `.sd` files and the pending acquisitions
 //! (`.spec/import.json`). A plan binds a commit, so the plan comes after these files are
-//! committed: `spec plan` reads the pending acquisitions and plans each as `create` with
+//! committed: `sdc plan` reads the pending acquisitions and plans each as `create` with
 //! strategy `acquire`, and publishing it removes it from the file.
 
 use std::fs;
 use std::path::Path;
 
-use intlang_plan::materialise::materialise;
-use intlang_plan::{pending_imports, write_pending_imports, Acquisition, PlanInputs};
+use sdlang_plan::materialise::materialise;
+use sdlang_plan::{pending_imports, write_pending_imports, Acquisition, PlanInputs};
 
 use crate::error::{AdResult, AdoptError};
 use crate::proposal::Proposal;
@@ -57,8 +57,8 @@ pub fn accept(root: &Path, p: &Proposal) -> AdResult<Accepted> {
         written.push(file);
     }
     let check = || -> AdResult<std::collections::BTreeMap<String, Acquisition>> {
-        let project = intlang_graph::loader::load(root).map_err(|e| AdoptError::new(e.render()))?;
-        let graph = intlang_graph::lower::lower_project(&project)
+        let project = sdlang_graph::loader::load(root).map_err(|e| AdoptError::new(e.render()))?;
+        let graph = sdlang_graph::lower::lower_project(&project)
             .map_err(|e| AdoptError::new(e.render()))?;
         let mats = materialise(&project, &graph)?;
         let mut pending = pending_imports(root)?;
@@ -79,7 +79,7 @@ pub fn accept(root: &Path, p: &Proposal) -> AdResult<Accepted> {
             pending.insert(address, a);
         }
         // The acquisitions must plan: every address managed, new and with real slots.
-        intlang_plan::plan(&PlanInputs {
+        sdlang_plan::plan(&PlanInputs {
             root,
             project: &project,
             graph: &graph,

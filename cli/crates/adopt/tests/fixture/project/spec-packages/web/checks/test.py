@@ -16,7 +16,7 @@ result = [{"case": c, "oracle": oracle, "instances": [{"key": "default", "attemp
 pairs = sorted([c, "default"] for c in cases)
 inventory = "sha256:" + hashlib.sha256(json.dumps(pairs, separators=(",", ":")).encode()).hexdigest()
 print(json.dumps({
-    "protocol": "intlang.check/1", "check": inp["check"], "snapshot": inp["snapshot"],
+    "protocol": "sdlang.check/1", "check": inp["check"], "snapshot": inp["snapshot"],
     "output": out["member"], "selection": "complete", "cases": result,
     "untagged": {"passed": 0, "failed": 0}, "inventory": inventory,
     "inputs": inp["inputs"], "profile": inp["profile"],

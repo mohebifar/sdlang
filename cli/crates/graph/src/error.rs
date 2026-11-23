@@ -3,8 +3,8 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use intlang_syntax::ast::Span;
-use intlang_syntax::{diagnostics, ParseError};
+use sdlang_syntax::ast::Span;
+use sdlang_syntax::{diagnostics, ParseError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphError {

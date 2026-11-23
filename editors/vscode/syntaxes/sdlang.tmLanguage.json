@@ -1,0 +1,388 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "sdlang",
+  "scopeName": "source.sdlang",
+  "fileTypes": [
+    "sd"
+  ],
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#declaration"
+    },
+    {
+      "include": "#definition"
+    },
+    {
+      "include": "#statement"
+    },
+    {
+      "include": "#annotation"
+    },
+    {
+      "include": "#key"
+    },
+    {
+      "include": "#value"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.double-slash.sdlang",
+      "match": "//.*$"
+    },
+    "string": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.sdlang",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sdlang"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sdlang"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.sdlang",
+              "match": "\\\\\"\"\""
+            },
+            {
+              "include": "#string-parts"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.sdlang",
+          "begin": "\"",
+          "end": "\"|$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sdlang"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sdlang"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.sdlang",
+              "match": "\\\\(?:[\"\\\\nt]|u\\{[0-9A-Fa-f]+\\})"
+            },
+            {
+              "include": "#string-parts"
+            }
+          ]
+        }
+      ]
+    },
+    "string-parts": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.sdlang",
+          "match": "@@\\{|\\$\\$\\{"
+        },
+        {
+          "name": "meta.mention.sdlang",
+          "match": "(@\\{)(self|[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)(\\})",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.sdlang"
+            },
+            "2": {
+              "name": "variable.other.mention.sdlang entity.name.function.sdlang"
+            },
+            "3": {
+              "name": "punctuation.section.embedded.end.sdlang"
+            }
+          }
+        },
+        {
+          "name": "meta.template.expression.sdlang",
+          "match": "(\\$\\{)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)(\\})",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.template-expression.begin.sdlang"
+            },
+            "2": {
+              "name": "variable.other.readwrite.sdlang"
+            },
+            "3": {
+              "name": "punctuation.definition.template-expression.end.sdlang"
+            }
+          }
+        }
+      ]
+    },
+    "declaration": {
+      "match": "^\\s*(?:(export)\\s+)?(?:(extern)\\s+)?(?!(?:import|export|extern|use|moved|let|type|kind|annotation|implements|project|stack|module)\\b)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:@|\\{))",
+      "captures": {
+        "1": {
+          "name": "storage.modifier.export.sdlang"
+        },
+        "2": {
+          "name": "storage.modifier.extern.sdlang"
+        },
+        "3": {
+          "name": "storage.type.kind.sdlang"
+        },
+        "4": {
+          "name": "entity.name.function.declaration.sdlang"
+        }
+      }
+    },
+    "definition": {
+      "patterns": [
+        {
+          "match": "^\\s*(?:(export)\\s+)?(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.export.sdlang"
+            },
+            "2": {
+              "name": "storage.type.let.sdlang"
+            },
+            "3": {
+              "name": "variable.other.constant.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(?:(export)\\s+)?(type)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.export.sdlang"
+            },
+            "2": {
+              "name": "storage.type.type.sdlang"
+            },
+            "3": {
+              "name": "entity.name.type.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(?:(export)\\s+)?(kind|annotation)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.export.sdlang"
+            },
+            "2": {
+              "name": "storage.type.$2.sdlang"
+            },
+            "3": {
+              "name": "entity.name.type.class.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(?:(export)\\s+)?(implements)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.export.sdlang"
+            },
+            "2": {
+              "name": "storage.type.implements.sdlang"
+            },
+            "3": {
+              "name": "support.class.kind.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(project)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.project.sdlang"
+            },
+            "2": {
+              "name": "entity.name.namespace.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(stack|module)\\s*(?=\\{)",
+          "captures": {
+            "1": {
+              "name": "storage.type.$1.sdlang"
+            }
+          }
+        }
+      ]
+    },
+    "statement": {
+      "patterns": [
+        {
+          "match": "^\\s*(import)\\s+(?:(module|package)\\b)?",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.sdlang"
+            },
+            "2": {
+              "name": "keyword.control.import.sdlang"
+            }
+          }
+        },
+        {
+          "match": "\\b(as)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.as.sdlang"
+            },
+            "2": {
+              "name": "entity.name.namespace.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(use)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.use.sdlang"
+            }
+          }
+        },
+        {
+          "match": "\\b(for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.for.sdlang"
+            },
+            "2": {
+              "name": "entity.name.namespace.sdlang"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(moved)(?:\\s+(module))?\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.moved.sdlang"
+            },
+            "2": {
+              "name": "keyword.control.moved.sdlang"
+            }
+          }
+        },
+        {
+          "name": "keyword.operator.arrow.sdlang",
+          "match": "->"
+        },
+        {
+          "name": "entity.name.tag.member.sdlang",
+          "match": "#(?:[A-Za-z_][A-Za-z0-9_]*)(?:\\.[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "annotation": {
+      "match": "(@)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.annotation.sdlang"
+        },
+        "2": {
+          "name": "entity.name.function.decorator.sdlang"
+        }
+      }
+    },
+    "key": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(:)",
+      "captures": {
+        "1": {
+          "name": "variable.other.property.sdlang support.type.property-name.sdlang"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.sdlang"
+        }
+      }
+    },
+    "value": {
+      "patterns": [
+        {
+          "name": "keyword.operator.word.sdlang",
+          "match": "\\b(?:select|where|and|or|not|exists|matches|in|contains)\\b"
+        },
+        {
+          "name": "storage.modifier.ref.sdlang",
+          "match": "\\bref\\b"
+        },
+        {
+          "name": "variable.language.sdlang",
+          "match": "\\b(?:self|meta)\\b"
+        },
+        {
+          "name": "constant.language.sdlang",
+          "match": "\\b(?:true|false|null|now)\\b"
+        },
+        {
+          "name": "support.type.primitive.sdlang",
+          "match": "\\b(?:string|number|integer|boolean|uuid|email|url|timestamp|date|json|route_path|template|secret|catalog)\\b"
+        },
+        {
+          "name": "support.class.kind.sdlang",
+          "match": "\\b(?:entity|action|lib|rule|environment|check|generator|observer|binding)\\b"
+        },
+        {
+          "name": "constant.numeric.sdlang",
+          "match": "-?\\b[0-9]+(?:\\.[0-9]+)?\\b"
+        },
+        {
+          "name": "entity.name.section.sdlang",
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\{)",
+          "captures": {
+            "1": {
+              "name": "entity.name.section.sdlang"
+            }
+          }
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.sdlang",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.sdlang",
+          "match": "[|?=*]"
+        },
+        {
+          "name": "punctuation.section.braces.sdlang",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.sdlang",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.parens.sdlang",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.separator.comma.sdlang",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.sdlang",
+          "match": "\\."
+        }
+      ]
+    }
+  }
+}

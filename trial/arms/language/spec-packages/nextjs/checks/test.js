@@ -1,4 +1,4 @@
-// Test check for @intlang/nextjs (check protocol, purpose "test"): runs Vitest on the one
+// Test check for @sdlang/nextjs (check protocol, purpose "test"): runs Vitest on the one
 // test output in the input, in the candidate, and reports per case (see vitest-cases.js).
 // SPEC_VITEST overrides the command (default: pnpm exec vitest).
 "use strict";

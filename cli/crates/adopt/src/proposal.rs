@@ -1,4 +1,4 @@
-//! The ownership mapping `spec import` proposes for the files it was pointed at. It claims
+//! The ownership mapping `sdc import` proposes for the files it was pointed at. It claims
 //! nothing else and never two owners for one file: a file two declarations could own is a
 //! collision, claimed by neither.
 
@@ -6,11 +6,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::Path;
 
-use intlang_apply::evidence::requirements;
-use intlang_graph::loader::Project;
-use intlang_plan::materialise::{materialise, Materialisation};
-use intlang_plan::state::{declarations, StateRecord, Store};
-use intlang_plan::Acquisition;
+use sdlang_apply::evidence::requirements;
+use sdlang_graph::loader::Project;
+use sdlang_plan::materialise::{materialise, Materialisation};
+use sdlang_plan::state::{declarations, StateRecord, Store};
+use sdlang_plan::Acquisition;
 use serde_json::{json, Value};
 
 use crate::error::{AdResult, AdoptError};
@@ -74,7 +74,7 @@ impl NewLib {
         self.exports.len() >= 2 && self.importing.len() >= 2
     }
 
-    /// The `.int` source `--accept` writes.
+    /// The `.sd` source `--accept` writes.
     pub fn source(&self) -> String {
         let mut s = format!("export lib {} {{\n", self.name);
         if self.with_path {
@@ -98,7 +98,7 @@ impl NewLib {
         } else {
             format!("spec/{}", self.module.replace('.', "/"))
         };
-        format!("{dir}/{}.int", self.name)
+        format!("{dir}/{}.sd", self.name)
     }
 }
 
@@ -244,9 +244,9 @@ fn candidates(
 
 /// Proposes a mapping for `paths` (files or directories, relative to `root`).
 pub fn propose(root: &Path, paths: &[String]) -> AdResult<Proposal> {
-    let project = intlang_graph::loader::load(root).map_err(|e| AdoptError::new(e.render()))?;
+    let project = sdlang_graph::loader::load(root).map_err(|e| AdoptError::new(e.render()))?;
     let graph =
-        intlang_graph::lower::lower_project(&project).map_err(|e| AdoptError::new(e.render()))?;
+        sdlang_graph::lower::lower_project(&project).map_err(|e| AdoptError::new(e.render()))?;
     let mats = materialise(&project, &graph)?;
     let records = Store::new(root).records()?;
     let scanned = scan(root)?;
@@ -261,7 +261,7 @@ pub fn propose(root: &Path, paths: &[String]) -> AdResult<Proposal> {
     let kind_inputs: BTreeSet<String> = mats
         .keys()
         .filter_map(|a| decls.get(a.as_str()))
-        .flat_map(|d| intlang_apply::checks::kind_inputs(&project, d))
+        .flat_map(|d| sdlang_apply::checks::kind_inputs(&project, d))
         .collect();
     let mut lib_files: Vec<String> = Vec::new();
     for path in &pointed {
@@ -492,7 +492,7 @@ fn bind_tests(
     Ok(())
 }
 
-/// The proposal as text for a reviewer, in the shape SPEC.md's walk-through shows.
+/// The proposal as text for a reviewer, in the shape docs/spec.md's walk-through shows.
 pub fn render(p: &Proposal) -> String {
     let mut s = String::new();
     for lib in &p.new_libs {
@@ -524,7 +524,7 @@ pub fn render(p: &Proposal) -> String {
         let _ = writeln!(
             s,
             "    + {}  {}   strategy: acquire",
-            intlang_apply::checks::kind_short(&c.kind),
+            sdlang_apply::checks::kind_short(&c.kind),
             address
         );
         for (slot, path) in &c.slots {
@@ -609,10 +609,10 @@ pub fn render(p: &Proposal) -> String {
         s.push_str("  nothing to claim\n");
     } else if p.acceptable() {
         let mut writes: Vec<String> = p.new_libs.iter().map(NewLib::file).collect();
-        writes.push(intlang_plan::PENDING_IMPORTS.to_string());
+        writes.push(sdlang_plan::PENDING_IMPORTS.to_string());
         let _ = writeln!(
             s,
-            "  accept with: spec import {} --accept  (writes {})",
+            "  accept with: sdc import {} --accept  (writes {})",
             p.paths.join(" "),
             writes.join(" and ")
         );

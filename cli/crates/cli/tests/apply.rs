@@ -1,4 +1,4 @@
-//! `spec plan` then `spec apply`, run as processes on the apply crate's toy project.
+//! `sdc plan` then `sdc apply`, run as processes on the apply crate's toy project.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -41,7 +41,7 @@ fn git(dir: &Path, args: &[&str]) {
 }
 
 fn spec(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_spec"))
+    Command::new(env!("CARGO_BIN_EXE_sdc"))
         .current_dir(dir)
         .args(args)
         .output()
@@ -155,7 +155,7 @@ fn agents_use_the_mcp_server() {
         .find(|s| s["get_task"]["subjects"][0]["address"] == "hello")
         .unwrap();
     assert_eq!(hello["tools"].as_array().unwrap().len(), 6);
-    assert_eq!(hello["initialize"]["serverInfo"]["name"], "spec");
+    assert_eq!(hello["initialize"]["serverInfo"]["name"], "sdc");
     assert_eq!(
         hello["get_task"]["subjects"][0]["obligations"],
         serde_json::json!(["verify", "review"])
@@ -166,18 +166,31 @@ fn agents_use_the_mcp_server() {
         .starts_with("sha256:"));
     assert_eq!(hello["missing"]["error"], "not_found");
     assert_eq!(hello["validate"]["valid"], true, "{}", hello["validate"]);
-    assert_eq!(hello["validate_with_rogue"]["valid"], false);
-    let bare = &hello["validate_bare_output"];
-    assert_eq!(bare["valid"], false, "{bare}");
+    // A file outside the subject is allowed, with a note; the spec is protected.
+    let rogue = &hello["validate_with_rogue"];
+    assert_eq!(rogue["valid"], true, "{rogue}");
     assert!(
-        bare["problems"][0]["message"]
+        rogue["notes"][0]
             .as_str()
-            .is_some_and(|m| m.contains("hello#outputs.tests")),
-        "{bare}"
+            .is_some_and(|n| n.contains("rogue.txt")),
+        "{rogue}"
     );
+    let spec_write = &hello["validate_with_spec"];
+    assert_eq!(spec_write["valid"], false, "{spec_write}");
+    assert_eq!(spec_write["problems"][0]["stage"], "protected");
+    // Short names resolve; a name that resolves to nothing lists the requirements.
     assert_eq!(
-        hello["validate_with_rogue"]["problems"][0]["stage"],
-        "envelope"
+        hello["validate_short"]["valid"], true,
+        "{}",
+        hello["validate_short"]
+    );
+    let unknown = &hello["validate_unknown"];
+    assert_eq!(unknown["valid"], false, "{unknown}");
+    assert!(
+        unknown["problems"][0]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("hello#expect.greets")),
+        "{unknown}"
     );
     assert_eq!(
         hello["self_check"]["result"], "passed",

@@ -1,11 +1,11 @@
-//! `spec check` on the toy project apply's tests use: applied end to end, then edited.
+//! `sdc check` on the toy project apply's tests use: applied end to end, then edited.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use intlang_apply::{apply, ApplyOptions};
-use intlang_gate::{check, CheckOptions, Finding};
+use sdlang_apply::{apply, ApplyOptions};
+use sdlang_gate::{check, CheckOptions, Finding};
 
 fn fixture(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -57,10 +57,10 @@ fn applied(name: &str) -> PathBuf {
     git(&root, &["init", "-q"]);
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-q", "-m", "baseline"]);
-    let project = intlang_graph::loader::load(&root).unwrap();
-    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let project = sdlang_graph::loader::load(&root).unwrap();
+    let graph = sdlang_graph::lower::lower_project(&project).unwrap();
     let head = format!("git:{}", git(&root, &["rev-parse", "HEAD"]).trim());
-    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+    let plan = sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root: &root,
         project: &project,
         graph: &graph,
@@ -161,7 +161,7 @@ fn a_hand_edit_is_drift_and_stales_the_closure() {
 #[test]
 fn a_spec_edit_is_unapplied_and_its_evidence_is_not_reported() {
     let root = applied("unapplied");
-    let app = root.join("spec/app.int");
+    let app = root.join("spec/app.sd");
     let text = fs::read_to_string(&app).unwrap();
     fs::write(&app, text.replace("says hello", "says hello twice")).unwrap();
     let findings = check(&CheckOptions::new(root)).unwrap();

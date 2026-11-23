@@ -24,7 +24,7 @@ index 2cf13ee..0000000
 -  return (
 -    <main>
 -      <h1>About this app</h1>
--      <p>Built for the int lang trial.</p>
+-      <p>Built for the sdlang trial.</p>
 -      <p>This is a small task tracker: add tasks, see them listed, and complete them.</p>
 -      <p>
 -        It keeps tasks in memory, so they are gone after a restart.{" "}
@@ -87,9 +87,9 @@ index 9fe37dd..0000000
 -  expect(nodes.some((n) => n.tag === "a" && n.props.href === "/todo")).toBe(true);
 -});
 -
--it("[case:trial_note] the page says 'Built for the int lang trial.'", () => {
+-it("[case:trial_note] the page says 'Built for the sdlang trial.'", () => {
 -  const { nodes } = render(AboutPage());
--  expect(nodes.some((n) => n.tag === "p" && n.text === "Built for the int lang trial.")).toBe(true);
+-  expect(nodes.some((n) => n.tag === "p" && n.text === "Built for the sdlang trial.")).toBe(true);
 -});
 diff --git a/tests/app/todo/page.test.ts b/tests/app/todo/page.test.ts
 index 079e9f6..a964569 100644

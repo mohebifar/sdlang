@@ -1,0 +1,111 @@
+{
+  "name": "sdlang",
+  "displayName": "sdlang",
+  "description": "Syntax highlighting and language support for sdlang (.sd) specs: diagnostics, go to definition, references, hover, completion, rename and more, via `sdc lsp`.",
+  "version": "0.1.0",
+  "publisher": "sdlang",
+  "license": "MIT OR Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "sdlang",
+    "spec-driven",
+    "sdc",
+    "lsp"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "sdlang",
+        "aliases": [
+          "sdlang"
+        ],
+        "extensions": [
+          ".sd"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sdlang",
+        "scopeName": "source.sdlang",
+        "path": "./syntaxes/sdlang.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.sdlang.codeblock",
+        "path": "./syntaxes/sdlang.markdown.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.sdlang": "sdlang"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "sdlang",
+      "properties": {
+        "sdlang.server.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `sdc` binary. Empty: the project's `@sdlang/cli` from `node_modules`, then `cli/target/release/sdc` or `cli/target/debug/sdc` in the workspace, then `sdc` on `PATH`."
+        },
+        "sdlang.server.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "lsp"
+          ],
+          "description": "Arguments that start the language server."
+        },
+        "sdlang.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Log the messages between VS Code and the language server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "sdlang.restartServer",
+        "title": "Restart Language Server",
+        "category": "sdlang"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap",
+    "watch": "npm run build -- --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node test/grammar.test.mjs",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license",
+    "vscode:prepublish": "npm run build",
+    "test:e2e": "npm run build && node test/e2e/run.mjs"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "~1.85.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.1.0"
+  }
+}

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Throwaway checker for GRAMMAR.ebnf.
+"""Throwaway checker for docs/grammar.ebnf.
 
-A hand-written lexer and recursive-descent parser that mirrors GRAMMAR.ebnf
+A hand-written lexer and recursive-descent parser that mirrors docs/grammar.ebnf
 production by production. It checks that:
 
-  * every ```spec block in SPEC.md parses as a complete File;
-  * every ```json block in SPEC.md is valid JSON;
+  * every ```spec block in docs/spec.md parses as a complete File;
+  * every ```json block in docs/spec.md is valid JSON;
   * a set of built-in negative cases is rejected.
 
   * every protocol example in examples/ validates against schemas/, its binding
     hash is recomputable, and replies echo their orders (needs `pip install jsonschema`).
 
-Usage: python3 tools/check_examples.py [SPEC.md ...]
+Usage: python3 tools/check_examples.py [docs/spec.md ...]
 Exit status is non-zero if anything fails.
 """
 import copy
@@ -48,7 +48,7 @@ class Tok:
 # ----------------------------------------------------------------- lexer
 
 def scan_string_parts(body, line, prose):
-    """Ordered string scanning per GRAMMAR.ebnf; returns list of parts."""
+    """Ordered string scanning per docs/grammar.ebnf; returns list of parts."""
     parts, i, text = [], 0, []
     while i < len(body):
         if body.startswith("@@{", i) or body.startswith("$${", i):
@@ -579,7 +579,7 @@ SCHEMA_EXAMPLES = [
     ("check#test_result", "examples/check.test-result.json"),
 ]
 
-_R = {"schema": "intlang.result/1", "dispatch": "p-1/r1/tx-1/1",
+_R = {"schema": "sdlang.result/1", "dispatch": "p-1/r1/tx-1/1",
       "order_hash": "sha256:" + "0" * 64, "summary": "s"}
 _EVID = {"references": ["ctx:code:000000000000"], "attempted": "read the stack and lock"}
 
@@ -597,6 +597,8 @@ GOOD_RESULTS = {
         "subject": {"target": "auth.login", "requirement": "auth.login#expect.busy_button"},
         "kind": "not_automatable", "reason": "layout overlap only visible at 320px in Safari",
         "artifacts": ["src/app/login/_parts/evidence/before.png"]}]),
+    "empty result": {},
+    "binding by short names": {"tests": [{"requirement": "same_message", "tests": [{"output": "tests", "case": "says_same"}]}]},
 }
 
 # Result files the result schema must reject.
@@ -604,9 +606,8 @@ BAD_RESULTS = {
     "blocked without blocked object": dict(_R, status="blocked"),
     "submitted with blocked object": dict(_R, status="submitted", blocked={
         "kind": "environment", "problem": "registry down", "evidence": _EVID}),
-    "positional requirement id": dict(_R, status="submitted", tests=[{
-        "subject": {"target": "auth.login", "requirement": "auth.login#e1"},
-        "tests": [{"output": "auth.login#outputs.tests", "case": "c"}]}]),
+    "binding with no tests": {"tests": [{"requirement": "same_message"}]},
+    "binding with no requirement": {"tests": [{"tests": [{"case": "c"}]}]},
     "regression with test and reason": dict(_R, status="submitted", regression=[{
         "subject": {"target": "a.b", "requirement": "a.b#expect.c"},
         "kind": "automated", "tests": [{"output": "a.b#outputs.tests", "case": "c"}], "reason": "x"}]),
@@ -670,9 +671,9 @@ def check_graphs(before, after, plan):
     nested = copy.deepcopy(before)
     nested["modules"].append({"path": "auth.child", "imports": []})
     nested["declarations"].append({"address": "auth.child.page", "module": "auth.child",
-        "kind": "npm:@intlang/nextjs::page", "sort": "managed", "exported": False,
+        "kind": "npm:@sdlang/nextjs::page", "sort": "managed", "exported": False,
         "fields": {"route": "/child"}, "members": {}, "edges": [], "lifecycle": "managed",
-        "source": {"file": "spec/auth/child/page.int", "line": 1}})
+        "source": {"file": "spec/auth/child/page.sd", "line": 1}})
     nested_variant = copy.deepcopy(nested)
     for m in nested_variant["modules"]:
         if m["path"] == "auth":
@@ -732,7 +733,7 @@ def check_schemas():
     wo, rs, ro, rv = (docs[k] for k in ("work-order", "result", "review-order", "review-verdict"))
     # Check protocol: pairs of input and result, checked against the adapter's declared rules.
     graph = {x["address"]: x for x in docs["examples/graph.after.json"]["declarations"]}
-    rules = adapter_rules("examples/nextjs-adapter.int", "conformance")
+    rules = adapter_rules("examples/nextjs-adapter.sd", "conformance")
     ci, cr = docs["examples/check.input.json"], docs["examples/check.conformance-result.json"]
     ti, tr = docs["examples/check.test-input.json"], docs["examples/check.test-result.json"]
     failures += conformance_pair_problems(ci, cr, rules, graph)
@@ -849,13 +850,13 @@ def main(argv):
             failures.append(f"positive case rejected: {name}: {e}")
     total = {"spec": 0, "json": 0}
     import glob
-    for path in sorted(glob.glob("examples/*.int")):
+    for path in sorted(glob.glob("examples/*.sd")):
         total["spec"] += 1
         try:
             parse(open(path).read())
         except ParseError as e:
             failures.append(f"{path}: {e}")
-    for path in argv or ["SPEC.md", "PROTOCOL.md", "EXTENSIONS.md", "TRIAL.md"]:
+    for path in argv or ["docs/spec.md", "docs/protocol.md", "docs/extensions.md", "docs/trial.md"]:
         count, f = check_spec_md(path)
         failures += f
         for k in total:

@@ -7,7 +7,7 @@ import { test } from "@playwright/test";
 const arm = process.env.ARM;
 if (!arm) throw new Error("set ARM to the arm's project directory");
 
-/** The operator's route map for the current edit (TRIAL.md: the index moves at E7). */
+/** The operator's route map for the current edit (docs/trial.md: the index moves at E7). */
 export const routes: { index: string; new: string; about: string } = JSON.parse(
   process.env.ROUTES ?? '{"index":"/tasks","new":"/tasks/new","about":"/about"}',
 );

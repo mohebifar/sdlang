@@ -1,4 +1,4 @@
-//! Loads an int lang spec tree and its packages, resolves names and lowers the result to
+//! Loads an sdlang spec tree and its packages, resolves names and lowers the result to
 //! the canonical graph (`schemas/graph.schema.json`).
 
 #![forbid(unsafe_code)]

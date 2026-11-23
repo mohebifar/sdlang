@@ -1,11 +1,11 @@
-//! `spec hash`, run as a process.
+//! `sdc hash`, run as a process.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn spec(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_spec"))
+    Command::new(env!("CARGO_BIN_EXE_sdc"))
         .args(args)
         .output()
         .unwrap()

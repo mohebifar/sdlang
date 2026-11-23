@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intlang.dev/schemas/mcp-tools.schema.json",
+  "$id": "https://sdlang.dev/schemas/mcp-tools.schema.json",
   "title": "MCP tool surface",
-  "description": "Input and output schemas of the tools `spec mcp --dispatch <id>` serves. Every tool is scoped to one dispatch and its bound snapshot. Only run_self_check executes code.",
+  "description": "Input and output schemas of the tools `sdc mcp --dispatch <id>` serves. Every tool is scoped to one dispatch and its bound snapshot. Only run_self_check executes code.",
   "$defs": {
     "get_task.input": {
       "type": "object",

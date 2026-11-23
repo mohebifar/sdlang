@@ -1,6 +1,6 @@
-//! `spec import`, brownfield adoption (SPEC.md, Brownfield adoption): proposes an
+//! `sdc import`, brownfield adoption (docs/spec.md, Brownfield adoption): proposes an
 //! ownership mapping for existing files, and on acceptance writes the proposed libs and the
-//! pending acquisitions that the next `spec plan` turns into `create` with strategy
+//! pending acquisitions that the next `sdc plan` turns into `create` with strategy
 //! `acquire`.
 
 #![forbid(unsafe_code)]

@@ -1,7 +1,0 @@
-{
-  "lock": "intlang.lock/0",
-  "note": "Phase-3 stand-in for spec.lock (open item O.5): package identities and where their content is.",
-  "packages": [
-    { "id": "npm:@intlang/nextjs", "path": "spec-packages/nextjs" }
-  ]
-}

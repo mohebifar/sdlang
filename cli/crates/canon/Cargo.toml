@@ -1,6 +1,6 @@
 [package]
-name = "intlang-canon"
-description = "Canonical JSON, digests and declaration projections for int lang"
+name = "sdlang-canon"
+description = "Canonical JSON, digests and declaration projections for sdlang"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

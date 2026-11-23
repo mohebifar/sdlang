@@ -40,7 +40,7 @@ fn diff(path: &str, got: &Value, want: &Value, out: &mut Vec<String>) {
 }
 
 fn check(side: &str) {
-    let mut got = intlang_graph::build(&repo(&format!("examples/worked/{side}")))
+    let mut got = sdlang_graph::build(&repo(&format!("examples/worked/{side}")))
         .unwrap_or_else(|e| panic!("{}", e.render()));
     let mut want = read_json(&format!("examples/graph.{side}.json"));
     // The lock digest's input format is open (O.5); everything else must match.
@@ -70,8 +70,8 @@ fn worked_after() {
 fn projections() {
     let hashes = read_json("examples/hashes.json");
     for side in ["before", "after"] {
-        let graph = intlang_graph::build(&repo(&format!("examples/worked/{side}"))).unwrap();
-        let got = intlang_canon::projections(&graph).unwrap();
+        let graph = sdlang_graph::build(&repo(&format!("examples/worked/{side}"))).unwrap();
+        let got = sdlang_canon::projections(&graph).unwrap();
         for (address, p) in got {
             assert_eq!(p.to_value(), hashes[side][&address], "{side} {address}");
         }

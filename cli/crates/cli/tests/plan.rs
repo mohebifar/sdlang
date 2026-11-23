@@ -1,4 +1,4 @@
-//! `spec plan`, run as a process on a copy of the worked example.
+//! `sdc plan`, run as a process on a copy of the worked example.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,7 +54,7 @@ fn project(name: &str, commit: bool) -> PathBuf {
 }
 
 fn spec(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_spec"))
+    Command::new(env!("CARGO_BIN_EXE_sdc"))
         .current_dir(dir)
         .args(args)
         .output()
@@ -97,7 +97,7 @@ fn json_prints_instead_of_writing() {
         String::from_utf8_lossy(&out.stderr)
     );
     let plan: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(plan["schema"], "intlang.plan/1");
+    assert_eq!(plan["schema"], "sdlang.plan/1");
     assert!(plan["plan"].as_str().unwrap().starts_with("p-"));
     assert!(!root.join("plan.json").exists());
 }
@@ -106,7 +106,7 @@ fn json_prints_instead_of_writing() {
 fn outside_git_is_a_usage_error() {
     let root = project("plan-cli-nogit", false);
     // Stop git from finding this repository above the temporary directory.
-    let out = Command::new(env!("CARGO_BIN_EXE_spec"))
+    let out = Command::new(env!("CARGO_BIN_EXE_sdc"))
         .current_dir(&root)
         .env("GIT_CEILING_DIRECTORIES", root.parent().unwrap())
         .arg("plan")

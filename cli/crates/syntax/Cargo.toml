@@ -1,6 +1,6 @@
 [package]
-name = "intlang-syntax"
-description = "Lexer and parser for int lang (.int) source"
+name = "sdlang-syntax"
+description = "Lexer and parser for sdlang (.sd) source"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

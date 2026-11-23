@@ -68,7 +68,7 @@ for s in order["subjects"]:
         if bound:
             tests.append({"subject": r["subject"], "tests": bound})
 
-result = {"schema": "intlang.result/1", "dispatch": order["dispatch"],
+result = {"schema": "sdlang.result/1", "dispatch": order["dispatch"],
           "order_hash": order["binding"]["order_hash"], "status": "submitted",
           "summary": "Made the subjects' outputs equal to the reference.", "outputs": outputs, "tests": tests}
 os.makedirs(os.path.dirname(os.environ["SPEC_RESULT"]), exist_ok=True)

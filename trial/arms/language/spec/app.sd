@@ -1,0 +1,16 @@
+import nextjs
+
+project tasks_app {
+  summary: "A small task tracker used to trial sdlang"
+  verify: "tested"
+  prompt: """
+    Server-render by default. Plain English, sentence case.
+  """
+}
+
+stack {
+  language: { name: "typescript" }
+  runtime: { name: "nodejs", version: "22" }
+  framework: { name: "nextjs", version: "15" }
+  package_manager: { name: "pnpm" }
+}

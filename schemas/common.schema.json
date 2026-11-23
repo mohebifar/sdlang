@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intlang.dev/schemas/common.schema.json",
-  "title": "Shared definitions for intlang protocol files",
+  "$id": "https://sdlang.dev/schemas/common.schema.json",
+  "title": "Shared definitions for sdlang protocol files",
   "$defs": {
     "digest": {
       "description": "A full content digest with its algorithm, or a git object id.",

@@ -1,6 +1,6 @@
 //! Compatibility of a change to a consumed public projection, computed from the old and
-//! new canonical documents without package code (SPEC.md, Packages -> Compatibility;
-//! EXTENSIONS.md, Entity changes).
+//! new canonical documents without package code (docs/spec.md, Packages -> Compatibility;
+//! docs/extensions.md, Entity changes).
 
 use serde_json::{Map, Value};
 

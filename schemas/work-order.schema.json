@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intlang.dev/schemas/work-order.schema.json",
+  "$id": "https://sdlang.dev/schemas/work-order.schema.json",
   "title": "Work order",
   "description": "One coding dispatch inside one transaction. Written by the CLI into the protocol area; read-only to the agent. A coordinated transaction (an ordering cycle) has several subjects; otherwise exactly one.",
   "type": "object",
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "intlang.work-order/1"
+      "const": "sdlang.work-order/1"
     },
     "dispatch": {
       "$ref": "common.schema.json#/$defs/dispatch"

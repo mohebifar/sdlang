@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://intlang.dev/schemas/check.schema.json",
+  "$id": "https://sdlang.dev/schemas/check.schema.json",
   "title": "Check protocol",
   "description": "How the CLI runs a conformance or test check and what it returns. The check's argv runs without a shell, reads one input document on stdin and writes one result document on stdout, then exits 0. Any other exit, or a result that fails this schema, is an infrastructure error. Build checks do not use this protocol: they pass on exit 0.",
   "$defs": {
@@ -40,7 +40,7 @@
       ],
       "properties": {
         "protocol": {
-          "const": "intlang.check/1"
+          "const": "sdlang.check/1"
         },
         "check": {
           "$ref": "#/$defs/check_ref"
@@ -247,7 +247,7 @@
       ],
       "properties": {
         "protocol": {
-          "const": "intlang.check/1"
+          "const": "sdlang.check/1"
         },
         "check": {
           "$ref": "#/$defs/check_ref"
@@ -314,7 +314,7 @@
       ],
       "properties": {
         "protocol": {
-          "const": "intlang.check/1"
+          "const": "sdlang.check/1"
         },
         "check": {
           "$ref": "#/$defs/check_ref"

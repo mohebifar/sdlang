@@ -1,8 +1,11 @@
 //! External commands (agents, reviewers, checks, generators) run in their own process
 //! group, with stdin, captured output and a time limit. When a command exits or times out,
-//! its whole group is stopped, so nothing it started keeps running.
+//! its whole group is stopped, so nothing it started keeps running. On Windows, which has
+//! no process groups, the command's process tree is stopped with `taskkill /T` instead;
+//! shell lines still run with `sh -c`, which Git for Windows provides.
 
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -34,6 +37,7 @@ pub enum Program<'a> {
 /// SIGKILL to the process group `pid` leads, by kill(2) rather than the kill command: its
 /// handling of a negative pid differs between implementations, and procps-ng 4.0.2's, in
 /// Debian bookworm, killed its caller when the group had already exited.
+#[cfg(unix)]
 fn kill_group(pid: u32) {
     let Some(pid) = i32::try_from(pid)
         .ok()
@@ -43,6 +47,18 @@ fn kill_group(pid: u32) {
         return;
     };
     let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
+}
+
+/// Stops the process tree `pid` leads. Windows finds the tree through parent ids, so
+/// processes whose parent has already exited are not reached.
+#[cfg(windows)]
+fn kill_group(pid: u32) {
+    let _ = Command::new("taskkill")
+        .args(["/T", "/F", "/PID", &pid.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
 }
 
 /// Runs `program` in `cwd`. `capture` false passes stdout and stderr through to ours.
@@ -77,8 +93,9 @@ pub fn run(
     command
         .current_dir(cwd)
         .envs(env.iter().map(|(k, v)| (*k, v.as_str())))
-        .stdin(Stdio::piped())
-        .process_group(0);
+        .stdin(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
     if capture {
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
     } else {
@@ -142,6 +159,7 @@ pub fn run(
         }
     };
     // Stop anything the command left behind in its group.
+    #[cfg(unix)]
     kill_group(pid);
     let _ = writer.join();
     Ok(Finished {

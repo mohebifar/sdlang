@@ -1,0 +1,141 @@
+import package "./spec-packages/rust" as rust
+import syntax
+import canon
+import graph
+import plan
+import apply
+import gate
+import adopt
+import lsp
+
+module {
+  summary: "The sdc binary: argument parsing and commands"
+  prompt: """
+    One clap derive struct per command. Exit 0 on success, 1 when the input is wrong
+    (parse errors, findings), 2 for usage or internal errors. Machine output (--json)
+    goes to stdout; diagnostics go to stderr.
+  """
+}
+
+export rust.binary spec {
+  summary: "The sdc binary's entry point"
+  uses: [parse, hash, graph_command, plan_command, apply_command, mcp_command, check_command, import_command, lsp_command]
+  expect {
+    help: "sdc --help lists every command with a one-line description"
+    version: "sdc --version prints the crate version"
+  }
+}
+
+export rust.command parse {
+  name: "parse"
+  summary: "Parses .sd files and reports syntax errors"
+  uses: [syntax.parser, syntax.diagnostics]
+  prompt: """
+    Takes files and directories, recursing into directories for *.sd files in a
+    stable order. Stops reporting a file at its first error but checks every file.
+  """
+  expect {
+    ok: "when every file parses, it exits 0 and prints 'parsed N files'"
+    error: "a syntax error exits 1 and prints the file, line, column, what was expected and what was found"
+    json: "with --json it prints one JSON object per line: the file path and either its tree or its error"
+    missing: "a path that does not exist exits 2"
+  }
+}
+
+export rust.command hash {
+  name: "hash"
+  summary: "Prints the canonical JSON or digest of a JSON file, or the projection hashes of a graph"
+  uses: [canon.canonical_json, canon.projections]
+  expect {
+    digest: "given a JSON file, it prints the digest of its canonical JSON and exits 0"
+    canonical: "with --canonical it prints the canonical JSON text instead"
+    graph: "with --graph it prints, as JSON, each declaration's projection hashes keyed by address"
+    invalid: "a file that is not valid JSON, or holds a non-finite number, exits 1 with the reason"
+  }
+}
+
+export rust.command graph_command {
+  name: "graph"
+  summary: "Lowers a project's spec tree to the canonical graph and prints it as JSON"
+  uses: [graph.loader, graph.lower]
+  expect {
+    prints: "given a project directory, it prints the graph as JSON and exits 0"
+    default_dir: "with no directory it uses the current one"
+    error: "a resolution or schema error exits 1 and prints the file, line, column and reason"
+  }
+}
+
+
+export rust.command plan_command {
+  name: "plan"
+  summary: "Plans a project's change from its spec, state and files and writes plan.json"
+  uses: [graph.loader, graph.lower, plan.planner]
+  prompt: """
+    Prints the plan as docs/spec.md's worked example does: spec changes, obligations,
+    blocked declarations, transactions in order and the cost line. Writes the plan
+    document to plan.json in the project, or to --out.
+  """
+  expect {
+    writes: "given a project directory, it writes plan.json, prints the summary and exits 0"
+    json: "with --json it prints the plan document to stdout instead of writing it"
+    id: "--id sets the plan id; the default is p-<UTC date>-<nn>, the first number of the day with no journal"
+    baseline: "the baseline commit is the project's git HEAD; outside a git work tree it exits 2"
+    error: "a graph error exits 1 with its location"
+    adopt: "--adopt <path> resolves that drifted file with adopt; a path that is not drifted exits 1"
+  }
+}
+
+export rust.command apply_command {
+  name: "apply"
+  summary: "Applies plan.json transaction by transaction with an agent and a reviewer command"
+  uses: [plan.planner, apply.engine]
+  expect {
+    runs: "given --agent and --reviewer commands, it applies the plan, prints one line per transaction and exits 0 when every transaction published"
+    partial: "when any transaction fails or is skipped it exits 1, listing why"
+    refuses: "a plan whose binding no longer matches exits 1 naming the first mismatch"
+  }
+}
+
+export rust.command mcp_command {
+  name: "mcp"
+  summary: "Serves the MCP tools of one dispatch on stdio"
+  uses: [apply.mcp]
+  expect {
+    serves: "sdc mcp --dispatch <id>, run in the candidate, answers MCP requests on stdin and stdout until stdin closes"
+    unknown: "a dispatch with no protocol area exits 2"
+  }
+}
+
+export rust.command check_command {
+  name: "check"
+  summary: "Reports whether the branch is consistent: spec applied, no drift, sound ownership, current evidence"
+  uses: [gate.findings, gate.rerun]
+  expect {
+    ok: "a consistent project exits 0 and prints 'consistent'"
+    findings: "findings print one per line as kind, address or path, and detail, and exit 1"
+    allow: "--allow <kind>, repeatable, reports that kind without failing"
+    strict: "--strict makes unspecified fail"
+    json: "--json prints the findings as a JSON array"
+    rerun: "--rerun also reruns the test runs evidence relies on"
+  }
+}
+
+export rust.command import_command {
+  name: "import"
+  summary: "Proposes an ownership mapping for existing files, and with --accept writes it and an acquire plan"
+  uses: [adopt.proposal, adopt.accept]
+  expect {
+    proposes: "sdc import <paths> prints the proposal and exits 0 without writing anything"
+    accept: "--accept writes the proposed lib files and .spec/import.json, and says to commit them, then plan and apply"
+    collision: "a proposal with a collision exits 1 under --accept"
+  }
+}
+
+export rust.command lsp_command {
+  name: "lsp"
+  summary: "Serves the language server protocol on stdio, for editors"
+  uses: [lsp.lsp]
+  expect {
+    serves: "sdc lsp answers an initialize request on stdin and serves until shutdown and exit"
+  }
+}

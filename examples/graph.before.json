@@ -1,5 +1,5 @@
 {
-  "schema": "intlang.graph/1",
+  "schema": "sdlang.graph/1",
   "lock": "sha256:a1fb0acaed325d931b00a0ff7222ded44b598ae0beb4605c7e327e218b15356d",
   "modules": [
     {
@@ -7,7 +7,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intlang/nextjs"
+          "source": "package:npm:@sdlang/nextjs"
         },
         {
           "alias": "auth",
@@ -31,7 +31,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intlang/nextjs"
+          "source": "package:npm:@sdlang/nextjs"
         },
         {
           "alias": "dashboard",
@@ -48,7 +48,7 @@
       "imports": [
         {
           "alias": "nextjs",
-          "source": "package:npm:@intlang/nextjs"
+          "source": "package:npm:@sdlang/nextjs"
         },
         {
           "alias": "core",
@@ -75,7 +75,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 4
       }
     },
@@ -89,7 +89,7 @@
         "applies_to": {
           "$select": {
             "kinds": [
-              "npm:@intlang/nextjs::page"
+              "npm:@sdlang/nextjs::page"
             ],
             "where": "route matches \"/app/**\""
           }
@@ -114,14 +114,14 @@
         }
       ],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 23
       }
     },
     {
       "address": "auth.login",
       "module": "auth",
-      "kind": "npm:@intlang/nextjs::page",
+      "kind": "npm:@sdlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -200,7 +200,7 @@
         }
       ],
       "source": {
-        "file": "spec/auth/login.int",
+        "file": "spec/auth/login.sd",
         "line": 4
       }
     },
@@ -253,14 +253,14 @@
         }
       ],
       "source": {
-        "file": "spec/auth/login.int",
+        "file": "spec/auth/login.sd",
         "line": 20
       }
     },
     {
       "address": "auth.signup",
       "module": "auth",
-      "kind": "npm:@intlang/nextjs::page",
+      "kind": "npm:@sdlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -271,7 +271,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/auth/signup.int",
+        "file": "spec/auth/signup.sd",
         "line": 3
       }
     },
@@ -289,7 +289,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 19
       }
     },
@@ -351,7 +351,7 @@
         }
       ],
       "source": {
-        "file": "spec/core/workspace.int",
+        "file": "spec/core/workspace.sd",
         "line": 1
       },
       "annotations": [
@@ -377,7 +377,7 @@
     {
       "address": "dashboard.home",
       "module": "dashboard",
-      "kind": "npm:@intlang/nextjs::page",
+      "kind": "npm:@sdlang/nextjs::page",
       "sort": "managed",
       "exported": true,
       "fields": {
@@ -430,7 +430,7 @@
         }
       ],
       "source": {
-        "file": "spec/dashboard/home.int",
+        "file": "spec/dashboard/home.sd",
         "line": 4
       },
       "applies": [
@@ -462,7 +462,7 @@
         }
       ],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 20
       }
     },
@@ -500,7 +500,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 12
       }
     },
@@ -518,7 +518,7 @@
       "lifecycle": "managed",
       "edges": [],
       "source": {
-        "file": "spec/app.int",
+        "file": "spec/app.sd",
         "line": 21
       }
     }
@@ -548,7 +548,7 @@
     "core:use": {
       "interface": "all"
     },
-    "npm:@intlang/nextjs::page": {
+    "npm:@sdlang/nextjs::page": {
       "interface": [
         "route"
       ]

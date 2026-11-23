@@ -1,4 +1,4 @@
-// Runs the acceptance tests active at one edit against one arm's tree (TRIAL.md,
+// Runs the acceptance tests active at one edit against one arm's tree (docs/trial.md,
 // Acceptance tests): builds the arm with `next build`, runs the active UI tests
 // (Playwright, a fresh `next start` per file) and contract tests (Vitest), and writes a
 // summary with one outcome per test id. Whatever the build generates in the arm's tree is

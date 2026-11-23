@@ -1,6 +1,6 @@
 //! String literals: parts, escapes, mentions, interpolations and prose dedent.
 //!
-//! Scanning follows GRAMMAR.ebnf's ordered state machine. Inside a literal, at each
+//! Scanning follows docs/grammar.ebnf's ordered state machine. Inside a literal, at each
 //! position: the closing delimiter (handled by the lexer), a literal opener (`@@{`,
 //! `$${`), a mention (`@{path}`) or interpolation (`${word}`), an escape, and finally
 //! one character of text.
@@ -209,7 +209,7 @@ fn scan_parts(body: &str, prose: bool) -> Result<Vec<Part>, StringError> {
     Ok(parts)
 }
 
-/// Prose dedent per GRAMMAR.ebnf. A literal whose opening delimiter is directly
+/// Prose dedent per docs/grammar.ebnf. A literal whose opening delimiter is directly
 /// followed by a line break is a block literal; any other is returned unchanged.
 pub fn dedent(raw: &str) -> Result<String, StringError> {
     let Some(body) = raw.strip_prefix('\n') else {

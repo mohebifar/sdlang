@@ -1,4 +1,4 @@
-//! `spec check`, the read-only gate (SPEC.md, Team workflow): whether the spec is applied,
+//! `sdc check`, the read-only gate (docs/spec.md, Team workflow): whether the spec is applied,
 //! owned files match state, ownership is sound and evidence is current. It runs no agent
 //! and writes nothing in the project.
 

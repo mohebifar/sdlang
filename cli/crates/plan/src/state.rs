@@ -1,11 +1,11 @@
 //! State records (`.spec/state/<address>.json`) and the applied store
-//! (`.spec/applied/<hex>.json`), as SPEC.md's State record defines them.
+//! (`.spec/applied/<hex>.json`), as docs/spec.md's State record defines them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use intlang_canon::{canonical, digest, digest_bytes, GraphDocuments};
+use sdlang_canon::{canonical, digest, digest_bytes, GraphDocuments};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -237,7 +237,7 @@ pub fn consumed_for(decl: &Value, docs: &GraphDocuments) -> PResult<Vec<Consumed
             continue;
         };
         let mut projections: Vec<(&str, &Value)> = Vec::new();
-        // `mentions` consumes the public projection too (SPEC.md, Edges and relations):
+        // `mentions` consumes the public projection too (docs/spec.md, Edges and relations):
         // a mentioned route that moves makes the mention holder's link stale.
         if ORDERING.contains(&relation) || relation == "collects" || relation == "mentions" {
             projections.push(("public", &target_docs.public));

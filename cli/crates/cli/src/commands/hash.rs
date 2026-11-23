@@ -1,4 +1,4 @@
-//! `spec hash`: the canonical JSON or digest of a JSON file, or a graph's projection hashes.
+//! `sdc hash`: the canonical JSON or digest of a JSON file, or a graph's projection hashes.
 
 use std::fs;
 use std::path::PathBuf;
@@ -35,7 +35,7 @@ pub fn run(args: Args) -> u8 {
         }
     };
     let result = if args.graph {
-        intlang_canon::projections(&value)
+        sdlang_canon::projections(&value)
             .map(|all| {
                 let map: Map<String, Value> =
                     all.iter().map(|(a, p)| (a.clone(), p.to_value())).collect();
@@ -43,9 +43,9 @@ pub fn run(args: Args) -> u8 {
             })
             .map_err(|e| e.to_string())
     } else if args.canonical {
-        intlang_canon::canonical(&value).map_err(|e| e.to_string())
+        sdlang_canon::canonical(&value).map_err(|e| e.to_string())
     } else {
-        intlang_canon::digest(&value).map_err(|e| e.to_string())
+        sdlang_canon::digest(&value).map_err(|e| e.to_string())
     };
     match result {
         Ok(out) => {

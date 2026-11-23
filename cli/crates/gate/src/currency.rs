@@ -1,10 +1,10 @@
 //! Whether a requirement's recorded evidence still meets its effective policy on the
-//! current inputs (SPEC.md, Verification -> Currency). Reviews, coverage judgements and
+//! current inputs (docs/spec.md, Verification -> Currency). Reviews, coverage judgements and
 //! approvals are never reproduced here; what can be recomputed is the contract each was
 //! given and the digest of every test run's input closure.
 
-use intlang_apply::evidence::Requirement;
-use intlang_plan::state::StateRecord;
+use sdlang_apply::evidence::Requirement;
+use sdlang_plan::state::StateRecord;
 use serde_json::{json, Value};
 
 use crate::error::GResult;
@@ -73,8 +73,8 @@ pub fn requirement_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use intlang_apply::evidence::Policy;
-    use intlang_plan::state::Hashes;
+    use sdlang_apply::evidence::Policy;
+    use sdlang_plan::state::Hashes;
     use std::collections::BTreeMap;
 
     fn req(tests: bool) -> Requirement {

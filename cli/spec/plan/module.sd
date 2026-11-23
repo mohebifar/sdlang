@@ -1,0 +1,105 @@
+import package "./spec-packages/rust" as rust
+import graph
+import canon
+
+module {
+  summary: "Phase 4: state records, drift, propagation and transactions; the plan"
+  prompt: """
+    docs/spec.md's State, plan and apply section is the contract; output must validate against
+    schemas/plan.schema.json. The planner reads the new graph, the state records under
+    .spec/state, the applied store under .spec/applied and the owned files on disk, and
+    nothing else: never an old commit and never package code.
+    Planned from a baseline recorded from examples/worked/before, with the signup page
+    edited by hand, examples/worked/after must give the entries, transactions, blocked
+    list and coverage reviews of examples/plan.json. Its digests differ, because the
+    fixture's are labels rather than hashes of real files.
+    Where docs/spec.md leaves a rule open, choose the simplest one consistent with it and
+    record it in docs/decisions.md; never widen what the spec promises.
+  """
+}
+
+export rust.crate plan {
+  summary: "The sdlang-plan crate"
+  uses: [materialise, state, compat, planner]
+  expect {
+    worked_plan: "planning examples/worked/after against a baseline recorded from examples/worked/before, with src/app/signup/page.tsx edited, reproduces examples/plan.json apart from its digests"
+    module_prompt: "with only the auth module's prompt edited, the plan holds review and verify obligations for auth.login, auth.sign_in and auth.signup and no change"
+    greenfield: "with no state, every managed declaration is a create"
+    schema_valid: "every plan validates against schemas/plan.schema.json"
+  }
+}
+
+export lib materialise {
+  summary: "Each managed declaration's output slots, creation roots and generator, from its kind, the package implementing its core kind, or its use's binding"
+  exports: ["Materialisation", "materialise"]
+  expect {
+    templates: "a template interpolates scalar fields and meta.name and meta.module; a route_path loses its leading slash; empty segments collapse and a trailing slash is dropped except on creation roots"
+    meta_module: "meta.module is the module's dotted path with dots as slashes"
+    lib_path: "a lib's path field replaces its main slot's template"
+    one_implementer: "two packages implementing the same core kind is an error naming both"
+    collisions: "two declarations claiming the same output path is an error naming both"
+    escapes: "a path that is absolute or climbs out of the project with .. is an error"
+    generator: "a declaration whose kind, implementation or binding names a generator has strategy generator; otherwise agent"
+  }
+}
+
+export lib state {
+  summary: "State records, the applied store and recording a baseline"
+  exports: ["StateRecord", "Store", "record_baseline", "state_digest"]
+  uses: [materialise]
+  prompt: """
+    One file per managed declaration, .spec/state/<address>.json, in the shape docs/spec.md's
+    State record shows: hashes, context_parts, consumed, members, outputs, evidence and
+    provenance. The applied store holds each canonical projection document as
+    .spec/applied/<hex digest>.json. record_baseline writes records and store entries for
+    a graph with the files on disk as accepted bytes; apply and import will publish
+    through it.
+  """
+  expect {
+    consumed: "consumed has one entry per relation, target and projection: public for every ordering relation and collects, and behaviour and context as well for calls, reads and writes"
+    members: "members maps each expect and errors member to the digest of its canonical value"
+    store_closure: "every projection a record names is in the applied store, with the parts of its context"
+    round_trip: "a record read back equals the record written"
+    digest: "the state digest covers every record file's path and digest, so any edit to state changes it"
+  }
+}
+
+export lib compat {
+  summary: "Whether a change to a consumed public projection is compatible, without package code"
+  exports: ["Compatibility", "classify"]
+  expect {
+    action_variance: "an action's input may accept more and its output promise more; fewer error codes is compatible; the reverse is not"
+    records: "records are open for width: an added optional output field is compatible, a required output field made optional is not"
+    lib_exports: "adding a lib export is compatible; removing one is not"
+    invariant: "a change to a package kind's interface field is incompatible"
+    entities: "readers consume reader compatibility and writers writer compatibility: an added optional field is compatible for both, an added required field without a default breaks writers, a field made optional breaks readers"
+    unknown: "anything it cannot compare is incompatible"
+  }
+}
+
+export lib planner {
+  summary: "The change set, propagation, drift, transactions and the plan document"
+  exports: ["plan", "PlanInputs", "Plan"]
+  uses: [state, compat, materialise]
+  expect {
+    identity: "an address with no record is new, an address whose record exists is same, a moved statement whose source has a record makes the target moved, and a record with no address is gone"
+    own_change: "a changed public, behaviour or body projection is an update; a changed kind is an update with strategy replace"
+    consumed: "a changed public projection of a consumed target gives update when incompatible and verify when compatible"
+    observed: "a changed behaviour or context of a target reached over calls, reads or writes gives verify and review"
+    context: "a changed inherited context gives review and verify, naming each changed part"
+    aggregate: "an owner whose collected members changed, appeared or disappeared is an update"
+    impact: "a create or update gives verify to its transitive dependents over ordering relations"
+    precedence: "update wins over obligations, and obligations accumulate"
+    guidance: "a guidance-only change plans nothing"
+    drift: "an owned output whose bytes differ from its record blocks its declaration with resolutions adopt, absorb, overwrite and repair; a blocked change propagates nothing"
+    transactions: "each change roots a transaction, every update caused by it joins it, and transactions sharing a declaration merge"
+    order: "transactions follow ordering edges, deletions in reverse; a cycle merges; ties go to data (entities and uses), then logic (types, actions, libs), then the rest, then address"
+    obligations: "an obligated declaration is listed in each transaction that caused it, with its owned outputs as its contingent envelope"
+    coverage: "every new or changed expect or errors member of a created or updated declaration is a coverage review subject"
+    binding: "the plan binds the baseline commit, the applied and new graph digests, the lock digest, the state digest and the bytes of every file it plans to touch or found drifted"
+    evidence: "a recorded requirement whose evidence is unverified or failed gives verify and review when its policy needs tests, checks or review, with because unverified:<requirement> or failed:<requirement>; these share the obligation-only transaction"
+    adopt: "an adopted drifted file unblocks its declaration: a change to its own text becomes verify and review obligations against the adopted bytes, which are bound, and its dependents get impact verify"
+    mentions: "a mention consumes the target's public projection: a changed interface field makes the mention holder an update in the target's transaction"
+    acquire: "given an acquisition for a new declaration, its create has strategy acquire and lists the claimed slots, created outputs and test bindings; acquired members are not coverage subjects, and the claimed files' bytes and .spec/import.json are bound"
+  }
+}

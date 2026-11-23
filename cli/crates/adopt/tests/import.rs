@@ -1,13 +1,13 @@
-//! `spec import` on a small existing app: propose, accept, plan, apply the acquisition,
+//! `sdc import` on a small existing app: propose, accept, plan, apply the acquisition,
 //! then discharge the obligations the acquisition leaves.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use intlang_adopt::{accept, propose};
-use intlang_apply::{apply, ApplyOptions, Outcome};
-use intlang_plan::state::Store;
+use sdlang_adopt::{accept, propose};
+use sdlang_apply::{apply, ApplyOptions, Outcome};
+use sdlang_plan::state::Store;
 use serde_json::{json, Value};
 
 fn fixture() -> PathBuf {
@@ -61,11 +61,11 @@ fn project(name: &str) -> PathBuf {
 }
 
 fn plan(root: &Path, id: &str) -> Value {
-    let project = intlang_graph::loader::load(root).unwrap();
-    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let project = sdlang_graph::loader::load(root).unwrap();
+    let graph = sdlang_graph::lower::lower_project(&project).unwrap();
     let head = format!("git:{}", git(root, &["rev-parse", "HEAD"]).trim());
-    let pending = intlang_plan::pending_imports(root).unwrap();
-    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+    let pending = sdlang_plan::pending_imports(root).unwrap();
+    let plan = sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root,
         project: &project,
         graph: &graph,
@@ -150,27 +150,27 @@ fn propose_accept_acquire_then_discharge() {
         [("src/app/forgot-password/page.tsx", "vendor/strings.js")]
     );
     assert!(p.collisions.is_empty() && p.owned.is_empty());
-    let text = intlang_adopt::proposal::render(&p);
+    let text = sdlang_adopt::proposal::render(&p);
     assert!(
         text.contains("proposal: one integration owner (a file serving 2 would-be declarations)"),
         "{text}"
     );
-    assert!(text.contains("accept with: spec import src tests --accept  (writes spec/auth/auth_lib.int and .spec/import.json)"), "{text}");
+    assert!(text.contains("accept with: sdc import src tests --accept  (writes spec/auth/auth_lib.sd and .spec/import.json)"), "{text}");
 
     // Accept writes the lib and the pending acquisitions, and nothing else.
     let accepted = accept(&root, &p).unwrap();
-    assert_eq!(accepted.written, ["spec/auth/auth_lib.int"]);
+    assert_eq!(accepted.written, ["spec/auth/auth_lib.sd"]);
     assert_eq!(
         accepted.pending,
         ["auth.auth_lib", "auth.forgot_password", "auth.login"]
     );
-    let lib_src = fs::read_to_string(root.join("spec/auth/auth_lib.int")).unwrap();
+    let lib_src = fs::read_to_string(root.join("spec/auth/auth_lib.sd")).unwrap();
     assert!(
         lib_src.contains("path: \"src/lib/auth.ts\"")
             && lib_src.contains("exports: [\"signIn\", \"requestReset\"]")
     );
     let status = git(&root, &["status", "--porcelain", "--untracked-files=all"]);
-    assert_eq!(status, "?? .spec/import.json\n?? spec/auth/auth_lib.int\n");
+    assert_eq!(status, "?? .spec/import.json\n?? spec/auth/auth_lib.sd\n");
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-q", "-m", "accept import"]);
 
@@ -270,7 +270,7 @@ fn propose_accept_acquire_then_discharge() {
 fn collisions_block_acceptance() {
     let root = project("collision");
     // A page whose slot lies inside login's creation root.
-    let pages = root.join("spec/auth/pages.int");
+    let pages = root.join("spec/auth/pages.sd");
     let mut text = fs::read_to_string(&pages).unwrap();
     text.push_str("\nexport web.page login_parts {\n  route: \"/login/_parts\"\n  summary: \"Shadows login's parts\"\n}\n");
     fs::write(&pages, text).unwrap();

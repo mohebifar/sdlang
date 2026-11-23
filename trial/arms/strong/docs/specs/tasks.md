@@ -16,7 +16,7 @@ with its summary, its signature, its instructions and its expectations.
 
 ## Project: tasks_app
 
-A small task tracker used to trial int lang.
+A small task tracker used to trial sdlang.
 
 Server-render by default. Plain English, sentence case.
 

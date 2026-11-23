@@ -1,6 +1,0 @@
-import package "./spec-packages/web" as web
-
-project shop {
-  summary: "An existing app being adopted by spec import's tests"
-  verify: "tested"
-}

@@ -1,30 +1,12 @@
-//! The allowed-import rule for TypeScript and JavaScript outputs (SPEC.md, Verification ->
-//! Conformance): code owned by a declaration may import only its own outputs, the exported
-//! outputs of what its edges reach, packages its edges reach, and its kind's exact ambient
-//! imports. Resolution is to file level; export-level checks are left to the typechecker.
+//! Import and export scanning for TypeScript and JavaScript files, used by `sdc import` to
+//! propose edges from the imports adopted code already has. Imports are not restricted:
+//! edges are hints for planning and navigation (docs/spec.md, Edges and relations).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use intlang_graph::loader::Project;
-use intlang_plan::materialise::{kind_body, Materialisation};
-use intlang_syntax::ast::{Expr, MemberValue};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-/// What one declaration's code may import.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImportPolicy {
-    pub own: BTreeSet<String>,
-    /// Exported outputs of edge targets.
-    pub granted: BTreeSet<String>,
-    pub ambient: BTreeSet<String>,
-    /// npm package names reachable over edges.
-    pub packages: BTreeSet<String>,
-    /// Path aliases from tsconfig.json, e.g. `("@/", "src/")`.
-    pub aliases: Vec<(String, String)>,
-}
 
 pub const CODE_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs", "mts", "cts"];
 
@@ -287,132 +269,6 @@ pub fn aliases(dir: &Path) -> Vec<(String, String)> {
     out
 }
 
-/// The policy of `address`: its own outputs, what its edges grant and its kind's ambient
-/// imports.
-pub fn policy_for(
-    project: &Project,
-    graph: &Value,
-    mats: &BTreeMap<String, Materialisation>,
-    own: BTreeSet<String>,
-    address: &str,
-    dir: &Path,
-) -> ImportPolicy {
-    let decls: BTreeMap<&str, &Value> = graph["declarations"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|d| Some((d["address"].as_str()?, d)))
-        .collect();
-    let mut p = ImportPolicy {
-        own,
-        aliases: aliases(dir),
-        ..ImportPolicy::default()
-    };
-    let Some(decl) = decls.get(address) else {
-        return p;
-    };
-    if let Some(body) = kind_body(project, decl) {
-        for m in &body.members {
-            if let (true, MemberValue::Section(s)) = (m.name.text == "ambient", &m.value) {
-                for f in &s.members {
-                    if let MemberValue::Field(field) = &f.value {
-                        if let Expr::List { items, .. } = &field.value {
-                            for i in items {
-                                if let Expr::String(lit) = i {
-                                    p.ambient.insert(intlang_graph::scope::lit_text(lit));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    for e in decl["edges"].as_array().into_iter().flatten() {
-        if e["relation"] == "mentions" {
-            continue;
-        }
-        let Some(target) = e["target"].as_str() else {
-            continue;
-        };
-        if let Some((package, _)) = target.split_once("::") {
-            if let Some(name) = package.strip_prefix("npm:") {
-                p.packages.insert(name.to_string());
-            }
-            continue;
-        }
-        let Some(t) = decls.get(target) else { continue };
-        if t["kind"] == "core:use" {
-            if let Some(name) = t["fields"]["package"].as_str() {
-                p.packages.insert(name.to_string());
-            }
-            continue;
-        }
-        let Some(m) = mats.get(target) else { continue };
-        if t["kind"] == "core:lib" {
-            p.granted.extend(m.slots.get("main").cloned());
-        }
-        if let Some(body) = kind_body(project, t) {
-            for member in &body.members {
-                if let (true, MemberValue::Section(s)) =
-                    (member.name.text == "exports", &member.value)
-                {
-                    for entry in &s.members {
-                        let MemberValue::Section(es) = &entry.value else {
-                            continue;
-                        };
-                        for f in &es.members {
-                            if let (true, MemberValue::Field(x)) =
-                                (f.name.text == "output", &f.value)
-                            {
-                                if let Expr::String(lit) = &x.value {
-                                    p.granted.extend(
-                                        m.slots.get(&intlang_graph::scope::lit_text(lit)).cloned(),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    p
-}
-
-/// Checks the imports of `files` (repository-relative) in `dir` against `policy`, returning
-/// one message per violation.
-pub fn check_imports(policy: &ImportPolicy, dir: &Path, files: &[String]) -> Vec<String> {
-    let mut out = Vec::new();
-    for file in files {
-        let ext = file.rsplit('.').next().unwrap_or_default();
-        if !CODE_EXTENSIONS.contains(&ext) {
-            continue;
-        }
-        let Ok(text) = fs::read_to_string(dir.join(file)) else {
-            continue;
-        };
-        for spec in specifiers(&text) {
-            match resolve_local(dir, &policy.aliases, file, &spec) {
-                None => {
-                    if !(policy.ambient.contains(&spec)
-                        || policy.packages.contains(&npm_package(&spec)))
-                    {
-                        out.push(format!(
-                            "{file} imports '{spec}', which no edge or ambient import grants"
-                        ));
-                    }
-                }
-                Some(Err(why)) => out.push(format!("{file} imports '{spec}', which {why}")),
-                Some(Ok(resolved))
-                    if policy.own.contains(&resolved) || policy.granted.contains(&resolved) => {}
-                Some(Ok(resolved)) => out.push(format!("{file} imports '{spec}' ({resolved}), which is neither its own output nor exported by an edge target")),
-            }
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,47 +328,5 @@ mod tests {
                 "fs"
             ]
         );
-    }
-
-    #[test]
-    fn rules() {
-        let dir = std::env::temp_dir().join(format!("intlang-imports-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        for f in [
-            "src/app/login/page.tsx",
-            "src/app/login/_parts/Form.tsx",
-            "src/server/auth/sign_in.ts",
-            "src/lib/secret.ts",
-        ] {
-            fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
-            fs::write(dir.join(f), "").unwrap();
-        }
-        fs::write(
-            dir.join("src/app/login/page.tsx"),
-            r#"import Link from "next/link";
-               import { Form } from "./_parts/Form";
-               import signIn from "@/server/auth/sign_in";
-               import { Button } from "ui-sdk";
-               import secret from "../../lib/secret";
-               import fs from "node:fs";"#,
-        )
-        .unwrap();
-        let policy = ImportPolicy {
-            own: ["src/app/login/page.tsx", "src/app/login/_parts/Form.tsx"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-            granted: ["src/server/auth/sign_in.ts".to_string()].into(),
-            ambient: ["next/link".to_string()].into(),
-            packages: ["ui-sdk".to_string()].into(),
-            aliases: vec![("@/".into(), "src/".into())],
-        };
-        let v = check_imports(&policy, &dir, &["src/app/login/page.tsx".into()]);
-        assert_eq!(v.len(), 2, "{v:?}");
-        assert!(
-            v[0].contains("../../lib/secret") && v[1].contains("node:fs"),
-            "{v:?}"
-        );
-        let _ = fs::remove_dir_all(&dir);
     }
 }

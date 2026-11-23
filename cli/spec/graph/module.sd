@@ -1,0 +1,81 @@
+import package "./spec-packages/rust" as rust
+
+module {
+  summary: "Phase 3: loading a spec tree and its packages, resolving names and lowering to the canonical graph"
+  prompt: """
+    Output must validate against schemas/graph.schema.json. The worked example's source
+    trees (examples/worked/before and examples/worked/after) must lower to
+    examples/graph.before.json and examples/graph.after.json exactly, except the graph's
+    lock digest, whose input format is still open (O.5).
+    Stop at the first error, and point it at a span in the file that caused it.
+  """
+}
+
+export rust.crate graph {
+  summary: "The sdlang-graph crate"
+  uses: [loader, scope, schema, selectors, lower]
+  expect {
+    worked_before: "examples/worked/before lowers to examples/graph.before.json, lock digest aside"
+    worked_after: "examples/worked/after lowers to examples/graph.after.json, lock digest aside"
+    projections: "the lowered worked graphs give the projection hashes in examples/hashes.json"
+  }
+}
+
+export lib loader {
+  summary: "Finds a project's modules and files, reads its lock and loads its packages"
+  exports: ["Project", "Module", "Package", "SourceFile", "load"]
+  expect {
+    modules: "every directory under spec/ is a module named by its dotted path, the root module named by the empty string"
+    file_order: "a module's files are read in file-name order"
+    lock: "packages come from sd.lock: each entry's id and directory, whose package.json sdlang entry names the import name, entry file, skills and provides"
+  }
+}
+
+export lib scope {
+  summary: "Per-module binding tables and path resolution"
+  exports: ["Scope", "Target", "resolve_path"]
+  uses: [loader]
+  expect {
+    bindings: "a module's bindings are its declarations, types and lets, its imports, the project's capabilities and the core prelude"
+    collisions: "two bindings with the same name in one module are an error"
+    walk: "a path walks modules, packages, capabilities and constant records; walking into a declaration is an error"
+    visibility: "leaving the current module reaches only exported names"
+    provides: "a capability segment resolves through its provider's provides map"
+    import_name: "import x needs exactly one local module or package called x"
+  }
+}
+
+export lib schema {
+  summary: "Field schemas of core kinds and of package kinds read from kind definitions"
+  exports: ["KindSchema", "FieldType", "core_kind", "package_kind"]
+  expect {
+    closed: "an unknown field or section on a declaration is an error"
+    interface: "a package kind field marked @interface joins the public projection"
+    relation: "a reference-valued package kind field takes its relation from @relation"
+  }
+}
+
+export lib selectors {
+  summary: "Selectors: canonical form and evaluation over declarations"
+  exports: ["lower_selector", "matches"]
+  expect {
+    canonical_where: "a predicate is written with single spaces and every and, or and not group parenthesised"
+    route_glob: "matches treats ** as any text and * as any text without a slash"
+    applies: "a rule applies to every managed declaration of its kinds whose authored fields satisfy its predicate"
+  }
+}
+
+export lib lower {
+  summary: "Lowering resolved declarations to graph JSON: fields, members, edges, annotations"
+  exports: ["lower_project"]
+  uses: [loader, scope, schema, selectors]
+  expect {
+    short_forms: "an expect or errors member written as a string lowers like its long form; an error's code defaults to its key"
+    prose: "prose fields lower to dedented text with trailing spaces removed and mentions rewritten to canonical addresses"
+    edges: "each reference becomes one edge with its relation, target and the field or member path it came from"
+    types: "a named type in a signature or entity field gives a types edge"
+    sorted: "declarations are sorted by address, modules by path, and set-valued arrays and edges by canonical JSON"
+    bindings: "a use whose provider defines a binding with outputs is managed and collects what the binding's selector matches"
+    kinds_table: "the graph's kinds table lists exactly the kinds its declarations use, each with its interface fields sorted, or all for the stack and use"
+  }
+}

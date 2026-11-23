@@ -1,4 +1,4 @@
-//! `spec import`, then `spec plan`, `spec apply` and `spec check`, as processes on the adopt
+//! `sdc import`, then `sdc plan`, `sdc apply` and `sdc check`, as processes on the adopt
 //! crate's small existing app.
 
 use std::fs;
@@ -36,7 +36,7 @@ fn git(dir: &Path, args: &[&str]) -> String {
 }
 
 fn spec(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_spec"))
+    Command::new(env!("CARGO_BIN_EXE_sdc"))
         .current_dir(dir)
         .args(args)
         .output()
@@ -77,7 +77,7 @@ fn import_then_plan_apply_and_check() {
 
     let out = spec(&root, &["import", "src", "tests", "--accept"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out));
-    assert!(text(&out).contains("wrote spec/auth/auth_lib.int"));
+    assert!(text(&out).contains("wrote spec/auth/auth_lib.sd"));
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-q", "-m", "accept import"]);
 

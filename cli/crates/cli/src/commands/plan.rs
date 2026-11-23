@@ -1,4 +1,4 @@
-//! `spec plan`: plans a change from the spec, the recorded state and the files on disk,
+//! `sdc plan`: plans a change from the spec, the recorded state and the files on disk,
 //! writes the plan document and prints its summary.
 
 use std::fmt::Write as _;
@@ -11,7 +11,7 @@ use serde_json::Value;
 
 #[derive(clap::Args)]
 pub struct Args {
-    /// The project directory (holding spec/, spec.lock and .spec/).
+    /// The project directory (holding spec/, sd.lock and .spec/).
     #[arg(default_value = ".")]
     pub dir: PathBuf,
 
@@ -78,14 +78,14 @@ pub fn run(args: Args) -> u8 {
         );
         return 2;
     };
-    let project = match intlang_graph::loader::load(&args.dir) {
+    let project = match sdlang_graph::loader::load(&args.dir) {
         Ok(p) => p,
         Err(e) => {
             eprint!("{}", e.render());
             return 1;
         }
     };
-    let graph = match intlang_graph::lower::lower_project(&project) {
+    let graph = match sdlang_graph::lower::lower_project(&project) {
         Ok(g) => g,
         Err(e) => {
             eprint!("{}", e.render());
@@ -102,14 +102,14 @@ pub fn run(args: Args) -> u8 {
             .expect("an unused number")
     });
     let adopt: std::collections::BTreeSet<String> = args.adopt.iter().cloned().collect();
-    let pending = match intlang_plan::pending_imports(&args.dir) {
+    let pending = match sdlang_plan::pending_imports(&args.dir) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("error: {e}");
             return 1;
         }
     };
-    let plan = match intlang_plan::plan(&intlang_plan::PlanInputs {
+    let plan = match sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root: &args.dir,
         project: &project,
         graph: &graph,
@@ -135,9 +135,9 @@ pub fn run(args: Args) -> u8 {
         return 2;
     }
     print!("{}", summary(&plan, &graph));
-    let unspecified = intlang_plan::materialise::materialise(&project, &graph)
+    let unspecified = sdlang_plan::materialise::materialise(&project, &graph)
         .ok()
-        .and_then(|m| intlang_gate::findings::unspecified_addresses(&graph, &m).ok())
+        .and_then(|m| sdlang_gate::findings::unspecified_addresses(&graph, &m).ok())
         .unwrap_or_default();
     if !unspecified.is_empty() {
         println!(
@@ -149,7 +149,7 @@ pub fn run(args: Args) -> u8 {
     0
 }
 
-/// A kind's short name: `core:action` -> `action`, `npm:@intlang/nextjs::page` -> `page`.
+/// A kind's short name: `core:action` -> `action`, `npm:@sdlang/nextjs::page` -> `page`.
 fn short(kind: &str) -> &str {
     kind.rsplit_once("::")
         .map(|(_, k)| k)
@@ -157,7 +157,7 @@ fn short(kind: &str) -> &str {
         .unwrap_or(kind)
 }
 
-/// The human summary, in the order SPEC.md's worked example prints it.
+/// The human summary, in the order docs/spec.md's worked example prints it.
 pub fn summary(plan: &Value, graph: &Value) -> String {
     let kinds: std::collections::BTreeMap<&str, &str> = graph["declarations"]
         .as_array()

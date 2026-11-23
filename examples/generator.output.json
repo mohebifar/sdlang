@@ -1,7 +1,7 @@
 {
-  "protocol": "intlang.generator/1",
+  "protocol": "sdlang.generator/1",
   "dispatch": "p-2026-11-18-01/r1/tx-1/1",
-  "order_hash": "sha256:d0fe515fc9ba80605d0f0070e296f0cd2b44ac2dcbeca544e3c45e4e895c3477",
+  "order_hash": "sha256:ead61e7a5a566b7392e0b66852935ebffed8ab454cfcf3f653a4f160bd0f7780",
   "status": "written",
   "files": [
     {

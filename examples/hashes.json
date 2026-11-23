@@ -8,14 +8,14 @@
       "context": "sha256:ca7a8dfc3d4d8bc3fe268622eefb87dfca7b5c1cf255d81c62ef163b6414c164"
     },
     "app_requires_session": {
-      "public": "sha256:acf9a45bf3c3970a9ba92788b3de6583d68a0a8c1a5f8c76321ac2ff27e7ae5c",
+      "public": "sha256:a9264eed5ec44e0a4c0e5982d3e36833c0c7511643594c4f9bc160818ef8873b",
       "behaviour": "sha256:d29662f3ea1ef2b469e36b8c4a3b91b4ede7e896ffe4c7ddc3b5a6747276be87",
       "body": "sha256:1ae9eeb54e2c46e1b4aff0288aa10cca1213159ddf8021ee11f14ed91d692bf9",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "context": "sha256:d594dea5ba23537611df433d647cfbd8a48391256437283d18dea4551af94ddd"
     },
     "auth.login": {
-      "public": "sha256:59fe81f7ef95e8fe9879a8673f607551527dcbfecfec11667c5f5f46253c0f31",
+      "public": "sha256:de8f908f02ace5a3de87f3a3c8c4863fae69ae424ca260fbf8f1c50975e55b34",
       "behaviour": "sha256:b79a83c356aa5ad037a151888ef6ca804b2c9af379a1b6fdec85375c6c9ce763",
       "body": "sha256:e6c47359100c70bcf5bba506ab1e768231a68cff69a77ecbaf71d7aeede68e0b",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -29,7 +29,7 @@
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.signup": {
-      "public": "sha256:5a89db0258cc7781f70017fd1c747a2f64d59b263b06ab8f321c8b8a633f7805",
+      "public": "sha256:8f5f0089b4e475dd1c87c366f0ea18e1bea078308661bb043e0577d9418593a8",
       "behaviour": "sha256:a0b9ebe54d3a4892dac6c8a0b816d400a599ce5361c3123d0b4ba58f73c01c77",
       "body": "sha256:df2fcbd6b5874fbdba55446fc38f18aac3bb6d29ad968e4884827389448016b2",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -50,7 +50,7 @@
       "context": "sha256:d594dea5ba23537611df433d647cfbd8a48391256437283d18dea4551af94ddd"
     },
     "dashboard.home": {
-      "public": "sha256:807ac521f44afb760aee58c3efd1f648d4c13aeb762e0596ea19418bff18e26b",
+      "public": "sha256:19af4bf2d2c9f40662db3babaea564484d170421b788bcc6dacc9dcca63cfcc6",
       "behaviour": "sha256:2dbc962cd026302dbef4e89e865a9bb1db8aee398baaa409a6be7b18a02ba3e2",
       "body": "sha256:a734fbb515d51b62cfd8bd842c6334a0acf016e9b62afe4957bdd2201ab1a635",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -87,21 +87,21 @@
       "context": "sha256:ca7a8dfc3d4d8bc3fe268622eefb87dfca7b5c1cf255d81c62ef163b6414c164"
     },
     "app_requires_session": {
-      "public": "sha256:acf9a45bf3c3970a9ba92788b3de6583d68a0a8c1a5f8c76321ac2ff27e7ae5c",
+      "public": "sha256:a9264eed5ec44e0a4c0e5982d3e36833c0c7511643594c4f9bc160818ef8873b",
       "behaviour": "sha256:d29662f3ea1ef2b469e36b8c4a3b91b4ede7e896ffe4c7ddc3b5a6747276be87",
       "body": "sha256:1ae9eeb54e2c46e1b4aff0288aa10cca1213159ddf8021ee11f14ed91d692bf9",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "context": "sha256:d594dea5ba23537611df433d647cfbd8a48391256437283d18dea4551af94ddd"
     },
     "auth.forgot_password": {
-      "public": "sha256:3249301e9798e4b087c8b1bdab31c52c437660a6ed53b1402ee7d5e6982f83f8",
+      "public": "sha256:8d0ea5a8424ac4b473666ddf627017bab4ff66b6b1bd3e459d58c13e24cc0ecb",
       "behaviour": "sha256:d7a9b7af37ac3b1b5eac4bb231226994b2fe41b9afe8dadca633f06a5fb0074a",
       "body": "sha256:196f68030e5d6161d830f1dd9300e2eaf2b39183df3353e8fb0e1d8c3ff83c55",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.login": {
-      "public": "sha256:59fe81f7ef95e8fe9879a8673f607551527dcbfecfec11667c5f5f46253c0f31",
+      "public": "sha256:de8f908f02ace5a3de87f3a3c8c4863fae69ae424ca260fbf8f1c50975e55b34",
       "behaviour": "sha256:051746340f33e2c119eee16629eb53162323c4a5c7a1b49e7ac3f8f82f1ceac7",
       "body": "sha256:9283ee6a9bed8b7c22325d0f5701ef6d7d8848293814008508bab7aaec6838b8",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -122,7 +122,7 @@
       "context": "sha256:9f467bc669fe274f44ca4578fe3cb13968f9ef17f5d65ed3660b6bb470db23e1"
     },
     "auth.signup": {
-      "public": "sha256:5a89db0258cc7781f70017fd1c747a2f64d59b263b06ab8f321c8b8a633f7805",
+      "public": "sha256:8f5f0089b4e475dd1c87c366f0ea18e1bea078308661bb043e0577d9418593a8",
       "behaviour": "sha256:a0b9ebe54d3a4892dac6c8a0b816d400a599ce5361c3123d0b4ba58f73c01c77",
       "body": "sha256:df2fcbd6b5874fbdba55446fc38f18aac3bb6d29ad968e4884827389448016b2",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -143,7 +143,7 @@
       "context": "sha256:d594dea5ba23537611df433d647cfbd8a48391256437283d18dea4551af94ddd"
     },
     "dashboard.home": {
-      "public": "sha256:807ac521f44afb760aee58c3efd1f648d4c13aeb762e0596ea19418bff18e26b",
+      "public": "sha256:19af4bf2d2c9f40662db3babaea564484d170421b788bcc6dacc9dcca63cfcc6",
       "behaviour": "sha256:2dbc962cd026302dbef4e89e865a9bb1db8aee398baaa409a6be7b18a02ba3e2",
       "body": "sha256:a734fbb515d51b62cfd8bd842c6334a0acf016e9b62afe4957bdd2201ab1a635",
       "guidance": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",

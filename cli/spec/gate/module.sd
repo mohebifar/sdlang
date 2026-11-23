@@ -1,0 +1,71 @@
+import package "./spec-packages/rust" as rust
+import graph
+import plan
+import apply
+
+module {
+  summary: "Phase 6a: the read-only consistency gate"
+  prompt: """
+    docs/spec.md's Team workflow section is the contract for sdc check: it runs no agent and
+    writes nothing in the project. Findings are computed from the graph, the state
+    records, the applied store and the files on disk, reusing the planner and the
+    evidence rules of apply rather than restating them. Findings print in a stable
+    order: by kind in the order of docs/spec.md's table, then by address and path.
+  """
+}
+
+export rust.crate gate {
+  summary: "The sdlang-gate crate"
+  uses: [ownership, currency, findings, rerun]
+  expect {
+    clean: "a project applied end to end by sdc apply has no findings"
+    hand_edit: "editing an owned file by hand gives one drift finding naming the path and both digests"
+    spec_edit: "editing a declaration's expect text without applying gives an unapplied finding for it, and no evidence finding for it"
+    read_only: "running check leaves git status and every file under .spec unchanged"
+  }
+}
+
+export lib ownership {
+  summary: "The ownership index derived from state records, and its collisions and dangling claims"
+  exports: ["index", "ownership_findings"]
+  expect {
+    collision: "two records claiming one path is a collision naming both owners"
+    dangling: "a record stored under another address's file name, an output path that is absolute or uses '.' or '..', or a created output outside its root, is a dangling claim"
+  }
+}
+
+export lib currency {
+  summary: "Whether a requirement's recorded evidence still meets its effective policy on the current inputs (docs/spec.md, Currency)"
+  exports: ["requirement_status", "Status"]
+  expect {
+    missing: "a requirement with no evidence record, or one whose summary is unverified, is missing"
+    failed: "a recorded failed summary stays failed"
+    contract: "evidence whose contract hash differs from the requirement's current member digest is stale"
+    policy: "evidence recorded under a different policy than the current effective one is stale"
+    run_inputs: "a test run whose recomputed run input digest differs from the recorded one is stale; editing a file in the declaration's closure makes it so, editing an unrelated file does not"
+  }
+}
+
+export lib findings {
+  summary: "The finding kinds of sdc check and how they are gathered"
+  exports: ["Finding", "check", "CheckOptions"]
+  uses: [ownership, currency]
+  expect {
+    unapplied: "a declaration the planner would create, update, delete or move is unapplied, and so is one with a context, consumed or observed obligation; an impact obligation is not, since its source is reported; frozen ones needing an update are"
+    drift: "every owned output whose bytes differ from its record is drift, frozen declarations included; a missing file is drift with actual absent"
+    evidence: "every requirement of an applied declaration whose status is missing, failed or stale is an evidence finding"
+    reconcile: "a .spec/reconcile directory gives one reconcile finding"
+    unspecified: "a managed declaration with no requirements, other than one whose outputs a generator produces, is unspecified; it counts only under strict"
+    allow: "findings of an allowed kind are reported but do not fail the check"
+  }
+}
+
+export lib rerun {
+  summary: "sdc check --rerun: reruns the test runs evidence relies on in a scratch worktree at HEAD"
+  exports: ["rerun"]
+  expect {
+    same: "when every rerun case passes as recorded, there is no finding"
+    differs: "a case that now fails, or is missing, is an evidence finding with reason rerun"
+    scratch: "the scratch worktree is removed afterwards and nothing is recorded"
+  }
+}

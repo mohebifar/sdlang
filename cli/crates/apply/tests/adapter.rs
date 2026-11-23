@@ -1,4 +1,4 @@
-//! The @intlang/nextjs adapter's own tests (node:test), run when Node.js is installed.
+//! The @sdlang/nextjs adapter's own tests (node:test), run when Node.js is installed.
 
 use std::path::Path;
 use std::process::Command;

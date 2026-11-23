@@ -1,0 +1,27 @@
+import package "./spec-packages/rust" as rust
+
+project sdlang_cli {
+  summary: "sdc, the command-line tool for sdlang"
+  verify: "tested"
+  prompt: """
+    Rust 2021 on the stable toolchain, with no unsafe code. Library crates never print
+    or exit; only the binary does. Every error carries a byte span into the source it
+    came from.
+    The design documents under docs/ are the source of truth: docs/spec.md,
+    docs/grammar.ebnf, docs/protocol.md and schemas/. Where this spec and they disagree, stop and
+    ask rather than choosing.
+  """
+}
+
+stack {
+  language: { name: "rust", edition: "2021" }
+  package_manager: { name: "cargo" }
+}
+
+use "logos" for lexing
+use "clap" for arguments
+use "serde" for serialization
+use "serde_json" for json_io
+use "codespan-reporting" for error_rendering
+use "walkdir" for file_walking
+use "rustix" for process_signals

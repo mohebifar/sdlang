@@ -1,4 +1,4 @@
-//! The `spec` binary: argument parsing and dispatch to commands.
+//! The `sdc` binary: argument parsing and dispatch to commands.
 
 #![forbid(unsafe_code)]
 
@@ -15,14 +15,15 @@ mod commands {
     pub mod graph;
     pub mod hash;
     pub mod import;
+    pub mod lsp;
     pub mod mcp;
     pub mod parse;
     pub mod plan;
 }
 
-/// The command-line tool for int lang.
+/// The command-line tool for sdlang.
 #[derive(Parser)]
-#[command(name = "spec", version, about, propagate_version = true)]
+#[command(name = "sdc", version, about, propagate_version = true)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -30,7 +31,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Parse .int files and report syntax errors.
+    /// Parse .sd files and report syntax errors.
     Parse(commands::parse::Args),
     /// Print the canonical JSON or digest of a JSON file, or a graph's projection hashes.
     Hash(commands::hash::Args),
@@ -46,6 +47,8 @@ enum Command {
     Check(commands::check::Args),
     /// Propose an ownership mapping for existing files; with --accept, write it for the next plan.
     Import(commands::import::Args),
+    /// Serve the language server protocol on stdio, for editors.
+    Lsp(commands::lsp::Args),
 }
 
 fn main() -> ExitCode {
@@ -71,6 +74,7 @@ fn main() -> ExitCode {
         Command::Mcp(args) => commands::mcp::run(args),
         Command::Check(args) => commands::check::run(args),
         Command::Import(args) => commands::import::run(args),
+        Command::Lsp(args) => commands::lsp::run(args),
     };
     ExitCode::from(code)
 }

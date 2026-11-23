@@ -1,0 +1,19 @@
+import package "./spec-packages/rust" as rust
+
+module {
+  summary: "Phase 1: lexing and parsing .sd source into a syntax tree"
+  prompt: """
+    Follow docs/grammar.ebnf exactly. The Python reference parser in tools/check_examples.py
+    must agree with this crate on every input in the corpus: a file one accepts, the
+    other accepts. No I/O: functions take &str and return values.
+  """
+}
+
+export rust.crate syntax {
+  summary: "The sdlang-syntax crate"
+  uses: [lexer, strings, ast, parser, diagnostics]
+  expect {
+    corpus: "every spec block in docs/spec.md, docs/protocol.md, docs/extensions.md and docs/trial.md, and every .sd file under examples/ and cli/, parses"
+    grammar_cases: "the reference checker's negative grammar cases are rejected and its positive cases accepted"
+  }
+}

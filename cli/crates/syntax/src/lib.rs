@@ -1,7 +1,7 @@
-//! Lexer and parser for int lang (`.int`) source, following `GRAMMAR.ebnf`.
+//! Lexer and parser for sdlang (`.sd`) source, following `docs/grammar.ebnf`.
 //!
 //! ```
-//! let file = intlang_syntax::parse_source("import nextjs\n").unwrap();
+//! let file = sdlang_syntax::parse_source("import nextjs\n").unwrap();
 //! assert_eq!(file.statements.len(), 1);
 //! ```
 

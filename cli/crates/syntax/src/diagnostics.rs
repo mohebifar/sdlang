@@ -52,8 +52,8 @@ mod tests {
             "expected ',' or a line break or '}', found 'b'",
             Span::new(32, 33),
         );
-        let text = render("spec/a.int", src, &err);
-        assert!(text.contains("spec/a.int:2:22"), "{text}");
+        let text = render("spec/a.sd", src, &err);
+        assert!(text.contains("spec/a.sd:2:22"), "{text}");
         assert!(text.contains('^'), "{text}");
     }
 }

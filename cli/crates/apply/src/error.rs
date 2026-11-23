@@ -23,20 +23,20 @@ impl fmt::Display for ApplyError {
 
 impl std::error::Error for ApplyError {}
 
-impl From<intlang_plan::PlanError> for ApplyError {
-    fn from(e: intlang_plan::PlanError) -> Self {
+impl From<sdlang_plan::PlanError> for ApplyError {
+    fn from(e: sdlang_plan::PlanError) -> Self {
         ApplyError::new(e.message)
     }
 }
 
-impl From<intlang_canon::GraphError> for ApplyError {
-    fn from(e: intlang_canon::GraphError) -> Self {
+impl From<sdlang_canon::GraphError> for ApplyError {
+    fn from(e: sdlang_canon::GraphError) -> Self {
         ApplyError::new(e.to_string())
     }
 }
 
-impl From<intlang_canon::CanonError> for ApplyError {
-    fn from(e: intlang_canon::CanonError) -> Self {
+impl From<sdlang_canon::CanonError> for ApplyError {
+    fn from(e: sdlang_canon::CanonError) -> Self {
         ApplyError::new(e.to_string())
     }
 }

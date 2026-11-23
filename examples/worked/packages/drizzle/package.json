@@ -2,10 +2,10 @@
   "name": "drizzle",
   "version": "0.1.0",
   "files": ["spec/"],
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "drizzle",
-    "entry": "./spec/index.int",
+    "entry": "./spec/index.sd",
     "options": "DrizzleOptions"
   }
 }

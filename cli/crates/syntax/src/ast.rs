@@ -48,7 +48,7 @@ impl Path {
     }
 }
 
-/// A whole `.int` file.
+/// A whole `.sd` file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct File {
     pub statements: Vec<Statement>,

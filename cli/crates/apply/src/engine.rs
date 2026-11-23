@@ -1,4 +1,4 @@
-//! The transaction loop (SPEC.md, Apply): binding, tasks, freeze, checks, reviews,
+//! The transaction loop (docs/spec.md, Apply): binding, tasks, freeze, checks, reviews,
 //! retries, publish and journal.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -7,14 +7,14 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use intlang_canon::{digest, documents, GraphDocuments};
-use intlang_graph::loader::Project;
-use intlang_graph::scope::Scope;
-use intlang_plan::materialise::{kind_body, kind_package, materialise, Materialisation};
-use intlang_plan::state::{
+use sdlang_canon::{digest, documents, GraphDocuments};
+use sdlang_graph::loader::Project;
+use sdlang_graph::scope::Scope;
+use sdlang_plan::materialise::{kind_body, kind_package, materialise, Materialisation};
+use sdlang_plan::state::{
     declarations, file_digest, publish_records, Output, Publish, StateRecord, Store,
 };
-use intlang_syntax::ast::{Exportable, Expr, MemberValue, Statement};
+use sdlang_syntax::ast::{Exportable, Expr, MemberValue, Statement};
 use serde_json::{json, Value};
 
 use crate::checks::{
@@ -35,14 +35,14 @@ pub struct ApplyOptions {
     pub profile: String,
     pub max_attempts: u32,
     /// How agents start the MCP server, without the dispatch id:
-    /// `[<spec binary>, "mcp", "--dispatch"]`.
+    /// `[<sdc binary>, "mcp", "--dispatch"]`.
     pub spec_command: Vec<String>,
     pub agent_timeout: Duration,
     pub check_timeout: Duration,
 }
 
 impl ApplyOptions {
-    /// Options with the defaults `spec apply` uses.
+    /// Options with the defaults `sdc apply` uses.
     pub fn new(root: PathBuf, plan_path: PathBuf) -> ApplyOptions {
         ApplyOptions {
             root,
@@ -51,7 +51,7 @@ impl ApplyOptions {
             reviewer: None,
             profile: "local".into(),
             max_attempts: 3,
-            spec_command: vec!["spec".into(), "mcp".into(), "--dispatch".into()],
+            spec_command: vec!["sdc".into(), "mcp".into(), "--dispatch".into()],
             agent_timeout: Duration::from_secs(1800),
             check_timeout: Duration::from_secs(900),
         }
@@ -141,9 +141,9 @@ struct Loaded {
 }
 
 fn load(root: &Path) -> AResult<Loaded> {
-    let project = intlang_graph::loader::load(root).map_err(|e| ApplyError::new(e.render()))?;
+    let project = sdlang_graph::loader::load(root).map_err(|e| ApplyError::new(e.render()))?;
     let graph =
-        intlang_graph::lower::lower_project(&project).map_err(|e| ApplyError::new(e.render()))?;
+        sdlang_graph::lower::lower_project(&project).map_err(|e| ApplyError::new(e.render()))?;
     let docs = documents(&graph)?;
     let mats = materialise(&project, &graph)?;
     Ok(Loaded {
@@ -198,9 +198,9 @@ pub fn apply(options: &ApplyOptions) -> AResult<ApplyReport> {
         .map_err(|e| ApplyError::new(format!("{}: {e}", options.plan_path.display())))?;
     let plan: Value = serde_json::from_str(&plan_text)
         .map_err(|e| ApplyError::new(format!("{}: {e}", options.plan_path.display())))?;
-    if plan["schema"] != "intlang.plan/1" {
+    if plan["schema"] != "sdlang.plan/1" {
         return Err(ApplyError::new(
-            "not a plan document (schema intlang.plan/1)",
+            "not a plan document (schema sdlang.plan/1)",
         ));
     }
     let loaded = load(&root)?;
@@ -332,6 +332,8 @@ struct Claims {
     created: BTreeMap<String, BTreeMap<String, Output>>,
     /// requirement member -> test bindings.
     tests: BTreeMap<String, Vec<(String, String)>>,
+    /// What the last result named that resolved to nothing; told to the next attempt.
+    notes: Vec<String>,
 }
 
 impl TxRunner<'_> {
@@ -356,15 +358,15 @@ impl TxRunner<'_> {
         dispatch: &str,
         order: &Value,
         base: &str,
-        entry: &Value,
-        record: Option<&StateRecord>,
-        reqs: &[Requirement],
+        entries: &[&Value],
+        records: &BTreeMap<String, StateRecord>,
+        reqs: &[Vec<Requirement>],
         claims: &Claims,
+        protected: &[String],
     ) -> AResult<PathBuf> {
         let env = self.env;
         let area_rel = format!(".spec/run/{dispatch}");
         let area = c.dir.join(&area_rel);
-        let address = entry["address"].as_str().unwrap_or_default();
         let decls = declarations(env.graph);
         // Resources keep the pre-edit bytes of each manifest item, so they match its digest.
         let mut resources = BTreeMap::new();
@@ -396,70 +398,61 @@ impl TxRunner<'_> {
                 }
             }
         }
-        let mut records = BTreeMap::new();
-        if let Some(r) = record {
-            records.insert(address.to_string(), r.clone());
-        }
-        let outputs = self.outputs_of(address, &records, claims);
-        let own: BTreeSet<String> = outputs.iter().map(|(_, p)| p.clone()).collect();
-        let decl = decls.get(address).copied().unwrap_or(&Value::Null);
-        let module = decl["module"].as_str().unwrap_or_default();
-        let mut visible: BTreeSet<String> = decls
-            .values()
-            .filter(|d| d["exported"] == true || d["module"] == module)
-            .filter_map(|d| d["address"].as_str().map(String::from))
-            .collect();
-        visible.insert(address.to_string());
-        for e in decl["edges"].as_array().into_iter().flatten() {
-            if let Some(t) = e["target"].as_str().filter(|t| decls.contains_key(*t)) {
-                visible.insert(t.to_string());
+        let mut subjects = Vec::new();
+        let mut checks = Vec::new();
+        for (e, bound) in entries.iter().zip(reqs) {
+            let address = e["address"].as_str().unwrap_or_default();
+            let mut own = BTreeMap::new();
+            if let Some(r) = record_for(records, e) {
+                own.insert(address.to_string(), r.clone());
             }
-        }
-        let mut expected: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
-        for r in reqs {
-            for (o, case) in &r.tests {
-                expected
-                    .entry(o.clone())
-                    .or_default()
-                    .entry(case.clone())
-                    .or_default();
+            let outputs = self.outputs_of(address, &own, claims);
+            let decl = decls.get(address).copied().unwrap_or(&Value::Null);
+            let mut expected: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+            for r in bound {
+                for (o, case) in &r.tests {
+                    expected
+                        .entry(o.clone())
+                        .or_default()
+                        .entry(case.clone())
+                        .or_default();
+                }
             }
+            let exports: Vec<String> = kind_body(env.project, decl)
+                .into_iter()
+                .flat_map(|b| b.members.iter())
+                .filter(|m| m.name.text == "exports")
+                .flat_map(|m| match &m.value {
+                    MemberValue::Section(s) => {
+                        s.members.iter().map(|e| e.name.text.clone()).collect()
+                    }
+                    _ => vec![],
+                })
+                .collect();
+            let mut obligations = vec!["verify".to_string()];
+            if bound.iter().any(|r| r.policy.review || r.policy.tests) {
+                obligations.push("review".into());
+            }
+            subjects.push(crate::mcp::McpSubject {
+                address: address.to_string(),
+                kind: decl["kind"].as_str().unwrap_or_default().to_string(),
+                obligations,
+                outputs,
+                exports,
+                roots: env
+                    .mats
+                    .get(address)
+                    .map(|m| m.roots.clone())
+                    .unwrap_or_default(),
+                requirements: bound.iter().map(|r| r.member.clone()).collect(),
+                expected_cases: expected,
+            });
+            checks.extend(
+                resolve_checks(env.project, decl)
+                    .into_iter()
+                    .map(|d| (address.to_string(), d)),
+            );
         }
-        let exports: Vec<String> = kind_body(env.project, decl)
-            .into_iter()
-            .flat_map(|b| b.members.iter())
-            .filter(|m| m.name.text == "exports")
-            .flat_map(|m| match &m.value {
-                MemberValue::Section(s) => s.members.iter().map(|e| e.name.text.clone()).collect(),
-                _ => vec![],
-            })
-            .collect();
-        let mut obligations = vec!["verify".to_string()];
-        if reqs.iter().any(|r| r.policy.review || r.policy.tests) {
-            obligations.push("review".into());
-        }
-        let subject = crate::mcp::McpSubject {
-            address: address.to_string(),
-            kind: decl["kind"].as_str().unwrap_or_default().to_string(),
-            obligations,
-            outputs,
-            exports,
-            roots: env
-                .mats
-                .get(address)
-                .map(|m| m.roots.clone())
-                .unwrap_or_default(),
-            requirements: reqs.iter().map(|r| r.member.clone()).collect(),
-            imports: crate::imports::policy_for(
-                env.project,
-                env.graph,
-                env.mats,
-                own,
-                address,
-                &c.dir,
-            ),
-            expected_cases: expected,
-        };
         let context = crate::mcp::McpContext {
             dispatch: dispatch.to_string(),
             order: format!("{area_rel}/order.json"),
@@ -467,12 +460,9 @@ impl TxRunner<'_> {
             logs: format!("{}/logs", self.tx_area_rel()),
             base: base.to_string(),
             resources,
-            visible,
-            subjects: vec![subject],
-            checks: resolve_checks(env.project, decl)
-                .into_iter()
-                .map(|d| (address.to_string(), d))
-                .collect(),
+            subjects,
+            protected: protected.to_vec(),
+            checks,
             profile: self.options.profile.clone(),
             check_timeout_seconds: self.options.check_timeout.as_secs(),
         };
@@ -486,49 +476,6 @@ impl TxRunner<'_> {
         let path = area.join("mcp-config.json");
         write_json(&path, &config)?;
         Ok(path)
-    }
-
-    /// The allowed-import rule on the frozen candidate.
-    fn check_import_rule(
-        &self,
-        c: &Candidate,
-        snapshot: &str,
-        attempt: u32,
-        changed: &[&Value],
-        records: &BTreeMap<String, StateRecord>,
-        claims: &Claims,
-    ) -> AResult<Option<Value>> {
-        let env = self.env;
-        let diff: BTreeSet<String> = c
-            .diff_from_base()?
-            .into_iter()
-            .filter(|ch| !matches!(ch, Change::Deleted(_)))
-            .map(|ch| ch.path().to_string())
-            .collect();
-        let mut violations = Vec::new();
-        for e in changed.iter().filter(|e| e["change"] != "delete") {
-            let address = e["address"].as_str().unwrap_or_default();
-            let own: BTreeSet<String> = self
-                .outputs_of(address, records, claims)
-                .into_iter()
-                .map(|(_, p)| p)
-                .collect();
-            let files: Vec<String> = diff.iter().filter(|p| own.contains(*p)).cloned().collect();
-            let policy =
-                crate::imports::policy_for(env.project, env.graph, env.mats, own, address, &c.dir);
-            violations.extend(crate::imports::check_imports(&policy, &c.dir, &files));
-        }
-        if violations.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(failure(
-            attempt,
-            snapshot,
-            "import_violation",
-            "implementation",
-            &violations.join("; "),
-            None,
-        )))
     }
 
     fn entries(&self) -> Vec<&Value> {
@@ -653,7 +600,7 @@ impl TxRunner<'_> {
                 reason: "the plan needs an agent and no --agent command was given".into(),
             });
         }
-        let reqs: BTreeMap<String, Vec<Requirement>> = entries
+        let base_reqs: BTreeMap<String, Vec<Requirement>> = entries
             .iter()
             .filter_map(|e| e["address"].as_str())
             .chain(obligated.iter().map(String::as_str))
@@ -732,11 +679,15 @@ impl TxRunner<'_> {
             }
         }
         // Obligated declarations a review found nonconforming join the transaction as
-        // updates inside their contingent envelope (SPEC.md, Apply, step 4).
+        // updates inside their contingent envelope (docs/spec.md, Apply, step 4).
         let mut escalated: Vec<Value> = Vec::new();
+        let adopted = self.adopted_paths();
+        let mut inferred: BTreeSet<String> = BTreeSet::new();
         for attempt in 1..=max {
             let mut failures: Vec<Value> = Vec::new();
-            let attempt_base = c.freeze(&format!("spec: {} attempt {attempt} base", self.id))?;
+            for m in std::mem::take(&mut inferred) {
+                claims.tests.remove(&m);
+            }
             let coding: Vec<&Value> = agent_entries
                 .iter()
                 .copied()
@@ -744,8 +695,8 @@ impl TxRunner<'_> {
                 .collect();
             let changed_now: Vec<&Value> =
                 changed.iter().copied().chain(escalated.iter()).collect();
-            for e in &coding {
-                let address = e["address"].as_str().unwrap_or_default();
+            // One dispatch for the whole transaction: the agent sees every subject at once.
+            if !coding.is_empty() {
                 let dispatch = next_dispatch();
                 match self.run_agent(
                     c,
@@ -754,45 +705,62 @@ impl TxRunner<'_> {
                     attempt,
                     max,
                     &previous,
-                    e,
-                    record_of(e),
-                    reqs.get(address).map(Vec::as_slice).unwrap_or(&[]),
+                    &coding,
+                    &records,
+                    &base_reqs,
+                    &adopted,
                     &mut claims,
                 ) {
                     Ok(None) => {}
                     Ok(Some(f)) => failures.push(f),
                     Err(AgentStop::Blocked(why)) => {
                         return Ok(Outcome::Failed {
-                            reason: format!("{address} blocked: {why}"),
+                            reason: format!("blocked: {why}"),
                         })
                     }
                     Err(AgentStop::Error(e)) => return Err(e),
                 }
             }
             let snapshot = c.freeze(&format!("spec: {} attempt {attempt}", self.id))?;
-            let _ = attempt_base;
-            // Envelope and ownership on the frozen diff, then checks.
+            // Protected files, created outputs and the declarations the change reached.
+            let mut touched: BTreeSet<String> = BTreeSet::new();
             if failures.is_empty() {
-                if let Some(f) =
-                    self.check_envelope(c, &snapshot, attempt, &changed_now, &records, &claims)?
-                {
-                    failures.push(f);
+                match self.check_scope(
+                    c,
+                    &snapshot,
+                    attempt,
+                    &changed_now,
+                    &obligated,
+                    &records,
+                    &mut claims,
+                    &adopted,
+                )? {
+                    Ok(t) => touched = t,
+                    Err(f) => failures.push(f),
                 }
             }
-            if failures.is_empty() {
-                if let Some(f) =
-                    self.check_import_rule(c, &snapshot, attempt, &changed_now, &records, &claims)?
+            let mut reqs = base_reqs.clone();
+            for a in &touched {
+                if let Some(list) = decls
+                    .get(a.as_str())
+                    .and_then(|d| requirements(env.graph, d).ok())
                 {
-                    failures.push(f);
+                    reqs.insert(a.clone(), list);
                 }
             }
+            let checked: Vec<String> = obligated
+                .iter()
+                .cloned()
+                .chain(touched.iter().cloned())
+                .collect();
             let mut runs = Vec::new();
             if failures.is_empty() {
                 let (r, f, failed) = self.run_checks(
-                    c, &snapshot, attempt, &entries, &obligated, &reqs, &claims, &records,
+                    c, &snapshot, attempt, &entries, &checked, &reqs, &claims, &records,
                 )?;
                 runs = r;
                 failures.extend(f);
+                inferred = infer_tests(&reqs, &runs, &mut claims);
                 // A check that fails for an obligated declaration confirms a violation:
                 // it escalates to an update inside its contingent envelope.
                 let escalate: Vec<&String> = failed
@@ -833,7 +801,8 @@ impl TxRunner<'_> {
                     &snapshot,
                     &mut next_dispatch,
                     &entries,
-                    &obligated,
+                    &checked,
+                    &touched,
                     &reqs,
                     &claims,
                     &runs,
@@ -911,7 +880,7 @@ impl TxRunner<'_> {
                     .collect();
                 if retry.is_empty() || self.options.agent.is_none() || attempt == max {
                     return self.publish(
-                        c, &entries, &obligated, &reqs, &claims, &runs, &verdicts, &records,
+                        c, &entries, &checked, &reqs, &claims, &runs, &verdicts, &records,
                     );
                 }
                 for a in &escalate {
@@ -922,7 +891,7 @@ impl TxRunner<'_> {
                 }
                 for (a, m) in retry {
                     let member = m.split(' ').next().unwrap_or_default();
-                    let why = verdicts
+                    let mut why = verdicts
                         .get(member)
                         .filter(|v| v.coverage.as_deref() == Some("insufficient"))
                         .map(|v| {
@@ -932,6 +901,19 @@ impl TxRunner<'_> {
                             )
                         })
                         .unwrap_or_default();
+                    let unbound = claims.tests.get(member).is_none_or(Vec::is_empty)
+                        && records
+                            .get(a.as_str())
+                            .is_none_or(|rec| previous_tests(rec, member).is_empty());
+                    if unbound {
+                        why.push_str(&format!(
+                            "; no test covers it yet: a test case tagged `{}` in its test output does",
+                            crate::names::key(member)
+                        ));
+                        if !claims.notes.is_empty() {
+                            why.push_str(&format!(" (your result: {})", claims.notes.join("; ")));
+                        }
+                    }
                     failures.push(failure(
                         attempt,
                         &snapshot,
@@ -1033,7 +1015,7 @@ impl TxRunner<'_> {
         }
         let output: Value =
             serde_json::from_slice(&out.stdout).map_err(|e| format!("invalid output: {e}"))?;
-        if output["protocol"] != "intlang.generator/1"
+        if output["protocol"] != "sdlang.generator/1"
             || output["dispatch"] != json!(dispatch)
             || output["order_hash"] != input["binding"]["order_hash"]
         {
@@ -1090,7 +1072,7 @@ impl TxRunner<'_> {
                     let bytes = fs::read(c.dir.join(&staging).join(rel))
                         .map_err(|e| format!("staging/{rel}: {e}"))?;
                     if let Some(want) = f["digest"].as_str() {
-                        if intlang_canon::digest_bytes(&bytes) != want {
+                        if sdlang_canon::digest_bytes(&bytes) != want {
                             return Err(format!("{rel}: digest does not match the staged bytes"));
                         }
                     }
@@ -1115,37 +1097,54 @@ impl TxRunner<'_> {
         attempt: u32,
         max: u32,
         previous: &[Value],
-        entry: &Value,
-        record: Option<&StateRecord>,
-        reqs: &[Requirement],
+        entries: &[&Value],
+        records: &BTreeMap<String, StateRecord>,
+        reqs: &BTreeMap<String, Vec<Requirement>>,
+        adopted: &BTreeSet<String>,
         claims: &mut Claims,
     ) -> Result<Option<Value>, AgentStop> {
         let env = self.env;
-        let address = entry["address"].as_str().unwrap_or_default();
         let decls = declarations(env.graph);
-        let checks: Vec<Value> = decls
-            .get(address)
-            .map(|d| resolve_checks(env.project, d))
-            .unwrap_or_default()
+        let address_of = |e: &Value| e["address"].as_str().unwrap_or_default().to_string();
+        let label = entries
             .iter()
-            .map(
-                |d| json!({ "id": d.id, "definition_hash": d.definition_hash, "self_check": true }),
-            )
-            .collect();
-        let mut bound = reqs.to_vec();
-        for r in &mut bound {
-            if let Some(t) = claims.tests.get(&r.member) {
-                r.tests = t.clone();
-            } else if let Some(rec) = record {
-                r.tests = previous_tests(rec, &r.member);
+            .map(|e| address_of(e))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut checks: Vec<Value> = Vec::new();
+        let mut bound_all: Vec<Vec<Requirement>> = Vec::new();
+        for e in entries {
+            let address = address_of(e);
+            for d in decls
+                .get(address.as_str())
+                .map(|d| resolve_checks(env.project, d))
+                .unwrap_or_default()
+            {
+                if !checks.iter().any(|x| x["id"] == json!(d.id)) {
+                    checks.push(json!({ "id": d.id, "definition_hash": d.definition_hash, "self_check": true }));
+                }
             }
+            let record = record_for(records, e);
+            let mut bound = reqs.get(&address).cloned().unwrap_or_default();
+            for r in &mut bound {
+                if let Some(t) = claims.tests.get(&r.member) {
+                    r.tests = t.clone();
+                } else if let Some(rec) = record {
+                    r.tests = previous_tests(rec, &r.member);
+                }
+            }
+            bound_all.push(bound);
         }
-        let subjects = [Subject {
-            address,
-            entry,
-            record,
-            requirements: &bound,
-        }];
+        let subjects: Vec<Subject> = entries
+            .iter()
+            .zip(&bound_all)
+            .map(|(e, b)| Subject {
+                address: e["address"].as_str().unwrap_or_default(),
+                entry: e,
+                record: record_for(records, e),
+                requirements: b,
+            })
+            .collect();
         let order = orders::work_order(
             env,
             dispatch,
@@ -1165,7 +1164,14 @@ impl TxRunner<'_> {
             .dir
             .join(order["result_path"].as_str().unwrap_or_default());
         let command = self.options.agent.clone().unwrap_or_default();
-        let markdown = orders::render_work_order(&order, Some(&c.dir));
+        let protected: Vec<String> = adopted.iter().cloned().collect();
+        let guidance = skills(
+            env.project,
+            entries
+                .iter()
+                .filter_map(|e| decls.get(e["address"].as_str()?).copied()),
+        );
+        let markdown = orders::render_work_order(&order, Some(&c.dir), &protected, &guidance);
         let _ = fs::write(area.join("order.md"), &markdown);
         let mcp_config = self
             .write_mcp_context(
@@ -1173,10 +1179,11 @@ impl TxRunner<'_> {
                 dispatch,
                 &order,
                 input_snapshot,
-                entry,
-                record,
-                &bound,
+                entries,
+                records,
+                &bound_all,
                 claims,
+                &protected,
             )
             .map_err(AgentStop::Error)?;
         let finished = run_command(
@@ -1199,278 +1206,304 @@ impl TxRunner<'_> {
                 "timeout",
                 "protocol",
                 &format!(
-                    "{address}: the agent did not finish within {}s",
+                    "{label}: the agent did not finish within {}s",
                     self.options.agent_timeout.as_secs()
                 ),
                 None,
             )));
         }
-        // The protocol area is never part of the candidate's diff.
+        // The result is optional (docs/protocol.md, Result): without one, the candidate is the
+        // claim, and created outputs and test bindings are inferred from it.
         let snapshot = input_snapshot;
-        let Some(result) = read_json(&result_path) else {
-            return Ok(Some(failure(
-                attempt,
-                snapshot,
-                "result_missing",
-                "protocol",
-                &format!("{address}: no valid result at {}", order["result_path"]),
-                None,
-            )));
-        };
-        if result["schema"] != "intlang.result/1"
-            || result["dispatch"] != json!(dispatch)
-            || result["order_hash"] != order["binding"]["order_hash"]
+        let result = read_json(&result_path).unwrap_or_else(|| json!({}));
+        let echoes = |field: &str, want: &Value| result[field].is_null() || result[field] == *want;
+        if !echoes("dispatch", &json!(dispatch))
+            || !echoes("order_hash", &order["binding"]["order_hash"])
         {
             return Ok(Some(failure(
                 attempt,
                 snapshot,
                 "binding_mismatch",
                 "protocol",
-                &format!(
-                    "{address}: the result does not echo this order's dispatch and order_hash"
-                ),
+                &format!("{label}: the result names another order's dispatch or order_hash"),
                 None,
             )));
         }
         if result["status"] == "blocked" {
             return Err(AgentStop::Blocked(format!(
-                "{} ({})",
+                "{label}: {} ({})",
                 result["blocked"]["kind"].as_str().unwrap_or("unspecified"),
                 result["summary"].as_str().unwrap_or("")
             )));
         }
-        if result["status"] != "submitted" {
-            return Ok(Some(failure(
-                attempt,
-                snapshot,
-                "result_invalid",
-                "protocol",
-                &format!("{address}: status must be submitted or blocked"),
-                None,
-            )));
-        }
-        let members: BTreeSet<&str> = reqs.iter().map(|r| r.member.as_str()).collect();
-        for t in result["tests"].as_array().into_iter().flatten() {
-            let member = t["subject"]["requirement"].as_str().unwrap_or_default();
-            if !members.contains(member) || t["subject"]["target"] != json!(address) {
-                return Ok(Some(failure(
-                    attempt,
-                    snapshot,
-                    "result_invalid",
-                    "protocol",
-                    &format!(
-                        "{address}: tests name {member:?}, which is not a requirement of this order; name the requirement by its full member, one of: {}",
-                        members.iter().copied().collect::<Vec<_>>().join(", ")
-                    ),
-                    None,
-                )));
-            }
-            let tests: Vec<(String, String)> = t["tests"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|x| {
-                    Some((
-                        x["output"].as_str()?.to_string(),
-                        x["case"].as_str()?.to_string(),
-                    ))
-                })
-                .collect();
-            claims.tests.insert(member.to_string(), tests);
-        }
-        let roots = env
-            .mats
-            .get(address)
-            .map(|m| m.roots.clone())
-            .unwrap_or_default();
+        let mut notes: Vec<String> = Vec::new();
+        let addresses: Vec<String> = entries.iter().map(|e| address_of(e)).collect();
+        // Output claims: an owner may be left out when the subject or root says which.
         for o in result["outputs"].as_array().into_iter().flatten() {
-            let (Some(op), Some(owner), Some(key)) =
-                (o["op"].as_str(), o["owner"].as_str(), o["key"].as_str())
-            else {
+            let op = o["op"].as_str().unwrap_or("create");
+            let root = o["root"].as_str().unwrap_or_default();
+            let owner = match o["owner"].as_str() {
+                Some(owner) => addresses.iter().find(|a| a.as_str() == owner).cloned(),
+                None if addresses.len() == 1 => addresses.first().cloned(),
+                None => {
+                    let with_root: Vec<&String> = addresses
+                        .iter()
+                        .filter(|a| {
+                            env.mats
+                                .get(a.as_str())
+                                .is_some_and(|m| m.roots.contains_key(root))
+                        })
+                        .collect();
+                    (with_root.len() == 1).then(|| with_root[0].clone())
+                }
+            };
+            let (Some(owner), Some(key)) = (owner, o["key"].as_str()) else {
+                notes.push(format!(
+                    "an output claim names no subject of this order: {o}"
+                ));
                 continue;
             };
-            if owner != address {
-                return Ok(Some(failure(
-                    attempt,
-                    snapshot,
-                    "ownership_violation",
-                    "implementation",
-                    &format!("an output claim names {owner}, not a subject of this order"),
-                    None,
-                )));
+            let created = claims.created.entry(owner.clone()).or_default();
+            if op == "remove" {
+                created.remove(key);
+                continue;
             }
-            let created = claims.created.entry(address.to_string()).or_default();
-            match op {
-                "create" | "relocate" => {
-                    let root = o["root"].as_str().unwrap_or_default();
-                    let rel = o["relative_path"].as_str().unwrap_or_default();
-                    let Some(root_path) = roots.get(root) else {
-                        return Ok(Some(failure(
-                            attempt,
-                            snapshot,
-                            "ownership_violation",
-                            "implementation",
-                            &format!("{address}: {key} names unknown creation root {root}"),
-                            None,
-                        )));
-                    };
-                    if rel.is_empty() || rel.contains("..") || rel.starts_with('/') {
-                        return Ok(Some(failure(
-                            attempt,
-                            snapshot,
-                            "ownership_violation",
-                            "implementation",
-                            &format!("{address}: {key} has an invalid relative path"),
-                            None,
-                        )));
-                    }
-                    let path = format!("{root_path}{rel}");
-                    if op == "create" && (created.contains_key(key) || c_existed_at_base(c, &path))
-                    {
-                        return Ok(Some(failure(
-                            attempt,
-                            snapshot,
-                            "ownership_violation",
-                            "implementation",
-                            &format!("{address}: {key} at {path} is not new"),
-                            None,
-                        )));
-                    }
-                    created.insert(
-                        key.to_string(),
-                        Output {
-                            origin: "created".into(),
-                            path,
-                            bytes: String::new(),
-                            root: Some(root.into()),
-                            relative_path: Some(rel.into()),
-                        },
-                    );
-                }
-                "remove" => {
-                    created.remove(key);
-                }
-                _ => {}
+            let rel = o["relative_path"].as_str().unwrap_or_default();
+            let Some(root_path) = env.mats.get(&owner).and_then(|m| m.roots.get(root)) else {
+                notes.push(format!("{owner} has no creation root {root:?}"));
+                continue;
+            };
+            if rel.is_empty() || rel.contains("..") || rel.starts_with('/') {
+                notes.push(format!("{rel:?} is not a path under {root_path}"));
+                continue;
             }
-        }
-        // A test binding names one of this subject's outputs by its full member; anything
-        // else would bind to no test run, and the requirement would publish unverified.
-        let mut outputs: BTreeSet<String> = BTreeSet::new();
-        if let Some(m) = env.mats.get(address) {
-            outputs.extend(m.slots.keys().map(|k| format!("{address}#outputs.{k}")));
-        }
-        if let Some(r) = record {
-            outputs.extend(
-                r.outputs
-                    .iter()
-                    .filter(|(_, o)| o.origin == "created")
-                    .map(|(k, _)| format!("{address}#outputs.{k}")),
+            let path = format!("{root_path}{rel}");
+            if op == "create" && c_existed_at_base(c, &path) {
+                notes.push(format!(
+                    "{path} existed before this attempt, so it is not a new output"
+                ));
+                continue;
+            }
+            created.insert(
+                key.to_string(),
+                Output {
+                    origin: "created".into(),
+                    path,
+                    bytes: String::new(),
+                    root: Some(root.into()),
+                    relative_path: Some(rel.into()),
+                },
             );
         }
-        if let Some(created) = claims.created.get(address) {
-            outputs.extend(created.keys().map(|k| format!("{address}#outputs.{k}")));
-        }
+        // Test bindings, by full member or any unambiguous tail of it.
+        let members: Vec<(String, String)> = addresses
+            .iter()
+            .flat_map(|a| {
+                reqs.get(a)
+                    .into_iter()
+                    .flatten()
+                    .map(move |r| (a.clone(), r.member.clone()))
+            })
+            .collect();
         for t in result["tests"].as_array().into_iter().flatten() {
+            let name = t["subject"]["requirement"]
+                .as_str()
+                .or(t["requirement"].as_str())
+                .unwrap_or_default();
+            let target = t["subject"]["target"].as_str().or(t["target"].as_str());
+            let candidates = members
+                .iter()
+                .filter(|(a, _)| target.is_none_or(|x| x == a))
+                .map(|(_, m)| m.as_str());
+            let member = match crate::names::resolve(name, candidates) {
+                Ok(m) => m,
+                Err(why) => {
+                    notes.push(format!("requirement {why}"));
+                    continue;
+                }
+            };
+            let address = members
+                .iter()
+                .find(|(_, m)| *m == member)
+                .map(|(a, _)| a.clone())
+                .unwrap_or_default();
+            let mut outputs: BTreeSet<String> = BTreeSet::new();
+            if let Some(m) = env.mats.get(&address) {
+                outputs.extend(m.slots.keys().map(|k| format!("{address}#outputs.{k}")));
+            }
+            if let Some(r) = records.get(&address) {
+                outputs.extend(
+                    r.outputs
+                        .iter()
+                        .filter(|(_, o)| o.origin == "created")
+                        .map(|(k, _)| format!("{address}#outputs.{k}")),
+                );
+            }
+            if let Some(created) = claims.created.get(&address) {
+                outputs.extend(created.keys().map(|k| format!("{address}#outputs.{k}")));
+            }
+            let test_outputs: Vec<&str> = outputs
+                .iter()
+                .map(String::as_str)
+                .filter(|m| crate::names::key(m).contains("test"))
+                .collect();
+            let mut tests = Vec::new();
             for x in t["tests"].as_array().into_iter().flatten() {
-                let o = x["output"].as_str().unwrap_or_default();
-                if !outputs.contains(o) {
-                    return Ok(Some(failure(
-                        attempt,
-                        snapshot,
-                        "result_invalid",
-                        "protocol",
-                        &format!(
-                            "{address}: a test binding names output {o:?}, which is not an output of this subject; name it by its full member, one of: {}",
-                            outputs.iter().cloned().collect::<Vec<_>>().join(", ")
-                        ),
-                        None,
-                    )));
+                let Some(case) = x["case"].as_str() else {
+                    continue;
+                };
+                let output = match x["output"].as_str() {
+                    Some(o) => crate::names::resolve(o, outputs.iter().map(String::as_str)),
+                    None if test_outputs.len() == 1 => Ok(test_outputs[0].to_string()),
+                    None => Err(format!(
+                        "no output given for case {case:?}, and {address} has several"
+                    )),
+                };
+                match output {
+                    Ok(o) => tests.push((o, case.to_string())),
+                    Err(why) => notes.push(format!("test output {why}")),
                 }
             }
+            if !tests.is_empty() {
+                claims.tests.insert(member, tests);
+            }
         }
+        claims.notes = notes;
         Ok(None)
     }
 
+    /// Paths adopted from a hand edit in this transaction (`sdc plan --adopt`): their bytes
+    /// are the baseline, so no dispatch may change them.
+    fn adopted_paths(&self) -> BTreeSet<String> {
+        self.entries()
+            .iter()
+            .flat_map(|e| e["obligations"].as_array().into_iter().flatten())
+            .filter_map(|o| {
+                o["because"]
+                    .as_str()?
+                    .strip_prefix("adopt:")
+                    .map(String::from)
+            })
+            .collect()
+    }
+
+    /// The candidate's changes against what may not change and what they reach (docs/spec.md,
+    /// Ownership and drift). The agent may change any file the change needs. The spec, its
+    /// lock, packages and state, adopted files and frozen declarations' files are protected.
+    /// A new file under a creation root becomes a created output of that root's declaration
+    /// unless a result claimed it. A changed file owned by a declaration outside the
+    /// transaction makes it touched: it is checked, reviewed and recorded with the
+    /// transaction. Returns the touched declarations, or the failure.
     #[allow(clippy::too_many_arguments)]
-    fn check_envelope(
+    fn check_scope(
         &self,
         c: &Candidate,
         snapshot: &str,
         attempt: u32,
         changed: &[&Value],
+        obligated: &[String],
         records: &BTreeMap<String, StateRecord>,
-        claims: &Claims,
-    ) -> AResult<Option<Value>> {
+        claims: &mut Claims,
+        adopted: &BTreeSet<String>,
+    ) -> AResult<Result<BTreeSet<String>, Value>> {
         let env = self.env;
-        let mut writable: BTreeSet<String> = BTreeSet::new();
-        let mut deletable: BTreeSet<String> = BTreeSet::new();
-        let mut retained_roots: Vec<String> = Vec::new();
-        for e in changed {
-            let address = e["address"].as_str().unwrap_or_default();
-            let record = records.get(e["moved_from"].as_str().unwrap_or(address));
-            if e["change"] == "delete" {
-                for o in record.into_iter().flat_map(|r| r.outputs.values()) {
-                    deletable.insert(o.path.clone());
-                }
-                continue;
+        let decls = declarations(env.graph);
+        let in_tx: BTreeSet<&str> = changed
+            .iter()
+            .filter_map(|e| e["address"].as_str())
+            .chain(obligated.iter().map(String::as_str))
+            .collect();
+        let deleting: BTreeSet<&str> = changed
+            .iter()
+            .filter(|e| e["change"] == "delete")
+            .filter_map(|e| e["address"].as_str())
+            .collect();
+        let mut owner: BTreeMap<String, String> = BTreeMap::new();
+        for (a, r) in records {
+            for o in r.outputs.values() {
+                owner.insert(o.path.clone(), a.clone());
             }
-            if let Some(m) = env.mats.get(address) {
-                writable.extend(m.slots.values().cloned());
+        }
+        for (a, m) in env.mats {
+            for p in m.slots.values() {
+                owner.insert(p.clone(), a.clone());
             }
-            for o in record.into_iter().flat_map(|r| r.outputs.values()) {
-                writable.insert(o.path.clone());
-            }
-            for o in claims
-                .created
-                .get(address)
-                .into_iter()
-                .flat_map(|m| m.values())
-            {
-                writable.insert(o.path.clone());
-            }
-            if e["strategy"] == "generator" {
-                if let Some(d) = declarations(env.graph).get(address) {
-                    retained_roots.extend(retained_paths(env.project, d));
-                }
+        }
+        for (a, created) in &claims.created {
+            for o in created.values() {
+                owner.insert(o.path.clone(), a.clone());
             }
         }
         let mut violations = Vec::new();
+        let mut touched = BTreeSet::new();
         for change in c.diff_from_base()? {
             let path = change.path();
-            let ok = match &change {
-                Change::Deleted(p) => deletable.contains(p) || writable.contains(p),
-                _ => {
-                    writable.contains(path)
-                        || retained_roots.iter().any(|r| path.starts_with(r.as_str()))
-                }
-            };
-            if !ok {
-                violations.push(path.to_string());
+            if path == "sd.lock"
+                || path.starts_with("spec/")
+                || path.starts_with("spec-packages/")
+                || (path.starts_with(".spec/") && !path.starts_with(".spec/run/"))
+            {
+                violations.push(format!(
+                    "{path} (the spec, its lock, packages and state change only through spec)"
+                ));
+                continue;
             }
+            if adopted.contains(path) {
+                violations.push(format!(
+                    "{path} (adopted from a hand edit, so its bytes are the baseline)"
+                ));
+                continue;
+            }
+            if matches!(change, Change::Added(_)) && !owner.contains_key(path) {
+                if let Some((a, root, dir)) = creation_root(env.mats, path) {
+                    let rel = path[dir.len()..].to_string();
+                    let created = claims.created.entry(a.clone()).or_default();
+                    let key = new_key(&rel, created, env.mats.get(&a));
+                    created.insert(
+                        key,
+                        Output {
+                            origin: "created".into(),
+                            path: path.to_string(),
+                            bytes: String::new(),
+                            root: Some(root),
+                            relative_path: Some(rel),
+                        },
+                    );
+                    owner.insert(path.to_string(), a);
+                }
+            }
+            let Some(a) = owner.get(path) else {
+                continue;
+            };
+            if in_tx.contains(a.as_str())
+                || deleting.contains(a.as_str())
+                || !decls.contains_key(a.as_str())
+            {
+                continue;
+            }
+            if decls
+                .get(a.as_str())
+                .is_some_and(|d| d["lifecycle"] == "frozen")
+            {
+                violations.push(format!("{path} (owned by {a}, which is frozen)"));
+                continue;
+            }
+            touched.insert(a.clone());
+        }
+        // A created output whose file is gone is no longer an output.
+        for created in claims.created.values_mut() {
+            created.retain(|_, o| c.dir.join(&o.path).exists());
         }
         if violations.is_empty() {
-            return Ok(None);
+            return Ok(Ok(touched));
         }
-        let unclaimed: Vec<&String> = violations
-            .iter()
-            .filter(|p| {
-                env.mats
-                    .values()
-                    .any(|m| m.roots.values().any(|r| p.starts_with(r.as_str())))
-            })
-            .collect();
-        let kind = if unclaimed.is_empty() {
-            "envelope_violation"
-        } else {
-            "ownership_violation"
-        };
-        Ok(Some(failure(
+        Ok(Err(failure(
             attempt,
             snapshot,
-            kind,
+            "protected_changed",
             "implementation",
             &format!(
-                "changed outside the envelope or unclaimed: {}",
+                "changed files that must not change: {}",
                 violations.join(", ")
             ),
             None,
@@ -1620,7 +1653,7 @@ impl TxRunner<'_> {
                         );
                         if !run.log.is_empty() {
                             let hex =
-                                intlang_canon::digest_bytes(run.log.as_bytes())[7..19].to_string();
+                                sdlang_canon::digest_bytes(run.log.as_bytes())[7..19].to_string();
                             let logs = area.join("logs");
                             let _ = fs::create_dir_all(&logs);
                             let _ = fs::write(logs.join(format!("{hex}.log")), &run.log);
@@ -1663,7 +1696,7 @@ impl TxRunner<'_> {
         out.into_iter().collect()
     }
 
-    /// The digest of a run's input closure (SPEC.md, Currency).
+    /// The digest of a run's input closure (docs/spec.md, Currency).
     fn run_inputs(
         &self,
         c: &Candidate,
@@ -1692,6 +1725,7 @@ impl TxRunner<'_> {
         next_dispatch: &mut dyn FnMut() -> String,
         entries: &[&Value],
         obligated: &[String],
+        touched: &BTreeSet<String>,
         reqs: &BTreeMap<String, Vec<Requirement>>,
         claims: &Claims,
         runs: &[CheckRun],
@@ -1719,8 +1753,11 @@ impl TxRunner<'_> {
             .collect();
         for (address, list) in reqs {
             let record = records.get(address);
+            // A declaration the change reached outside its plan entry had its code changed,
+            // so it is reviewed like one being coded.
             let needs_review = coding.contains(address.as_str())
-                || reviewed_obligations.contains(address.as_str());
+                || reviewed_obligations.contains(address.as_str())
+                || touched.contains(address);
             let code: Vec<String> = self
                 .outputs_of(address, records, claims)
                 .into_iter()
@@ -1984,9 +2021,9 @@ impl TxRunner<'_> {
         };
         publish_records(&store, &c.dir, env.graph, env.docs, env.mats, &publish)?;
         if !acquired.is_empty() {
-            let mut pending = intlang_plan::pending_imports(&c.dir)?;
+            let mut pending = sdlang_plan::pending_imports(&c.dir)?;
             pending.retain(|a, _| !acquired.contains_key(a.as_str()));
-            intlang_plan::write_pending_imports(&c.dir, &pending)?;
+            sdlang_plan::write_pending_imports(&c.dir, &pending)?;
         }
         let names: Vec<&str> = entries
             .iter()
@@ -2028,12 +2065,12 @@ fn read_verdict(
 ) -> Result<ReadVerdict, String> {
     let verdict = read_json(path)
         .ok_or_else(|| format!("no valid JSON verdict at {}", order["verdict_path"]))?;
-    if verdict["schema"] != "intlang.review-verdict/1"
+    if verdict["schema"] != "sdlang.review-verdict/1"
         || verdict["dispatch"] != json!(dispatch)
         || verdict["order_hash"] != order["binding"]["order_hash"]
     {
         return Err(format!(
-            "the verdict must carry \"schema\": \"intlang.review-verdict/1\", \"dispatch\": \"{dispatch}\" and \"order_hash\": {}",
+            "the verdict must carry \"schema\": \"sdlang.review-verdict/1\", \"dispatch\": \"{dispatch}\" and \"order_hash\": {}",
             order["binding"]["order_hash"]
         ));
     }
@@ -2104,6 +2141,121 @@ fn read_verdict(
 enum AgentStop {
     Blocked(String),
     Error(ApplyError),
+}
+
+/// The skills the subjects' kinds name (`skills: [app_router]`), as `(name, text)` from
+/// their packages' manifests: guidance for the agent, never obligations.
+fn skills<'d>(project: &Project, decls: impl Iterator<Item = &'d Value>) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for decl in decls {
+        let (Some(body), Some(package)) = (kind_body(project, decl), kind_package(project, decl))
+        else {
+            continue;
+        };
+        let names: Vec<String> = crate::checks::names(crate::checks::field(body, "skills"))
+            .into_iter()
+            .map(|n| n.rsplit('.').next().unwrap_or(&n).to_string())
+            .collect();
+        let manifest: Value = fs::read_to_string(package.root.join("package.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        for name in names {
+            let label = format!("{}.{name}", package.import_name);
+            if out.iter().any(|(n, _)| *n == label) {
+                continue;
+            }
+            let Some(rel) = manifest["sdlang"]["skills"][&name].as_str() else {
+                continue;
+            };
+            if let Ok(text) = fs::read_to_string(package.root.join(rel)) {
+                out.push((label, text));
+            }
+        }
+    }
+    out
+}
+
+/// The state record an entry starts from: its previous address for a moved declaration.
+fn record_for<'r>(
+    records: &'r BTreeMap<String, StateRecord>,
+    e: &Value,
+) -> Option<&'r StateRecord> {
+    let from = e["moved_from"].as_str().or_else(|| e["address"].as_str())?;
+    records.get(from)
+}
+
+/// The declaration, root key and root directory of the deepest creation root holding `path`.
+fn creation_root(
+    mats: &BTreeMap<String, Materialisation>,
+    path: &str,
+) -> Option<(String, String, String)> {
+    mats.iter()
+        .flat_map(|(a, m)| m.roots.iter().map(move |(k, d)| (a, k, d)))
+        .filter(|(_, _, d)| path.starts_with(d.as_str()))
+        .max_by_key(|(_, _, d)| d.len())
+        .map(|(a, k, d)| (a.clone(), k.clone(), d.clone()))
+}
+
+/// A stable key for an inferred created output: its file stem in snake case, made unique
+/// among the declaration's slots and created outputs.
+fn new_key(rel: &str, created: &BTreeMap<String, Output>, mat: Option<&Materialisation>) -> String {
+    let stem = rel.rsplit('/').next().unwrap_or(rel);
+    let stem = stem.split('.').next().unwrap_or(stem);
+    let mut key: String = stem
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+    if key.is_empty() || key.starts_with(|ch: char| ch.is_ascii_digit()) {
+        key = format!("f_{key}");
+    }
+    let taken = |k: &str| created.contains_key(k) || mat.is_some_and(|m| m.slots.contains_key(k));
+    if !taken(&key) {
+        return key;
+    }
+    (2..)
+        .map(|n| format!("{key}_{n}"))
+        .find(|k| !taken(k))
+        .expect("an unused key")
+}
+
+/// Binds each tested requirement that no result bound to the cases tagged with its key in
+/// its declaration's test outputs (docs/protocol.md, Result). Returns the members it bound.
+fn infer_tests(
+    reqs: &BTreeMap<String, Vec<Requirement>>,
+    runs: &[CheckRun],
+    claims: &mut Claims,
+) -> BTreeSet<String> {
+    let mut bound = BTreeSet::new();
+    for (address, list) in reqs {
+        for r in list.iter().filter(|r| r.policy.tests) {
+            if claims.tests.contains_key(&r.member) {
+                continue;
+            }
+            let key = crate::names::key(&r.member);
+            let mut found: Vec<(String, String)> = runs
+                .iter()
+                .filter(|x| {
+                    x.subject.as_deref() == Some(address.as_str()) && x.cases.contains_key(key)
+                })
+                .filter_map(|x| Some((x.output.clone()?, key.to_string())))
+                .collect();
+            found.dedup();
+            if !found.is_empty() {
+                claims.tests.insert(r.member.clone(), found);
+                bound.insert(r.member.clone());
+            }
+        }
+    }
+    bound
 }
 
 fn copy_tree(from: &Path, to: &Path) {
@@ -2187,7 +2339,7 @@ fn previous_verdict(record: &StateRecord, member: &str) -> Option<Verdict> {
     })
 }
 
-fn generator_run(package: &intlang_graph::loader::Package, name: &str) -> Option<Vec<String>> {
+fn generator_run(package: &sdlang_graph::loader::Package, name: &str) -> Option<Vec<String>> {
     package
         .files
         .iter()
@@ -2201,7 +2353,7 @@ fn generator_run(package: &intlang_graph::loader::Package, name: &str) -> Option
                                 items
                                     .iter()
                                     .filter_map(|i| match i {
-                                        Expr::String(s) => Some(intlang_graph::scope::lit_text(s)),
+                                        Expr::String(s) => Some(sdlang_graph::scope::lit_text(s)),
                                         _ => None,
                                     })
                                     .collect(),
@@ -2215,28 +2367,4 @@ fn generator_run(package: &intlang_graph::loader::Package, name: &str) -> Option
             },
             _ => None,
         })
-}
-
-/// The retained roots a declaration's binding names.
-fn retained_paths(project: &Project, decl: &Value) -> Vec<String> {
-    let Some(body) = kind_body(project, decl) else {
-        return vec![];
-    };
-    let mut out = Vec::new();
-    for m in &body.members {
-        if let (true, MemberValue::Section(s)) = (m.name.text == "retains", &m.value) {
-            for r in &s.members {
-                if let MemberValue::Section(rs) = &r.value {
-                    for f in &rs.members {
-                        if let (true, MemberValue::Field(x)) = (f.name.text == "path", &f.value) {
-                            if let Expr::String(s) = &x.value {
-                                out.push(intlang_graph::scope::lit_text(s));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    out
 }

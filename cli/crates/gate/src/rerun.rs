@@ -1,13 +1,13 @@
-//! `spec check --rerun` (SPEC.md, Team workflow): reruns every test run the evidence
+//! `sdc check --rerun` (docs/spec.md, Team workflow): reruns every test run the evidence
 //! relies on, in a scratch worktree at HEAD, and reports any case whose outcome differs
 //! from the recorded one. It records nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
-use intlang_apply::checks::{resolve_checks, run_check, RunContext};
-use intlang_apply::workspace::Repo;
-use intlang_plan::state::declarations;
+use sdlang_apply::checks::{resolve_checks, run_check, RunContext};
+use sdlang_apply::workspace::Repo;
+use sdlang_plan::state::declarations;
 
 use crate::error::{GResult, GateError};
 use crate::findings::{CheckOptions, Finding, Loaded};

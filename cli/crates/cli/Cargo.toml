@@ -1,23 +1,24 @@
 [package]
-name = "intlang-cli"
-description = "The spec command-line tool for int lang"
+name = "sdlang-cli"
+description = "sdc, the command-line tool for sdlang"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "spec"
+name = "sdc"
 path = "src/main.rs"
 
 [dependencies]
-intlang-syntax.workspace = true
-intlang-canon.workspace = true
-intlang-graph.workspace = true
-intlang-plan.workspace = true
-intlang-apply.workspace = true
-intlang-gate.workspace = true
-intlang-adopt.workspace = true
+sdlang-syntax.workspace = true
+sdlang-canon.workspace = true
+sdlang-graph.workspace = true
+sdlang-plan.workspace = true
+sdlang-apply.workspace = true
+sdlang-gate.workspace = true
+sdlang-adopt.workspace = true
+sdlang-lsp.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

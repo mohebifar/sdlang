@@ -1,4 +1,4 @@
-# Profile trial-v1 (TRIAL.md, Setup): Node.js 22 on Debian bookworm, pinned by the digest
+# Profile trial-v1 (docs/trial.md, Setup): Node.js 22 on Debian bookworm, pinned by the digest
 # of its multi-arch index, with pnpm 10 and the Chromium build @playwright/test 1.65.1
 # drives. Checks and acceptance runs use it with --network none; only installing a
 # workspace's dependencies (tools/make-arm.sh) needs the network.

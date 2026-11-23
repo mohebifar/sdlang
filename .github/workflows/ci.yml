@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  msrv:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo check --workspace --locked
+
+  # The integration tests drive git, sh and python3 fixtures, so the full suite runs on
+  # Linux and macOS.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo test --workspace --locked
+      - name: The CLI's own spec lowers
+        run: cargo run --locked -q -p sdlang-cli -- graph . > /dev/null
+
+  # Windows: build everything, run the crates whose tests need no shell or Python, and
+  # check that the graph (whose hashes cover source paths) matches the one built on Linux.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: cli
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo build --workspace --all-targets --locked
+      - run: cargo test --locked -p sdlang-syntax -p sdlang-canon -p sdlang-graph -p sdlang-lsp
+      - run: target/debug/sdc graph . > graph-windows.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graph-windows
+          path: cli/graph-windows.json
+
+  same-graph:
+    needs: windows
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - uses: actions/download-artifact@v5
+        with:
+          name: graph-windows
+          path: cli
+      - run: cargo run --locked -q -p sdlang-cli -- graph . > graph-linux.json
+      - run: diff graph-linux.json graph-windows.json
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - run: python tools/check_examples.py
+
+  editor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+
+  adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm test
+        working-directory: adapters/nextjs
+      - name: npm packaging assembles
+        run: |
+          mkdir -p fake/aarch64-apple-darwin
+          printf 'stub' > fake/aarch64-apple-darwin/sdc
+          node packaging/npm/build.mjs --version 0.0.0 --binaries fake --out npm-out --allow-missing
+          for d in npm-out/*/; do (cd "$d" && npm pack --dry-run); done

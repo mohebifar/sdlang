@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use intlang_apply::{apply, ApplyOptions, Outcome};
+use sdlang_apply::{apply, ApplyOptions, Outcome};
 use serde_json::Value;
 
 fn fixture(rel: &str) -> PathBuf {
@@ -67,10 +67,10 @@ fn write_plan(root: &Path) -> Value {
 }
 
 fn write_plan_as(root: &Path, id: &str) -> Value {
-    let project = intlang_graph::loader::load(root).unwrap();
-    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let project = sdlang_graph::loader::load(root).unwrap();
+    let graph = sdlang_graph::lower::lower_project(&project).unwrap();
     let head = format!("git:{}", git(root, &["rev-parse", "HEAD"]).trim());
-    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+    let plan = sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root,
         project: &project,
         graph: &graph,
@@ -104,7 +104,7 @@ fn options(root: &Path, agent_env: &str, review_env: &str) -> ApplyOptions {
     o
 }
 
-fn outcomes(report: &intlang_apply::ApplyReport) -> Vec<(String, &'static str)> {
+fn outcomes(report: &sdlang_apply::ApplyReport) -> Vec<(String, &'static str)> {
     report
         .transactions
         .iter()
@@ -191,7 +191,7 @@ fn end_to_end() {
 }
 
 #[test]
-fn writes_outside_the_envelope_fail_and_dependents_skip_then_resume() {
+fn a_write_to_the_spec_fails_and_dependents_skip_then_resume() {
     let root = setup("envelope");
     let report = apply(&options(&root, "AGENT_MODE=escape AGENT_TARGET=hello", "")).unwrap();
     assert_eq!(
@@ -206,10 +206,10 @@ fn writes_outside_the_envelope_fail_and_dependents_skip_then_resume() {
         panic!()
     };
     assert!(
-        reason.contains("rogue.txt") && reason.contains("attempt 3 of 3"),
+        reason.contains("spec/rogue.txt") && reason.contains("attempt 3 of 3"),
         "{reason}"
     );
-    assert!(!root.join("rogue.txt").exists());
+    assert!(!root.join("spec/rogue.txt").exists());
     assert!(!root.join("notes/hello.txt").exists());
     assert!(root
         .join(".spec/run/p-test-01/r1/tx-2/failed.patch")
@@ -299,23 +299,63 @@ fn the_rendered_order_names_the_result_path_in_full() {
 }
 
 #[test]
-fn a_test_binding_to_a_bare_slot_key_is_rejected_and_retried() {
-    let root = setup("bare-output");
-    let log = root.parent().unwrap().join("bare-output.agent-log");
+fn short_names_in_a_result_resolve() {
+    let root = setup("short-names");
+    let log = root.parent().unwrap().join("short-names.agent-log");
     let _ = fs::remove_file(&log);
     let report = apply(&options(
         &root,
-        &format!("AGENT_MODE=bare_first AGENT_LOG={}", log.display()),
+        &format!("AGENT_MODE=short AGENT_LOG={}", log.display()),
         "",
     ))
     .unwrap();
     assert!(report.all_published(), "{report:?}");
-    let hello = dispatches(&log, "tx-2");
-    assert_eq!(hello.len(), 2, "{hello:?}");
-    let excerpt = hello[1]["excerpts"][0].as_str().unwrap();
-    assert!(
-        excerpt.contains("\"tests\"") && excerpt.contains("hello#outputs.tests"),
-        "{excerpt}"
+    assert_eq!(
+        dispatches(&log, "tx-2").len(),
+        1,
+        "no attempt is lost to a name"
+    );
+    let hello: Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".spec/state/hello.json")).unwrap())
+            .unwrap();
+    assert_eq!(hello["evidence"][0]["summary"], "tested");
+}
+
+#[test]
+fn without_a_result_tests_are_bound_by_their_case_key() {
+    let root = setup("no-result");
+    let report = apply(&options(&root, "AGENT_MODE=no_result", "")).unwrap();
+    assert!(report.all_published(), "{report:?}");
+    let hello: Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".spec/state/hello.json")).unwrap())
+            .unwrap();
+    assert_eq!(hello["evidence"][0]["summary"], "tested");
+    assert_eq!(
+        hello["evidence"][0]["coverage"]["tests"][0],
+        serde_json::json!({ "output": "hello#outputs.tests", "case": "greets" })
+    );
+}
+
+#[test]
+fn a_change_may_reach_other_files_and_their_owner_is_checked_with_it() {
+    let root = setup("reach");
+    let report = apply(&options(&root, "AGENT_MODE=reach AGENT_TARGET=bye", "")).unwrap();
+    assert!(report.all_published(), "{report:?}");
+    assert!(fs::read_to_string(root.join("notes/hello.txt"))
+        .unwrap()
+        .contains("seen by bye"));
+    assert!(root.join("extra.txt").exists());
+    // hello, reached by bye's transaction, was checked, reviewed and recorded with it.
+    let hello: Value =
+        serde_json::from_str(&fs::read_to_string(root.join(".spec/state/hello.json")).unwrap())
+            .unwrap();
+    assert_eq!(hello["provenance"]["transaction"], "tx-3");
+    assert_eq!(hello["evidence"][0]["summary"], "tested");
+    let again = write_plan_as(&root, "p-test-02");
+    assert_eq!(
+        again["entries"],
+        serde_json::json!([]),
+        "no drift is left behind"
     );
 }
 
@@ -351,12 +391,12 @@ fn an_interface_change_updates_its_consumer_in_the_same_transaction() {
     assert!(apply(&options(&root, "AGENT_MODE=good", ""))
         .unwrap()
         .all_published());
-    let app = root.join("spec/app.int");
+    let app = root.join("spec/app.sd");
     let text = fs::read_to_string(&app)
         .unwrap()
         .replace("title: \"Hello\"", "title: \"Hello there\"");
     fs::write(&app, text).unwrap();
-    git(&root, &["add", "spec/app.int"]);
+    git(&root, &["add", "spec/app.sd"]);
     git(&root, &["commit", "-q", "-m", "retitle hello"]);
     fs::remove_dir_all(root.join(".spec/journal")).unwrap();
     let plan = write_plan(&root);
@@ -452,7 +492,7 @@ fn a_candidate_links_the_installed_dependencies_and_git_ignores_the_link() {
         "module.exports = 1;\n",
     )
     .unwrap();
-    let repo = intlang_apply::workspace::Repo::open(&root).unwrap();
+    let repo = sdlang_apply::workspace::Repo::open(&root).unwrap();
     let head = repo.head().unwrap();
     let c = repo.candidate("deps-check", &head).unwrap();
     assert!(c.dir.join("node_modules/dep/index.js").is_file());
@@ -467,7 +507,7 @@ fn a_candidate_links_the_installed_dependencies_and_git_ignores_the_link() {
         &[
             "ls-tree",
             "--name-only",
-            intlang_apply::workspace::untagged(&snapshot),
+            sdlang_apply::workspace::untagged(&snapshot),
         ],
     );
     assert!(!tree.lines().any(|l| l == "node_modules"), "{tree}");
@@ -481,14 +521,14 @@ fn applied_then_edited_from(
     edit: impl Fn(&str) -> String,
 ) -> (PathBuf, Value) {
     let root = setup(name);
-    let app = root.join("spec/app.int");
+    let app = root.join("spec/app.sd");
     fs::write(&app, before(&fs::read_to_string(&app).unwrap())).unwrap();
     git(&root, &["add", "-A", "spec"]);
     git(&root, &["commit", "-q", "--allow-empty", "-m", "before"]);
     write_plan(&root);
     let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
     assert!(report.all_published(), "{:?}", report.transactions);
-    let app = root.join("spec/app.int");
+    let app = root.join("spec/app.sd");
     fs::write(&app, edit(&fs::read_to_string(&app).unwrap())).unwrap();
     git(&root, &["add", "-A", "spec"]);
     git(&root, &["commit", "-q", "-m", "edit"]);
@@ -593,7 +633,7 @@ fn a_nonconforming_obligation_escalates_inside_the_transaction() {
 }
 
 #[test]
-fn an_adopted_edit_whose_check_fails_escalates_and_is_repaired() {
+fn an_adopted_file_stays_as_edited_even_when_its_check_fails() {
     let root = setup("adopt-escalate");
     let report = apply(&options(&root, "AGENT_MODE=good", "")).unwrap();
     assert!(report.all_published(), "{:?}", report.transactions);
@@ -605,11 +645,11 @@ fn an_adopted_edit_whose_check_fails_escalates_and_is_repaired() {
     .unwrap();
     git(&root, &["add", "-A", "tests"]);
     git(&root, &["commit", "-q", "-m", "hand edit"]);
-    let project = intlang_graph::loader::load(&root).unwrap();
-    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let project = sdlang_graph::loader::load(&root).unwrap();
+    let graph = sdlang_graph::lower::lower_project(&project).unwrap();
     let head = format!("git:{}", git(&root, &["rev-parse", "HEAD"]).trim());
     let adopt: std::collections::BTreeSet<String> = ["tests/hello.json".to_string()].into();
-    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+    let plan = sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root: &root,
         project: &project,
         graph: &graph,
@@ -629,7 +669,15 @@ fn an_adopted_edit_whose_check_fails_escalates_and_is_repaired() {
         "",
     );
     let report = apply(&o).unwrap();
-    assert!(report.all_published(), "{:?}", report.transactions);
+    // The failing check escalates hello to an update, but the repair it needs is to the
+    // adopted file, which keeps the person's bytes: the transaction fails instead.
+    let Outcome::Failed { reason } = &report.transactions[0].1 else {
+        panic!("{:?}", report.transactions)
+    };
+    assert!(
+        reason.contains("tests/hello.json") && reason.contains("hand edit"),
+        "{reason}"
+    );
     let dispatch: Value =
         serde_json::from_str(fs::read_to_string(&log).unwrap().lines().next().unwrap()).unwrap();
     assert_eq!(
@@ -638,5 +686,5 @@ fn an_adopted_edit_whose_check_fails_escalates_and_is_repaired() {
     );
     assert!(fs::read_to_string(root.join("tests/hello.json"))
         .unwrap()
-        .contains("passed"));
+        .contains("failed"));
 }

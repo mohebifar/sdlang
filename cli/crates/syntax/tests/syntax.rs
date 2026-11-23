@@ -1,10 +1,10 @@
-//! Crate-level tests: the corpus of real `.int` source in the repository, and the
+//! Crate-level tests: the corpus of real `.sd` source in the repository, and the
 //! grammar cases from the reference checker (`tools/check_examples.py`).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use intlang_syntax::{diagnostics, lexer, parse};
+use sdlang_syntax::{diagnostics, lexer, parse};
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -43,7 +43,7 @@ fn int_files(dir: &Path, out: &mut Vec<PathBuf>) {
                 continue;
             }
             int_files(&path, out);
-        } else if path.extension().is_some_and(|e| e == "int") {
+        } else if path.extension().is_some_and(|e| e == "sd") {
             out.push(path);
         }
     }
@@ -61,7 +61,12 @@ fn corpus_parses() {
     let root = repo_root();
     let mut failures = Vec::new();
     let mut blocks = 0;
-    for doc in ["SPEC.md", "PROTOCOL.md", "EXTENSIONS.md", "TRIAL.md"] {
+    for doc in [
+        "docs/spec.md",
+        "docs/protocol.md",
+        "docs/extensions.md",
+        "docs/trial.md",
+    ] {
         let text = fs::read_to_string(root.join(doc)).unwrap();
         for (line, body) in spec_blocks(&text) {
             blocks += 1;
@@ -81,7 +86,7 @@ fn corpus_parses() {
         check(&name, &src, &mut failures);
     }
     assert!(blocks >= 30, "found only {blocks} spec blocks");
-    assert!(files.len() >= 9, "found only {} .int files", files.len());
+    assert!(files.len() >= 9, "found only {} .sd files", files.len());
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 

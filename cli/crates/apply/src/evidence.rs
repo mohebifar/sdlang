@@ -1,8 +1,8 @@
-//! Requirements, policies and evidence records (SPEC.md, Verification).
+//! Requirements, policies and evidence records (docs/spec.md, Verification).
 
 use std::collections::BTreeMap;
 
-use intlang_canon::digest;
+use sdlang_canon::digest;
 use serde_json::{json, Value};
 
 use crate::checks::CheckRun;

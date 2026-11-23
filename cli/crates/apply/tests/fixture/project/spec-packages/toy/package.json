@@ -1,10 +1,10 @@
 {
-  "name": "@intlang-local/toy",
+  "name": "@sdlang-local/toy",
   "version": "0.1.0",
   "private": true,
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "toy",
-    "entry": "./spec/index.int"
+    "entry": "./spec/index.sd"
   }
 }

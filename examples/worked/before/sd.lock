@@ -1,0 +1,10 @@
+{
+  "lock": "sdlang.lock/0",
+  "note": "Phase-3 stand-in for sd.lock (open item O.5): package identities and where their content is. Not the real lock format.",
+  "packages": [
+    { "id": "npm:@sdlang/nextjs", "path": "../packages/nextjs" },
+    { "id": "npm:better-auth", "path": "../packages/better-auth" },
+    { "id": "npm:drizzle", "path": "../packages/drizzle" },
+    { "id": "npm:ui-sdk", "path": "../packages/ui-sdk" }
+  ]
+}

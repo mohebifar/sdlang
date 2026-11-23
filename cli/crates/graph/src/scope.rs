@@ -1,4 +1,4 @@
-//! Per-module binding tables and path resolution (SPEC.md, "Scoping and resolution").
+//! Per-module binding tables and path resolution (docs/spec.md, "Scoping and resolution").
 //!
 //! A module's bindings are its declarations, types and lets, its imports, the project's
 //! capabilities and the core prelude. Two bindings with one name are an error; nothing
@@ -8,8 +8,8 @@
 use std::collections::BTreeMap;
 use std::path::Path as FsPath;
 
-use intlang_syntax::ast::{Exportable, ImportSource, Path, Span, Statement};
-use intlang_syntax::strings::{Part, StringLit};
+use sdlang_syntax::ast::{Exportable, ImportSource, Path, Span, Statement};
+use sdlang_syntax::strings::{Part, StringLit};
 
 use crate::error::{GResult, GraphError};
 use crate::loader::{Project, SourceFile};
@@ -449,7 +449,7 @@ impl<'p> Scope<'p> {
                     None => Err(GraphError::at(
                         file,
                         span,
-                        format!("package '{name}' is not in spec.lock"),
+                        format!("package '{name}' is not in sd.lock"),
                     )),
                 }
             }

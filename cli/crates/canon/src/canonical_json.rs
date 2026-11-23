@@ -1,4 +1,4 @@
-//! Canonical JSON text and sha256 digests (SPEC.md, "Projections and hashes").
+//! Canonical JSON text and sha256 digests (docs/spec.md, "Projections and hashes").
 //!
 //! No insignificant whitespace; UTF-8; every string and key NFC-normalised; keys sorted
 //! by Unicode code point, and two keys equal after NFC are an error; integers and

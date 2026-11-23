@@ -1,5 +1,5 @@
 {
-  "protocol": "intlang.check/1",
+  "protocol": "sdlang.check/1",
   "check": {
     "id": "nextjs.test",
     "definition_hash": "sha256:183e890ed86b1fdad9b7f84bd009872d4f0702aedd22e68631bdffc4ec7da8a0"

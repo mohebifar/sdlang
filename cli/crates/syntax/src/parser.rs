@@ -1,4 +1,4 @@
-//! Recursive-descent parser from tokens to the syntax tree, mirroring GRAMMAR.ebnf.
+//! Recursive-descent parser from tokens to the syntax tree, mirroring docs/grammar.ebnf.
 //!
 //! Line breaks are significant: a production accepts one only where the grammar says
 //! `Gap`, `NL+` or `Sep`. Parsing stops at the first error.

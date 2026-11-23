@@ -1,14 +1,14 @@
 [package]
-name = "intlang-graph"
-description = "Loads an int lang spec tree and its packages, resolves names and lowers to the canonical graph"
+name = "sdlang-graph"
+description = "Loads an sdlang spec tree and its packages, resolves names and lowers to the canonical graph"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-intlang-syntax.workspace = true
-intlang-canon.workspace = true
+sdlang-syntax.workspace = true
+sdlang-canon.workspace = true
 serde_json.workspace = true
 
 [lints]

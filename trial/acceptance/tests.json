@@ -1,5 +1,5 @@
 {
-  "note": "Every acceptance test of TRIAL.md: its kind, the edit that activates it and the edit that retires it (null: active to the end). Edits are ordered baseline, E1 ... E10.",
+  "note": "Every acceptance test of docs/trial.md: its kind, the edit that activates it and the edit that retires it (null: active to the end). Edits are ordered baseline, E1 ... E10.",
   "routes": {
     "baseline": { "index": "/tasks", "new": "/tasks/new", "about": "/about" },
     "E7": { "index": "/todo" }

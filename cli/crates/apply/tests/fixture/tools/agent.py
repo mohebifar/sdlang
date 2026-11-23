@@ -1,6 +1,8 @@
-# A scripted coding agent. AGENT_MODE: good | escape (writes rogue.txt for AGENT_TARGET) |
-# fail_first (first attempt writes failing tests) | bare_first (first attempt binds tests to the
-# bare slot key "tests", as a real agent once did). AGENT_LOG records each dispatch.
+# A scripted coding agent. AGENT_MODE: good | escape (writes spec/rogue.txt for AGENT_TARGET) |
+# reach (for AGENT_TARGET, also edits notes/hello.txt and writes the unmanaged extra.txt) |
+# fail_first (first attempt writes failing tests) | short (names requirements and outputs by
+# their keys, "greets" and "tests") | no_result (writes no result file). AGENT_LOG records each
+# dispatch.
 import json, os
 
 order = json.load(open(os.environ["SPEC_WORK_ORDER"]))
@@ -19,16 +21,22 @@ for s in order["subjects"]:
         else:
             open(path, "w").write("note " + addr + "\n")
     for r, k in zip(s["requirements"], keys):
-        bare = mode == "bare_first" and order["attempt"]["number"] == 1
-        output = "tests" if bare else addr + "#outputs.tests"
-        tests.append({"subject": r["subject"], "tests": [{"output": output, "case": k}]})
+        if mode == "short":
+            tests.append({"requirement": k, "tests": [{"output": "tests", "case": k}]})
+        else:
+            tests.append({"subject": r["subject"], "tests": [{"output": addr + "#outputs.tests", "case": k}]})
     if mode == "escape" and addr == target:
-        open("rogue.txt", "w").write("not mine\n")
-result = {"schema": "intlang.result/1", "dispatch": order["dispatch"],
+        os.makedirs("spec", exist_ok=True)
+        open("spec/rogue.txt", "w").write("not mine\n")
+    if mode == "reach" and addr == target:
+        open("notes/hello.txt", "a").write("seen by " + addr + "\n")
+        open("extra.txt", "w").write("a shared helper\n")
+result = {"schema": "sdlang.result/1", "dispatch": order["dispatch"],
           "order_hash": order["binding"]["order_hash"], "status": "submitted",
           "summary": "Wrote the note and its test cases.", "outputs": [], "tests": tests}
-os.makedirs(os.path.dirname(os.environ["SPEC_RESULT"]), exist_ok=True)
-json.dump(result, open(os.environ["SPEC_RESULT"], "w"))
+if mode != "no_result":
+    os.makedirs(os.path.dirname(os.environ["SPEC_RESULT"]), exist_ok=True)
+    json.dump(result, open(os.environ["SPEC_RESULT"], "w"))
 log = os.environ.get("AGENT_LOG")
 if log:
     with open(log, "a") as f:

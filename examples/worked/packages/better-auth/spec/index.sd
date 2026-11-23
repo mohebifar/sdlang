@@ -1,0 +1,17 @@
+// Example spec package for better-auth: the catalog behind
+// `use "better-auth" for authentication` in docs/spec.md's worked example.
+
+export type session = {
+  user_id: string
+  expires_at: timestamp
+}
+
+export extern entity User {
+  source: "better-auth#User"
+  summary: "A registered user"
+}
+
+export extern lib password_reset {
+  source: "better-auth#requestPasswordReset"
+  summary: "Sends a password reset email"
+}

@@ -1,9 +1,9 @@
-//! Canonical JSON, digests and declaration projections for int lang, matching
+//! Canonical JSON, digests and declaration projections for sdlang, matching
 //! `tools/canon.py` byte for byte.
 //!
 //! ```
 //! let value = serde_json::json!({ "b": 1, "a": 2 });
-//! assert_eq!(intlang_canon::canonical(&value).unwrap(), r#"{"a":2,"b":1}"#);
+//! assert_eq!(sdlang_canon::canonical(&value).unwrap(), r#"{"a":2,"b":1}"#);
 //! ```
 
 #![forbid(unsafe_code)]

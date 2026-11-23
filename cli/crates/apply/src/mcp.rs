@@ -1,7 +1,6 @@
-//! The MCP tool server of one dispatch (PROTOCOL.md, MCP tools): newline-delimited JSON-RPC
+//! The MCP tool server of one dispatch (docs/protocol.md, MCP tools): newline-delimited JSON-RPC
 //! 2.0 on stdio. It reads the dispatch's context file, `.spec/run/<dispatch>/mcp.json`,
-//! which the engine writes beside the order, and never writes state, widens the envelope
-//! or records evidence.
+//! which the engine writes beside the order, and never writes state or records evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -10,13 +9,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use intlang_canon::digest;
+use sdlang_canon::digest;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::checks::{run_check, CheckDef};
 use crate::error::{AResult, ApplyError};
-use crate::imports::{check_imports, ImportPolicy};
 
 /// One subject as the server sees it.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,7 +28,6 @@ pub struct McpSubject {
     /// Creation root key -> path.
     pub roots: BTreeMap<String, String>,
     pub requirements: Vec<String>,
-    pub imports: ImportPolicy,
     /// Expected test cases per test output member.
     pub expected_cases: BTreeMap<String, BTreeMap<String, Vec<String>>>,
 }
@@ -46,8 +43,10 @@ pub struct McpContext {
     /// The commit the agent started from.
     pub base: String,
     pub resources: BTreeMap<String, (String, String)>,
-    pub visible: BTreeSet<String>,
     pub subjects: Vec<McpSubject>,
+    /// Files no dispatch of this transaction may change, beyond the spec and its state.
+    #[serde(default)]
+    pub protected: Vec<String>,
     pub checks: Vec<(String, CheckDef)>,
     pub profile: String,
     pub check_timeout_seconds: u64,
@@ -123,7 +122,7 @@ fn tool_list() -> Value {
     let obj = |props: Value, required: &[&str]| json!({ "type": "object", "properties": props, "required": required, "additionalProperties": false });
     json!([
         { "name": "get_task", "description": "The order's subjects: obligations, owned outputs and entry points.", "inputSchema": obj(json!({}), &[]) },
-        { "name": "get_declaration", "description": "A projection of a declaration from the bound graph, if the subjects' edges or module visibility allow it, with its hash.",
+        { "name": "get_declaration", "description": "A projection of any declaration from the bound graph, with its hash.",
           "inputSchema": obj(json!({ "address": { "type": "string" }, "projection": { "enum": ["public", "behaviour", "context", "catalog"] } }), &["address", "projection"]) },
         { "name": "read_context", "description": "A manifest resource, paged; its bytes match the manifest digest.",
           "inputSchema": obj(json!({ "resource": { "type": "string", "pattern": "^ctx:[a-z0-9_-]+:[0-9a-f]{12}$" }, "cursor": { "type": ["string", "null"] } }), &["resource"]) },
@@ -131,7 +130,7 @@ fn tool_list() -> Value {
           "inputSchema": obj(json!({ "receipt": { "type": "string" }, "cursor": { "type": ["string", "null"] } }), &["receipt"]) },
         { "name": "run_self_check", "description": "Runs a check marked self_check on the current tree. Advisory: it never counts as evidence.",
           "inputSchema": obj(json!({ "check": { "type": "string" } }), &["check"]) },
-        { "name": "validate_result", "description": "Schema, binding, envelope, ownership and import problems of a draft result against the current tree.",
+        { "name": "validate_result", "description": "Optional. Problems that would fail a draft result against the current tree (unknown names, protected files changed), and notes on what else the change reaches.",
           "inputSchema": obj(json!({ "draft": { "type": "object" } }), &["draft"]) },
     ])
 }
@@ -151,17 +150,7 @@ impl Server {
                 let projection = args["projection"]
                     .as_str()
                     .ok_or("projection is required")?;
-                if !self.ctx.visible.contains(address) {
-                    let exists = self.graph["declarations"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .any(|d| d["address"] == address);
-                    return Ok(
-                        json!({ "error": if exists { "not_visible" } else { "not_found" } }),
-                    );
-                }
-                let docs = intlang_canon::documents(&self.graph).map_err(|e| e.to_string())?;
+                let docs = sdlang_canon::documents(&self.graph).map_err(|e| e.to_string())?;
                 let Some(d) = docs.declarations.get(address) else {
                     return Ok(json!({ "error": "not_found" }));
                 };
@@ -183,7 +172,7 @@ impl Server {
                     .get(resource)
                     .ok_or_else(|| format!("unknown resource {resource}"))?;
                 let bytes = fs::read(self.dir.join(path)).map_err(|e| e.to_string())?;
-                if intlang_canon::digest_bytes(&bytes) != *want {
+                if sdlang_canon::digest_bytes(&bytes) != *want {
                     return Err(format!("{resource} no longer matches its digest"));
                 }
                 let text = String::from_utf8_lossy(&bytes);
@@ -298,6 +287,7 @@ impl Server {
 
     fn validate(&self, draft: &Value) -> Value {
         let mut problems = Vec::new();
+        let mut notes = Vec::new();
         let mut problem = |stage: &str, path: Option<&str>, message: String| {
             let mut p = json!({ "stage": stage, "message": message });
             if let Some(path) = path {
@@ -305,175 +295,95 @@ impl Server {
             }
             problems.push(p);
         };
-        if draft["schema"] != "intlang.result/1" {
-            problem(
-                "schema",
-                Some("schema"),
-                "must be \"intlang.result/1\"".into(),
-            );
-        }
-        if !matches!(draft["status"].as_str(), Some("submitted" | "blocked")) {
+        if !draft["status"].is_null()
+            && !matches!(draft["status"].as_str(), Some("submitted" | "blocked"))
+        {
             problem(
                 "schema",
                 Some("status"),
                 "must be \"submitted\" or \"blocked\"".into(),
             );
         }
-        if !draft["summary"].is_string() {
-            problem(
-                "schema",
-                Some("summary"),
-                "a summary string is required".into(),
-            );
+        for (field, want) in [
+            ("dispatch", json!(self.ctx.dispatch)),
+            ("order_hash", self.order["binding"]["order_hash"].clone()),
+        ] {
+            if !draft[field].is_null() && draft[field] != want {
+                problem(
+                    "binding",
+                    Some(field),
+                    format!("leave it out, or make it {want}"),
+                );
+            }
         }
-        if draft["dispatch"] != json!(self.ctx.dispatch) {
-            problem(
-                "binding",
-                Some("dispatch"),
-                format!("must be {}", self.ctx.dispatch),
-            );
-        }
-        if draft["order_hash"] != self.order["binding"]["order_hash"] {
-            problem(
-                "binding",
-                Some("order_hash"),
-                format!("must be {}", self.order["binding"]["order_hash"]),
-            );
-        }
-        let members: BTreeSet<&str> = self
+        let members: Vec<&str> = self
             .ctx
             .subjects
             .iter()
             .flat_map(|s| s.requirements.iter().map(String::as_str))
             .collect();
         for t in draft["tests"].as_array().into_iter().flatten() {
-            let m = t["subject"]["requirement"].as_str().unwrap_or_default();
-            if !members.contains(m) {
-                problem(
-                    "schema",
-                    Some("tests"),
-                    format!(
-                        "{m:?} is not a requirement of this order; use its full member, one of: {}",
-                        members.iter().copied().collect::<Vec<_>>().join(", ")
-                    ),
-                );
-            }
-            // Each test output is one of the target's outputs, by its full member, or an
-            // output this draft creates for it.
-            let target = t["subject"]["target"].as_str().unwrap_or_default();
-            let mut outputs: BTreeSet<String> = self
+            let name = t["subject"]["requirement"]
+                .as_str()
+                .or(t["requirement"].as_str())
+                .unwrap_or_default();
+            let member = match crate::names::resolve(name, members.iter().copied()) {
+                Ok(m) => m,
+                Err(why) => {
+                    problem("names", Some("tests"), format!("requirement {why}"));
+                    continue;
+                }
+            };
+            let Some(s) = self
                 .ctx
                 .subjects
                 .iter()
-                .filter(|s| s.address == target)
-                .flat_map(|s| s.outputs.iter().map(|(member, _)| member.clone()))
-                .collect();
+                .find(|s| s.requirements.contains(&member))
+            else {
+                continue;
+            };
+            let mut outputs: Vec<String> = s.outputs.iter().map(|(m, _)| m.clone()).collect();
             outputs.extend(
                 draft["outputs"]
                     .as_array()
                     .into_iter()
                     .flatten()
-                    .filter(|o| o["owner"] == json!(target) && o["op"] != "remove")
+                    .filter(|o| o["op"] != "remove")
                     .filter_map(|o| o["key"].as_str())
-                    .map(|k| format!("{target}#outputs.{k}")),
+                    .map(|k| format!("{}#outputs.{k}", s.address)),
             );
             for x in t["tests"].as_array().into_iter().flatten() {
-                let o = x["output"].as_str().unwrap_or_default();
-                if !outputs.contains(o) {
-                    problem(
-                        "schema",
-                        Some("tests"),
-                        format!(
-                            "test output {o:?} is not an output of {target}; use its full member, one of: {}",
-                            outputs.iter().cloned().collect::<Vec<_>>().join(", ")
-                        ),
-                    );
-                }
-            }
-        }
-        let mut claimed: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-        for o in draft["outputs"].as_array().into_iter().flatten() {
-            let owner = o["owner"].as_str().unwrap_or_default();
-            let Some(s) = self.ctx.subjects.iter().find(|s| s.address == owner) else {
-                problem(
-                    "ownership",
-                    Some("outputs"),
-                    format!("{owner} is not a subject of this order"),
-                );
-                continue;
-            };
-            let root = o["root"].as_str().unwrap_or_default();
-            let rel = o["relative_path"].as_str().unwrap_or_default();
-            match s.roots.get(root) {
-                None => problem(
-                    "ownership",
-                    Some("outputs"),
-                    format!("{owner} has no creation root {root:?}"),
-                ),
-                Some(_) if rel.is_empty() || rel.contains("..") || rel.starts_with('/') => problem(
-                    "ownership",
-                    Some("outputs"),
-                    format!("{rel:?} is not a path under its root"),
-                ),
-                Some(path) => {
-                    let full = format!("{path}{rel}");
-                    if o["op"] != "remove" && !self.dir.join(&full).is_file() {
-                        problem(
-                            "ownership",
-                            Some("outputs"),
-                            format!("{full} does not exist"),
-                        );
+                if let Some(o) = x["output"].as_str() {
+                    if let Err(why) = crate::names::resolve(o, outputs.iter().map(String::as_str)) {
+                        problem("names", Some("tests"), format!("test output {why}"));
                     }
-                    claimed.entry(owner.to_string()).or_default().insert(full);
                 }
             }
         }
         let changed = changed(&self.dir, &self.ctx.base);
-        let writable: BTreeSet<String> = self
+        let own: BTreeSet<&str> = self
             .ctx
             .subjects
             .iter()
-            .flat_map(|s| s.outputs.iter().map(|(_, p)| p.clone()))
-            .chain(claimed.values().flatten().cloned())
+            .flat_map(|s| s.outputs.iter().map(|(_, p)| p.as_str()))
             .collect();
         for path in &changed {
-            if !writable.contains(path) {
-                let under_root = self
-                    .ctx
-                    .subjects
-                    .iter()
-                    .any(|s| s.roots.values().any(|r| path.starts_with(r.as_str())));
-                let stage = if under_root { "ownership" } else { "envelope" };
+            let spec = path == "sd.lock"
+                || path.starts_with("spec/")
+                || path.starts_with("spec-packages/")
+                || (path.starts_with(".spec/") && !path.starts_with(".spec/run/"));
+            if spec || self.ctx.protected.iter().any(|p| p == path) {
                 problem(
-                    stage,
+                    "protected",
                     Some(path),
-                    format!(
-                        "{path} changed but is {}",
-                        if under_root {
-                            "not claimed in outputs"
-                        } else {
-                            "outside the envelope"
-                        }
-                    ),
+                    format!("{path} must not change in this transaction"),
                 );
-            }
-        }
-        for s in &self.ctx.subjects {
-            let mut policy = s.imports.clone();
-            policy
-                .own
-                .extend(claimed.get(&s.address).into_iter().flatten().cloned());
-            let files: Vec<String> = changed
-                .iter()
-                .filter(|p| policy.own.contains(*p))
-                .cloned()
-                .collect();
-            for v in check_imports(&policy, &self.dir, &files) {
-                problem("imports", None, v);
+            } else if !own.contains(path.as_str()) {
+                notes.push(format!("{path} is outside the subjects' own files: allowed; the declaration that owns it, if any, is checked and reviewed with this transaction"));
             }
         }
         let snap = snapshot(&self.dir, &self.scratch());
-        json!({ "snapshot": snap, "valid": problems.is_empty(), "problems": problems })
+        json!({ "snapshot": snap, "valid": problems.is_empty(), "problems": problems, "notes": notes })
     }
 }
 
@@ -521,7 +431,7 @@ pub fn serve(
                     "initialize" => Ok(json!({
                         "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
                         "capabilities": { "tools": {} },
-                        "serverInfo": { "name": "spec", "version": env!("CARGO_PKG_VERSION") },
+                        "serverInfo": { "name": "sdc", "version": env!("CARGO_PKG_VERSION") },
                         "instructions": format!("Tools for dispatch {}. They read the bound graph and the order; none of them writes state or widens your envelope.", server.ctx.dispatch),
                     })),
                     "ping" => Ok(json!({})),

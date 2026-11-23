@@ -1,0 +1,221 @@
+# Builds a release. A pushed tag vX.Y.Z (matching cli/Cargo.toml) produces a draft GitHub
+# release with every artifact; publishing that draft runs publish.yml. Run by hand, this
+# builds the same artifacts and keeps them on the run without creating a release.
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' cli/Cargo.toml | head -n 1)
+          stale=$(grep -E '^sdlang-[a-z]+ = \{ path' cli/Cargo.toml | grep -v "version = \"$version\"" || true)
+          if [ -n "$stale" ]; then
+            echo "::error::path dependencies in cli/Cargo.toml do not use version $version: $stale"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            if [ "${tag#v}" != "$version" ]; then
+              echo "::error::tag $tag does not match version $version in cli/Cargo.toml"
+              exit 1
+            fi
+          else
+            tag="v$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, os: macos-latest, smoke: true }
+          - { target: x86_64-apple-darwin, os: macos-latest, smoke: false }
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, smoke: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, smoke: true }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, smoke: true, exe: .exe }
+          - { target: aarch64-pc-windows-msvc, os: windows-latest, smoke: false, exe: .exe }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        working-directory: cli
+        run: cargo build --release --locked -p sdlang-cli --target ${{ matrix.target }}
+      - name: Smoke test
+        if: matrix.smoke
+        run: cli/target/${{ matrix.target }}/release/sdc${{ matrix.exe }} --version
+      - name: Package
+        run: |
+          name=sdc-${{ matrix.target }}
+          bin=cli/target/${{ matrix.target }}/release/sdc${{ matrix.exe }}
+          mkdir -p stage out/archive out/binary/${{ matrix.target }}
+          cp "$bin" LICENSE-MIT LICENSE-APACHE README.md stage/
+          cp "$bin" out/binary/${{ matrix.target }}/
+          if [ -n "${{ matrix.exe }}" ]; then
+            archive=$name.zip
+            (cd stage && 7z a -tzip "../out/archive/$archive" ./*)
+          else
+            archive=$name.tar.gz
+            tar -czf "out/archive/$archive" -C stage sdc LICENSE-MIT LICENSE-APACHE README.md
+          fi
+          cd out/archive
+          if command -v sha256sum > /dev/null; then
+            sha256sum "$archive" > "$archive.sha256"
+          else
+            shasum -a 256 "$archive" > "$archive.sha256"
+          fi
+          cat "$archive.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.target }}
+          path: out/archive/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: out/binary/
+
+  vsix:
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Package
+        run: |
+          npm version "${{ needs.version.outputs.version }}" --no-git-tag-version --allow-same-version
+          npm pkg set repository.type=git "repository.url=https://github.com/${GITHUB_REPOSITORY}.git"
+          cp ../../LICENSE-MIT ../../LICENSE-APACHE .
+          npx vsce package --no-dependencies --skip-license -o "sdlang-${{ needs.version.outputs.version }}.vsix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: editors/vscode/*.vsix
+
+  npm:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: binary-*
+          path: binaries
+          merge-multiple: true
+      - name: Assemble @sdlang/cli and its platform packages
+        run: |
+          node packaging/npm/build.mjs --version "${{ needs.version.outputs.version }}" --binaries binaries --out npm-out
+          mkdir -p tarballs
+          for dir in npm-out/*/; do npm pack "$dir" --pack-destination tarballs; done
+      - name: Pack @sdlang/nextjs
+        working-directory: adapters/nextjs
+        run: |
+          # npm leaves symlinks out of a package, so the adapter's spec goes in as a file.
+          cp --remove-destination "$(readlink -f spec/index.sd)" spec/index.sd
+          cp ../../LICENSE-MIT ../../LICENSE-APACHE .
+          npm pkg set repository.type=git "repository.url=git+https://github.com/${GITHUB_REPOSITORY}.git" repository.directory=adapters/nextjs
+          npm pack --pack-destination ../../tarballs
+      - name: Check that @sdlang/cli finds and runs its platform binary
+        run: |
+          # Unpacked by hand: npm install would look for the unpublished platform packages.
+          mkdir -p try/node_modules/@sdlang/cli try/node_modules/@sdlang/cli-linux-x64
+          tar -xzf tarballs/sdlang-cli-linux-x64-*.tgz -C try/node_modules/@sdlang/cli-linux-x64 --strip-components 1
+          tar -xzf tarballs/sdlang-cli-[0-9]*.tgz -C try/node_modules/@sdlang/cli --strip-components 1
+          node try/node_modules/@sdlang/cli/bin/sdc.js --version
+      - run: tar -czf npm-packages.tar.gz -C tarballs .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages
+          path: npm-packages.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, build, vsix, npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: archive-*
+          path: assets
+          merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          name: vsix
+          path: assets
+      - uses: actions/download-artifact@v5
+        with:
+          name: npm-packages
+          path: assets
+      - name: Installers, Homebrew formula and checksums
+        run: |
+          node packaging/render.mjs --tag "${{ needs.version.outputs.tag }}" --archives assets --out assets
+          cat assets/*.sha256 > assets/SHA256SUMS
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          cat > notes.md <<EOF
+          Early preview: the language and the protocol will change.
+
+          Install in a project (pins the version):
+
+              npm install --save-dev @sdlang/cli
+
+          Or install sdc for your user:
+
+              curl -fsSL ${base}/sdc-installer.sh | sh
+
+              powershell -ExecutionPolicy Bypass -c "irm ${base}/sdc-installer.ps1 | iex"
+
+          Archives are not signed with an Apple Developer ID. A macOS archive downloaded with a
+          browser is quarantined; run \`xattr -d com.apple.quarantine sdc\` before the first run,
+          or use npm or the install script, which are not affected.
+          EOF
+          prerelease=""
+          case "$VERSION" in 0.*|*-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" assets/* --draft $prerelease --verify-tag \
+            --title "sdc $VERSION" --notes-file notes.md

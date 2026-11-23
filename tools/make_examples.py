@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate the protocol examples in examples/ for tx-4 (auth.login update) of the
-worked example in SPEC.md. Digests are sha256 of stable labels, so the files are
+worked example in docs/spec.md. Digests are sha256 of stable labels, so the files are
 reproducible; order_hash is computed exactly as the schema describes.
 
 Usage: python3 tools/make_examples.py
@@ -146,7 +146,7 @@ def work_order():
          "resource": res("code", "tests/app/login/page.test.ts"), "hash": d("bytes:page.test.ts"), "tokens": 1800},
     ]
     order = {
-        "schema": "intlang.work-order/1",
+        "schema": "sdlang.work-order/1",
         "dispatch": DISPATCH,
         "binding": {
             "order_hash": "",
@@ -172,7 +172,7 @@ def work_order():
                 "previous": PREVIOUS,
                 "diff": diff,
                 "resolution": {
-                    "nextjs.page": "npm:@intlang/nextjs::page",
+                    "nextjs.page": "npm:@sdlang/nextjs::page",
                     "ui.form": "npm:ui-sdk::Form", "ui.input": "npm:ui-sdk::Input",
                     "ui.button": "npm:ui-sdk::Button", "ui.link": "npm:ui-sdk::Link",
                     "sign_in": "auth.sign_in", "dashboard.home": "dashboard.home",
@@ -232,7 +232,7 @@ def work_order():
              "self_check": True},
         ],
         "result_path": ".spec/run/p-2026-11-18-01/r1/tx-4/1/result.json",
-        "tools": {"mcp": {"transport": "stdio", "command": ["spec", "mcp", "--dispatch", DISPATCH],
+        "tools": {"mcp": {"transport": "stdio", "command": ["sdc", "mcp", "--dispatch", DISPATCH],
                           "protocol": "2025-06-18"}},
         "limits": {"timeout_seconds": 1800, "result_max_bytes": 65536},
     }
@@ -244,7 +244,7 @@ def result(order):
     tests = [("forgot_link", "forgot_link"), ("redirects", "valid_credentials"),
              ("generic_error", "invalid_credentials"), ("busy_button", "busy_button")]
     return {
-        "schema": "intlang.result/1",
+        "schema": "sdlang.result/1",
         "dispatch": order["dispatch"],
         "order_hash": order["binding"]["order_hash"],
         "status": "submitted",
@@ -259,7 +259,7 @@ def result(order):
 
 def review_order():
     order = {
-        "schema": "intlang.review-order/1",
+        "schema": "sdlang.review-order/1",
         "dispatch": "p-2026-11-18-01/r1/tx-4/2",
         "binding": {
             "order_hash": "",
@@ -299,7 +299,7 @@ def review_order():
                          res("code", "candidate:tx-4:1:tests/app/login/page.test.ts")]},
         "verdict_path": ".spec/run/p-2026-11-18-01/r1/tx-4/2/verdict.json",
         "tools": {"mcp": {"transport": "stdio",
-                          "command": ["spec", "mcp", "--dispatch", "p-2026-11-18-01/r1/tx-4/2"],
+                          "command": ["sdc", "mcp", "--dispatch", "p-2026-11-18-01/r1/tx-4/2"],
                           "protocol": "2025-06-18"}},
     }
     order["binding"]["order_hash"] = order_hash(order)
@@ -308,7 +308,7 @@ def review_order():
 
 def review_verdict(order):
     return {
-        "schema": "intlang.review-verdict/1",
+        "schema": "sdlang.review-verdict/1",
         "dispatch": order["dispatch"],
         "order_hash": order["binding"]["order_hash"],
         "subjects": [{
@@ -328,7 +328,7 @@ def generator_io():
     decls_a = {x["address"]: x for x in GRAPH_AFTER["declarations"]}
     dispatch = "p-2026-11-18-01/r1/tx-1/1"
     inp = {
-        "protocol": "intlang.generator/1",
+        "protocol": "sdlang.generator/1",
         "dispatch": dispatch,
         "binding": {"order_hash": "", "plan_hash": d("plan:p-2026-11-18-01:r1"),
                     "input_snapshot": d("snapshot:baseline"), "graph_hash": d("graph:77d0"),
@@ -355,7 +355,7 @@ def generator_io():
     }
     inp["binding"]["order_hash"] = order_hash(inp)
     out = {
-        "protocol": "intlang.generator/1",
+        "protocol": "sdlang.generator/1",
         "dispatch": dispatch,
         "order_hash": inp["binding"]["order_hash"],
         "status": "written",

@@ -1,21 +1,21 @@
-//! The findings of `spec check` (SPEC.md, Team workflow) and how they are gathered.
+//! The findings of `sdc check` (docs/spec.md, Team workflow) and how they are gathered.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::time::Duration;
 
-use intlang_apply::checks::{resolve_checks, run_input_digest, Closure};
-use intlang_apply::evidence::requirements;
-use intlang_graph::loader::Project;
-use intlang_plan::materialise::{materialise, Materialisation};
-use intlang_plan::state::{declarations, file_digest, StateRecord, Store};
+use sdlang_apply::checks::{resolve_checks, run_input_digest, Closure};
+use sdlang_apply::evidence::requirements;
+use sdlang_graph::loader::Project;
+use sdlang_plan::materialise::{materialise, Materialisation};
+use sdlang_plan::state::{declarations, file_digest, StateRecord, Store};
 use serde_json::{json, Value};
 
 use crate::currency::{requirement_status, Status};
 use crate::error::{GResult, GateError};
 use crate::ownership::ownership_findings;
 
-/// Finding kinds, in the order SPEC.md's table lists them and findings print.
+/// Finding kinds, in the order docs/spec.md's table lists them and findings print.
 pub const KINDS: [&str; 6] = [
     "unapplied",
     "drift",
@@ -137,9 +137,9 @@ impl Loaded {
 
 fn load(options: &CheckOptions) -> GResult<(Loaded, Vec<(String, StateRecord)>)> {
     let root = &options.root;
-    let project = intlang_graph::loader::load(root).map_err(|e| GateError::new(e.render()))?;
+    let project = sdlang_graph::loader::load(root).map_err(|e| GateError::new(e.render()))?;
     let graph =
-        intlang_graph::lower::lower_project(&project).map_err(|e| GateError::new(e.render()))?;
+        sdlang_graph::lower::lower_project(&project).map_err(|e| GateError::new(e.render()))?;
     let mats = materialise(&project, &graph)?;
     let entries = Store::new(root).record_entries()?;
     let mut records = BTreeMap::new();
@@ -169,7 +169,7 @@ fn not_own(because: &str) -> bool {
 
 /// Declarations whose spec differs from what was applied, as the planner sees them.
 fn unapplied(options: &CheckOptions, loaded: &Loaded) -> GResult<Vec<Finding>> {
-    let plan = intlang_plan::plan(&intlang_plan::PlanInputs {
+    let plan = sdlang_plan::plan(&sdlang_plan::PlanInputs {
         root: &options.root,
         project: &loaded.project,
         graph: &loaded.graph,
@@ -289,7 +289,7 @@ fn evidence(
     Ok(out)
 }
 
-/// Managed declarations with no requirements of their own or from rules (SPEC.md,
+/// Managed declarations with no requirements of their own or from rules (docs/spec.md,
 /// Verification), except those whose outputs a generator produces.
 pub fn unspecified_addresses(
     graph: &Value,
@@ -344,7 +344,7 @@ pub fn check(options: &CheckOptions) -> GResult<Vec<Finding>> {
         out.push(Finding::new(
             "reconcile",
             ".spec/reconcile",
-            "a merge left state files to reconcile: run spec plan --reconcile".into(),
+            "a merge left state files to reconcile: run sdc plan --reconcile".into(),
         ));
     }
     let mut u = unspecified(&loaded)?;

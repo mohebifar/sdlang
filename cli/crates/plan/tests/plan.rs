@@ -4,8 +4,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use intlang_plan::state::{record_baseline, Store};
-use intlang_plan::{materialise::materialise, plan, PlanInputs};
+use sdlang_plan::state::{record_baseline, Store};
+use sdlang_plan::{materialise::materialise, plan, PlanInputs};
 use serde_json::{json, Value};
 
 fn repo(rel: &str) -> PathBuf {
@@ -34,9 +34,9 @@ fn baseline(name: &str) -> PathBuf {
     copy_dir(&repo("examples/worked/packages"), &base.join("packages"));
     let root = base.join("project");
     copy_dir(&repo("examples/worked/before"), &root);
-    let project = intlang_graph::loader::load(&root).unwrap();
+    let project = sdlang_graph::loader::load(&root).unwrap();
     let graph =
-        intlang_graph::lower::lower_project(&project).unwrap_or_else(|e| panic!("{}", e.render()));
+        sdlang_graph::lower::lower_project(&project).unwrap_or_else(|e| panic!("{}", e.render()));
     let mats = materialise(&project, &graph).unwrap();
     for (address, m) in &mats {
         for (slot, path) in &m.slots {
@@ -45,7 +45,7 @@ fn baseline(name: &str) -> PathBuf {
             fs::write(full, format!("// {address} {slot}\n")).unwrap();
         }
     }
-    let docs = intlang_canon::documents(&graph).unwrap();
+    let docs = sdlang_canon::documents(&graph).unwrap();
     record_baseline(&Store::new(&root), &root, &graph, &docs, &mats, None).unwrap();
     root
 }
@@ -56,9 +56,9 @@ fn replace_spec(root: &Path, from: &str) {
 }
 
 fn run(root: &Path) -> Value {
-    let project = intlang_graph::loader::load(root).unwrap();
+    let project = sdlang_graph::loader::load(root).unwrap();
     let graph =
-        intlang_graph::lower::lower_project(&project).unwrap_or_else(|e| panic!("{}", e.render()));
+        sdlang_graph::lower::lower_project(&project).unwrap_or_else(|e| panic!("{}", e.render()));
     plan(&PlanInputs {
         root,
         project: &project,
@@ -123,7 +123,7 @@ fn worked_plan() {
 #[test]
 fn module_prompt_change_is_review_only() {
     let root = baseline("module-prompt");
-    let module = root.join("spec/auth/module.int");
+    let module = root.join("spec/auth/module.sd");
     let text = fs::read_to_string(&module).unwrap();
     let edited = text.replace(
         "All auth screens use one centered card layout.",
@@ -190,7 +190,7 @@ fn greenfield_is_all_creates() {
 #[test]
 fn guidance_only_change_plans_nothing() {
     let root = baseline("guidance");
-    let login = root.join("spec/auth/login.int");
+    let login = root.join("spec/auth/login.sd");
     let text = fs::read_to_string(&login).unwrap();
     let edited = text.replace(
         "Use the library's email and password flow rather than custom hashing.",
@@ -254,7 +254,7 @@ fn incompatible_consumers_join_the_transaction() {
     let root = baseline("incompatible");
     edit(
         &root,
-        "spec/auth/login.int",
+        "spec/auth/login.sd",
         "output: authentication.session",
         "output: { ok: boolean }",
     );
@@ -277,7 +277,7 @@ fn observed_behaviour_gives_verify_and_review() {
     let root = baseline("observed");
     edit(
         &root,
-        "spec/auth/login.int",
+        "spec/auth/login.sd",
         "rate_limited: \"Too many attempts; try again later\"",
         "rate_limited: \"Slow down\"",
     );
@@ -309,7 +309,7 @@ fn observed_behaviour_gives_verify_and_review() {
 #[test]
 fn removed_declaration_is_deleted() {
     let root = baseline("delete");
-    fs::remove_file(root.join("spec/auth/signup.int")).unwrap();
+    fs::remove_file(root.join("spec/auth/signup.sd")).unwrap();
     let got = run(&root);
     assert_eq!(summary(&got), [s("auth.signup", "delete", "tx-1")]);
     assert_eq!(got["entries"][0]["identity"], "gone");
@@ -320,7 +320,7 @@ fn moved_declaration_keeps_its_record() {
     let root = baseline("moved");
     edit(
         &root,
-        "spec/auth/signup.int",
+        "spec/auth/signup.sd",
         "export nextjs.page signup {",
         "moved auth.signup -> auth.register\n\nexport nextjs.page register {",
     );
@@ -335,7 +335,7 @@ fn frozen_declaration_blocks_its_update() {
     let root = baseline("frozen");
     edit(
         &root,
-        "spec/auth/signup.int",
+        "spec/auth/signup.sd",
         "summary: \"Create an account\"",
         "summary: \"Create an account\"\n  lifecycle: \"frozen\"",
     );
@@ -366,8 +366,8 @@ fn adopting_a_drifted_file_reviews_it_instead_of_blocking() {
     let mut text = fs::read_to_string(&signup).unwrap();
     text.push_str("// edited by hand\n");
     fs::write(&signup, text).unwrap();
-    let project = intlang_graph::loader::load(&root).unwrap();
-    let graph = intlang_graph::lower::lower_project(&project).unwrap();
+    let project = sdlang_graph::loader::load(&root).unwrap();
+    let graph = sdlang_graph::lower::lower_project(&project).unwrap();
     let plan_with = |adopt: &[&str]| {
         let adopt: std::collections::BTreeSet<String> =
             adopt.iter().map(|s| s.to_string()).collect();

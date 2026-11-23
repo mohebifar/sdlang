@@ -1,7 +1,7 @@
 //! Selectors: their canonical form in the graph and their evaluation over declarations
-//! (EXTENSIONS.md, Rules and selectors).
+//! (docs/extensions.md, Rules and selectors).
 
-use intlang_syntax::ast::{Access, CompareOp, Operand, Predicate};
+use sdlang_syntax::ast::{Access, CompareOp, Operand, Predicate};
 use serde_json::Value;
 
 /// The predicate in canonical source form: single spaces, and every `and`, `or` and
@@ -226,10 +226,10 @@ fn segment(p: &[u8], t: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use intlang_syntax::ast::{Exportable, Expr, MemberValue, Statement};
+    use sdlang_syntax::ast::{Exportable, Expr, MemberValue, Statement};
 
     fn predicate(src: &str) -> Predicate {
-        let file = intlang_syntax::parse(&format!(
+        let file = sdlang_syntax::parse(&format!(
             "rule r {{\n  applies_to: select * where {src}\n}}\n"
         ))
         .unwrap();

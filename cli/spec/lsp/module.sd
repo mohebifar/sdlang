@@ -1,0 +1,66 @@
+import package "./spec-packages/rust" as rust
+import syntax
+import graph
+
+module {
+  summary: "The language server: editor support for .sd files over LSP"
+  prompt: """
+    Editors start it with `sdc lsp` and speak the language server protocol on stdio.
+    It reuses the parser and the graph crate's loader, scope and lowering, so what it
+    reports and where it navigates follow the compiler exactly. It never writes files;
+    renames are workspace edits the editor applies. Positions are UTF-16 offsets into the
+    editor's text; spans are byte offsets into the CRLF-normalised text.
+  """
+}
+
+export rust.crate lsp {
+  summary: "The sdlang-lsp crate"
+  uses: [text, docs, analysis, features, server]
+  expect {
+    hover: "hovering a reference shows the declaration's kind, address, summary and source; a requirement key shows its member address"
+    definition: "go to definition reaches declarations across modules, package kinds and externs, capabilities and mentions inside prose"
+    rename: "renaming a declaration edits every reference in every file and appends a moved statement from the old address to the new one"
+    completion: "completion offers a kind's fields at the start of a body line, the names in scope in a value, and a module's or package's names after a dot"
+    diagnostics: "syntax errors and the compiler's first error are published as diagnostics and cleared when fixed"
+    broken_buffer: "while a buffer does not parse, the rest of the project still navigates from its last text that parsed"
+  }
+}
+
+export lib text {
+  summary: "Line indexes: byte offsets to and from LSP positions in UTF-16; file URLs to paths"
+  expect {
+    utf16: "a character outside the basic plane counts as two units, and offsets round-trip through positions"
+  }
+}
+
+export lib docs {
+  summary: "Short documentation of keywords, core kinds, builtin types, core annotations and common fields"
+}
+
+export lib analysis {
+  summary: "One project's files, definitions, references, members, diagnostics and bindings"
+  uses: [syntax.parser, graph.loader, graph.scope, graph.lower]
+  prompt: """
+    When the project loads, names resolve through the compiler's scope; otherwise each
+    file is parsed alone and a name resolves to its module's declaration, then to the only
+    declaration with that name.
+  """
+  expect {
+    mentions: "each segment of an @@{path} mention in a string resolves like a path"
+    fallback: "a project with a file that does not parse still indexes every other file"
+  }
+}
+
+export lib features {
+  summary: "Hover, definition, references, highlights, rename, symbols, folding, semantic tokens and completion"
+  uses: [analysis, docs]
+}
+
+export lib server {
+  summary: "The protocol loop: buffers, one analysis per project root, requests and published diagnostics"
+  uses: [analysis, features, text]
+  prompt: """
+    A project root is the nearest directory above a file with a spec/ directory that is
+    not itself a package. A file outside any project is analysed alone.
+  """
+}

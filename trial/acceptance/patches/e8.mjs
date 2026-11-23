@@ -1,5 +1,5 @@
-// The E8 hand patch (TRIAL.md, E8), applied by the operator to every arm before E8:
-// the About heading becomes "About this app" and a paragraph "Built for the int lang
+// The E8 hand patch (docs/trial.md, E8), applied by the operator to every arm before E8:
+// the About heading becomes "About this app" and a paragraph "Built for the sdlang
 // trial." follows it. Usage: node patches/e8.mjs <arm dir> <where to save the patched copy>
 import fs from "node:fs";
 import path from "node:path";
@@ -21,7 +21,7 @@ const indent = (text.split("\n").find((l) => heading.test(l)) ?? "").match(/^\s*
 heading.lastIndex = 0;
 const patched = text.replace(
   heading,
-  `<h1>About this app</h1>\n${indent}<p>Built for the int lang trial.</p>`,
+  `<h1>About this app</h1>\n${indent}<p>Built for the sdlang trial.</p>`,
 );
 fs.writeFileSync(file, patched);
 fs.mkdirSync(path.dirname(save), { recursive: true });

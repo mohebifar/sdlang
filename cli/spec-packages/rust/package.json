@@ -1,11 +1,11 @@
 {
-  "name": "@intlang-local/rust",
+  "name": "@sdlang-local/rust",
   "version": "0.1.0",
   "private": true,
   "files": ["spec/"],
-  "intlang": {
+  "sdlang": {
     "format": 1,
     "name": "rust",
-    "entry": "./spec/index.int"
+    "entry": "./spec/index.sd"
   }
 }

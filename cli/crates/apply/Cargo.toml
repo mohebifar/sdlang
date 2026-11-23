@@ -1,18 +1,20 @@
 [package]
-name = "intlang-apply"
-description = "Applies an int lang plan: candidates, agents, generators, checks, reviews and publishing"
+name = "sdlang-apply"
+description = "Applies an sdlang plan: candidates, agents, generators, checks, reviews and publishing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-intlang-syntax.workspace = true
-intlang-canon.workspace = true
-intlang-graph.workspace = true
-intlang-plan.workspace = true
+sdlang-syntax.workspace = true
+sdlang-canon.workspace = true
+sdlang-graph.workspace = true
+sdlang-plan.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(unix)'.dependencies]
 rustix.workspace = true
 
 [dev-dependencies]

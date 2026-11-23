@@ -1,0 +1,6 @@
+import package "./spec-packages/web" as web
+
+project shop {
+  summary: "An existing app being adopted by sdc import's tests"
+  verify: "tested"
+}
